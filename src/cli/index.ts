@@ -1,20 +1,12 @@
+import process from "node:process";
+
 import { addSource } from "../add";
 import { getStatus, printStatus } from "../status";
+import { ExitCode } from "./exit-code";
+import { parseArgs } from "./parse-args";
+import type { CliOptions } from "./types";
 
 export const CLI_NAME = "docs-cache";
-
-export type CliOptions = {
-	config?: string;
-	cacheDir?: string;
-	offline: boolean;
-	failOnMiss: boolean;
-	concurrency?: number;
-	json: boolean;
-	timeoutMs?: number;
-};
-
-const COMMANDS = ["add", "sync", "status", "clean", "prune", "verify"] as const;
-type Command = (typeof COMMANDS)[number];
 
 const HELP_TEXT = `
 Usage: ${CLI_NAME} <command> [options]
@@ -37,110 +29,12 @@ Global options:
   --timeout-ms <n>
 `;
 
-const HELP_FLAGS = new Set(["-h", "--help", "help"]);
-const COMMAND_SET = new Set<string>(COMMANDS);
-
-const splitArgs = (args: string[]) => {
-	const commandIndex = args.findIndex((arg) => !arg.startsWith("-"));
-	if (commandIndex === -1) {
-		return { command: null, optionArgs: args };
-	}
-	const command = args[commandIndex];
-	const optionArgs = [
-		...args.slice(0, commandIndex),
-		...args.slice(commandIndex + 1),
-	];
-	return { command, optionArgs };
-};
-
-const readValue = (args: string[], index: number, flag: string) => {
-	const next = args[index + 1];
-	if (!next || next.startsWith("-")) {
-		throw new Error(`${flag} expects a value.`);
-	}
-	return { value: next, nextIndex: index + 1 };
-};
-
-const parseNumber = (value: string, label: string) => {
-	const parsed = Number(value);
-	if (!Number.isFinite(parsed) || parsed < 1) {
-		throw new Error(`${label} must be a positive number.`);
-	}
-	return parsed;
-};
-
-const parseOptions = (args: string[]) => {
-	const options: CliOptions = {
-		offline: false,
-		failOnMiss: false,
-		json: false,
-	};
-	const positionals: string[] = [];
-	for (let index = 0; index < args.length; index += 1) {
-		const arg = args[index];
-		if (!arg.startsWith("--")) {
-			positionals.push(arg);
-			continue;
-		}
-		const [flag, inlineValue] = arg.split("=", 2);
-		switch (flag) {
-			case "--config": {
-				const { value, nextIndex } = inlineValue
-					? { value: inlineValue, nextIndex: index }
-					: readValue(args, index, flag);
-				options.config = value;
-				index = nextIndex;
-				break;
-			}
-			case "--cache-dir": {
-				const { value, nextIndex } = inlineValue
-					? { value: inlineValue, nextIndex: index }
-					: readValue(args, index, flag);
-				options.cacheDir = value;
-				index = nextIndex;
-				break;
-			}
-			case "--offline":
-				options.offline = true;
-				break;
-			case "--fail-on-miss":
-				options.failOnMiss = true;
-				break;
-			case "--json":
-				options.json = true;
-				break;
-			case "--concurrency": {
-				const { value, nextIndex } = inlineValue
-					? { value: inlineValue, nextIndex: index }
-					: readValue(args, index, flag);
-				options.concurrency = parseNumber(value, "--concurrency");
-				index = nextIndex;
-				break;
-			}
-			case "--timeout-ms": {
-				const { value, nextIndex } = inlineValue
-					? { value: inlineValue, nextIndex: index }
-					: readValue(args, index, flag);
-				options.timeoutMs = parseNumber(value, "--timeout-ms");
-				index = nextIndex;
-				break;
-			}
-			default:
-				throw new Error(`Unknown option '${flag}'.`);
-		}
-	}
-	return { options, positionals };
-};
-
 const printHelp = () => {
 	process.stdout.write(HELP_TEXT.trimStart());
 };
 
-const isHelpRequest = (args: string[]) =>
-	args.length === 0 || args.some((arg) => HELP_FLAGS.has(arg));
-
 const runCommand = async (
-	command: Command,
+	command: string,
 	options: CliOptions,
 	positionals: string[],
 ) => {
@@ -179,45 +73,42 @@ const runCommand = async (
 	process.stdout.write(`${CLI_NAME} ${command}: not implemented yet.\n`);
 };
 
-export const main = async (args = process.argv.slice(2)) => {
-	if (isHelpRequest(args)) {
-		printHelp();
-		return;
-	}
-
-	const { command, optionArgs } = splitArgs(args);
-	if (!command || !COMMAND_SET.has(command)) {
-		process.stderr.write(
-			`${CLI_NAME}: unknown command${command ? ` '${command}'` : ""}.\n`,
-		);
-		printHelp();
-		process.exitCode = 1;
-		return;
-	}
-	if (HELP_FLAGS.has(command)) {
-		printHelp();
-		return;
-	}
-	let options: CliOptions;
-	let positionals: string[];
+/**
+ * The main entry point of the CLI
+ */
+export async function main(): Promise<void> {
 	try {
-		const parsed = parseOptions(optionArgs);
-		options = parsed.options;
-		positionals = parsed.positionals;
+		process.on("uncaughtException", errorHandler);
+		process.on("unhandledRejection", errorHandler);
+
+		const parsed = parseArgs();
+
+		if (parsed.help) {
+			printHelp();
+			process.exit(ExitCode.Success);
+		}
+
+		if (!parsed.command) {
+			printHelp();
+			process.exit(ExitCode.InvalidArgument);
+		}
+
+		if (parsed.command !== "add" && parsed.positionals.length > 0) {
+			process.stderr.write(`${CLI_NAME}: unexpected arguments.\n`);
+			printHelp();
+			process.exit(ExitCode.InvalidArgument);
+		}
+
+		await runCommand(parsed.command, parsed.options, parsed.positionals);
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		process.stderr.write(`${CLI_NAME}: ${message}\n`);
-		printHelp();
-		process.exitCode = 1;
-		return;
+		errorHandler(error as Error);
 	}
+}
 
-	if (command !== "add" && positionals.length > 0) {
-		process.stderr.write(`${CLI_NAME}: unexpected arguments.\n`);
-		printHelp();
-		process.exitCode = 1;
-		return;
-	}
+export { parseArgs } from "./parse-args";
 
-	await runCommand(command as Command, options, positionals);
-};
+function errorHandler(error: Error): void {
+	const message = error.message || String(error);
+	console.error(message);
+	process.exit(ExitCode.FatalError);
+}

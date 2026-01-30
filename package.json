@@ -12,9 +12,10 @@
 		"node": ">=18"
 	},
 	"bin": {
-		"docs-cache": "./dist/cli.cjs"
+		"docs-cache": "./bin/docs-cache.mjs"
 	},
 	"files": [
+		"bin",
 		"dist"
 	],
 	"scripts": {
@@ -23,7 +24,7 @@
 		"lint": "biome check .",
 		"prepublishOnly": "pnpm build",
 		"release": "bumpp && npm publish",
-		"test": "node --test",
+		"test": "pnpm build && node --test",
 		"size": "pnpm run build && size-limit",
 		"test:watch": "node --test --watch",
 		"typecheck": "tsc --noEmit",
