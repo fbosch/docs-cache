@@ -1,5 +1,6 @@
 import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import pc from "picocolors";
 import { symbols } from "./cli/symbols";
 import {
 	DEFAULT_CACHE_DIR,
@@ -10,6 +11,7 @@ import {
 import { fetchSource } from "./git/fetch-source";
 import { resolveRemoteCommit } from "./git/resolve-remote";
 import { readLock, resolveLockPath, writeLock } from "./lock";
+import { readManifest } from "./manifest";
 import { materializeSource } from "./materialize";
 import { resolveCacheDir } from "./paths";
 import { applyTargetDir } from "./targets";
@@ -19,6 +21,7 @@ type SyncOptions = {
 	cacheDirOverride?: string;
 	json: boolean;
 	lockOnly: boolean;
+	concurrency?: number;
 	sourceFilter?: string[];
 	timeoutMs?: number;
 };
@@ -164,13 +167,45 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		const defaults = plan.defaults;
 		const runFetch = deps.fetchSource ?? fetchSource;
 		const runMaterialize = deps.materializeSource ?? materializeSource;
-		for (const result of plan.results) {
-			if (result.status === "up-to-date") {
-				continue;
+		const hasDocs = async (id: string) => {
+			const sourceDir = path.join(plan.cacheDir, "sources", id);
+			if (!(await exists(sourceDir))) {
+				return false;
 			}
-			const source = plan.sources.find((entry) => entry.id === result.id);
-			if (!source) {
-				continue;
+			try {
+				const manifest = await readManifest(sourceDir);
+				return manifest.entries.length > 0;
+			} catch {
+				return false;
+			}
+		};
+		const jobs = await Promise.all(
+			plan.results.map(async (result) => {
+				const source = plan.sources.find((entry) => entry.id === result.id);
+				if (!source) {
+					return null;
+				}
+				const docsPresent = await hasDocs(result.id);
+				const needsMaterialize = result.status !== "up-to-date" || !docsPresent;
+				return needsMaterialize ? { result, source } : null;
+			}),
+		);
+		const filteredJobs = jobs.filter(Boolean) as Array<{
+			result: SyncResult;
+			source: (typeof plan.sources)[number];
+		}>;
+
+		const concurrency = options.concurrency ?? 4;
+		let index = 0;
+		const runNext = async () => {
+			const job = filteredJobs[index];
+			if (!job || !job.source) {
+				return;
+			}
+			index += 1;
+			const { result, source } = job;
+			if (!options.json) {
+				process.stdout.write(`${symbols.info} Fetching ${source.id}...\n`);
 			}
 			const fetch = await runFetch({
 				sourceId: source.id,
@@ -204,27 +239,60 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 				result.bytes = stats.bytes;
 				result.fileCount = stats.fileCount;
 				result.manifestSha256 = result.resolvedCommit;
+				if (!options.json) {
+					process.stdout.write(
+						`${symbols.success} Synced ${source.id} (${stats.fileCount} files)\n`,
+					);
+				}
 			} finally {
 				await fetch.cleanup();
 			}
-		}
+			await runNext();
+		};
+
+		await Promise.all(
+			Array.from(
+				{ length: Math.min(concurrency, filteredJobs.length) },
+				runNext,
+			),
+		);
 	}
 	const lock = await buildLock(plan, previous);
 	await writeLock(plan.lockPath, lock);
+	plan.lockExists = true;
 	return plan;
 };
 
 export const printSyncPlan = (
 	plan: Awaited<ReturnType<typeof getSyncPlan>>,
 ) => {
-	process.stdout.write(`Config: ${plan.configPath}\n`);
-	process.stdout.write(`${symbols.info} Cache dir: ${plan.cacheDir}\n`);
+	const rel = (value: string) =>
+		path.relative(process.cwd(), value) || path.basename(value);
+	const summary = {
+		upToDate: plan.results.filter((r) => r.status === "up-to-date").length,
+		changed: plan.results.filter((r) => r.status === "changed").length,
+		missing: plan.results.filter((r) => r.status === "missing").length,
+	};
 	process.stdout.write(
-		`${symbols.info} Lock: ${plan.lockPath} (${plan.lockExists ? "present" : "missing"})\n`,
+		`${symbols.info} ${plan.results.length} sources (${summary.upToDate} up-to-date, ${summary.changed} changed, ${summary.missing} missing)\n`,
 	);
+	process.stdout.write(`${symbols.info} Lock ${pc.gray(rel(plan.lockPath))}\n`);
+	const shortHash = (value: string | null) => (value ? value.slice(0, 7) : "-");
 	for (const result of plan.results) {
+		if (result.status === "up-to-date") {
+			process.stdout.write(
+				`${symbols.success} ${pc.cyan(result.id)} ${pc.dim("up-to-date")} ${pc.gray(shortHash(result.resolvedCommit))}\n`,
+			);
+			continue;
+		}
+		if (result.status === "changed") {
+			process.stdout.write(
+				`${symbols.warn} ${pc.cyan(result.id)} ${pc.dim("changed")} ${pc.gray(shortHash(result.lockCommit))} ${pc.dim("->")} ${pc.gray(shortHash(result.resolvedCommit))}\n`,
+			);
+			continue;
+		}
 		process.stdout.write(
-			`${symbols.info} ${result.id}: ${result.status} (${result.lockCommit ?? "-"} -> ${result.resolvedCommit})\n`,
+			`${symbols.warn} ${pc.cyan(result.id)} ${pc.dim("missing")} ${pc.gray(shortHash(result.resolvedCommit))}\n`,
 		);
 	}
 };

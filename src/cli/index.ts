@@ -224,7 +224,7 @@ export async function main(): Promise<void> {
 
 export { parseArgs } from "./parse-args";
 export { redactRepoUrl };
-export { runSync } from "../sync";
+export { printSyncPlan, runSync } from "../sync";
 
 function errorHandler(error: Error): void {
 	const message = error.message || String(error);

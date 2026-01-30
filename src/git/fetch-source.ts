@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -86,9 +87,9 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 };
 
 const archiveRepo = async (params: FetchParams) => {
-	const tmpRoot = path.join(params.cacheDir, "tmp");
-	await mkdir(tmpRoot, { recursive: true });
-	const tempDir = await mkdtemp(path.join(tmpRoot, `${params.sourceId}-`));
+	const tempDir = await mkdtemp(
+		path.join(tmpdir(), `docs-cache-${params.sourceId}-`),
+	);
 	try {
 		await runGitArchive(
 			params.repo,
@@ -113,9 +114,9 @@ export const fetchSource = async (params: FetchParams) => {
 			},
 		};
 	} catch {
-		const tmpRoot = path.join(params.cacheDir, "tmp");
-		await mkdir(tmpRoot, { recursive: true });
-		const tempDir = await mkdtemp(path.join(tmpRoot, `${params.sourceId}-`));
+		const tempDir = await mkdtemp(
+			path.join(tmpdir(), `docs-cache-${params.sourceId}-`),
+		);
 		try {
 			await cloneRepo(params, tempDir);
 			return {

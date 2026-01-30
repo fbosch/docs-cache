@@ -58,6 +58,13 @@ export const materializeSource = async (params: MaterializeParams) => {
 		manifest.push({ path: relNormalized, size: stats.size });
 	}
 
+	const manifestData = `${JSON.stringify(manifest, null, 2)}\n`;
+	await writeFile(
+		path.join(layout.sourceDir, "manifest.json"),
+		manifestData,
+		"utf8",
+	);
+
 	return {
 		bytes,
 		fileCount: manifest.length,
