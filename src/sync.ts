@@ -168,7 +168,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		const runFetch = deps.fetchSource ?? fetchSource;
 		const runMaterialize = deps.materializeSource ?? materializeSource;
 		const hasDocs = async (id: string) => {
-			const sourceDir = path.join(plan.cacheDir, "sources", id);
+			const sourceDir = path.join(plan.cacheDir, id);
 			if (!(await exists(sourceDir))) {
 				return false;
 			}
@@ -231,7 +231,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						source.targetDir,
 					);
 					await applyTargetDir({
-						sourceDir: path.join(plan.cacheDir, "sources", source.id),
+						sourceDir: path.join(plan.cacheDir, source.id),
 						targetDir: resolvedTarget,
 						mode: source.targetMode ?? defaults.targetMode,
 					});

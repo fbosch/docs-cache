@@ -14,6 +14,11 @@ pnpm.
 - Test: `pnpm test`
 - Typecheck: `pnpm typecheck`
 
+## Cache layout
+
+- Materialized sources live at `.docs/<id>/`.
+- Lock file lives next to `docs.config.json` as `docs.lock`.
+
 ## CLI architecture
 
 - Keep the CLI entrypoint in `src/cli/index.ts` with a `main()` export and

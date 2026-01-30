@@ -17,12 +17,10 @@ export const resolveCacheDir = (
 
 export const getCacheLayout = (cacheDir: string, sourceId: string) => {
 	const reposDir = path.join(cacheDir, "repos");
-	const sourcesDir = path.join(cacheDir, "sources");
-	const sourceDir = path.join(sourcesDir, sourceId);
+	const sourceDir = path.join(cacheDir, sourceId);
 	const indexPath = path.join(cacheDir, DEFAULT_INDEX_FILENAME);
 	return {
 		cacheDir,
-		sourcesDir,
 		sourceDir,
 		indexPath,
 	};

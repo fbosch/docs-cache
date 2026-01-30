@@ -58,7 +58,7 @@ test("sync materializes via mocked fetch", async () => {
 				cleanup: async () => undefined,
 			}),
 			materializeSource: async ({ cacheDir: cacheRoot, sourceId }) => {
-				const outDir = path.join(cacheRoot, "sources", sourceId);
+				const outDir = path.join(cacheRoot, sourceId);
 				await mkdir(outDir, { recursive: true });
 				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
 				return { bytes: 5, fileCount: 1 };
@@ -66,7 +66,7 @@ test("sync materializes via mocked fetch", async () => {
 		},
 	);
 
-	assert.equal(await exists(path.join(cacheDir, "sources", "local")), true);
+	assert.equal(await exists(path.join(cacheDir, "local")), true);
 	const lockRaw = await readFile(path.join(tmpRoot, "docs.lock"), "utf8");
 	const lock = JSON.parse(lockRaw);
 	assert.equal(lock.sources.local.resolvedCommit, "abc123");
@@ -119,7 +119,7 @@ test("sync re-materializes when docs missing even if commit unchanged", async ()
 	);
 
 	let materialized = false;
-	const manifestPath = path.join(cacheDir, "sources", "local", "manifest.json");
+	const manifestPath = path.join(cacheDir, "local", "manifest.json");
 	await runSync(
 		{
 			configPath,
@@ -139,7 +139,7 @@ test("sync re-materializes when docs missing even if commit unchanged", async ()
 			}),
 			materializeSource: async ({ cacheDir: cacheRoot, sourceId }) => {
 				materialized = true;
-				const outDir = path.join(cacheRoot, "sources", sourceId);
+				const outDir = path.join(cacheRoot, sourceId);
 				await mkdir(outDir, { recursive: true });
 				await writeFile(manifestPath, "[]\n", "utf8");
 				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");

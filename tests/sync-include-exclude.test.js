@@ -68,7 +68,7 @@ test("materialize respects include/exclude patterns", async () => {
 		},
 	);
 
-	const docsRoot = path.join(cacheDir, "sources", "local");
+	const docsRoot = path.join(cacheDir, "local");
 	assert.equal(await exists(path.join(docsRoot, "README.md")), true);
 	assert.equal(await exists(path.join(docsRoot, "docs", "guide.md")), true);
 	assert.equal(
@@ -124,6 +124,6 @@ test("exclude overrides include on overlap", async () => {
 		},
 	);
 
-	const docsRoot = path.join(cacheDir, "sources", "local");
+	const docsRoot = path.join(cacheDir, "local");
 	assert.equal(await exists(path.join(docsRoot, "docs", "guide.md")), false);
 });

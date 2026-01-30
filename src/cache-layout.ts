@@ -8,7 +8,6 @@ export const ensureCacheLayout = async (
 ) => {
 	const base = getCacheLayout(cacheDir, "tmp");
 	await mkdir(base.cacheDir, { recursive: true });
-	await mkdir(base.sourcesDir, { recursive: true });
 
 	await Promise.all(
 		sourceIds.map(async (sourceId) => {
