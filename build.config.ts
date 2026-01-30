@@ -4,6 +4,7 @@ export default defineBuildConfig({
 	entries: [{ input: "src/cli/index", name: "cli" }],
 	declaration: true,
 	clean: true,
+	externals: ["cac"],
 	rollup: {
 		emitCJS: false,
 	},
