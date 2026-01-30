@@ -45,7 +45,6 @@ test("printSyncPlan outputs summary and short hashes", () => {
 	}
 
 	assert.ok(output.includes("2 sources"));
-	assert.ok(output.includes("docs.lock"));
 	assert.ok(output.includes("alpha"));
 	assert.ok(output.includes("beta"));
 	assert.ok(output.includes("aaaaaaa"));

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-01-30T23:30:11.642Z",
+  "generatedAt": "2026-01-30T23:33:04.551Z",
   "toolVersion": "0.1.0",
   "sources": {
     "nixos": {
@@ -10,7 +10,7 @@
       "bytes": 149310,
       "fileCount": 27,
       "manifestSha256": "c1120016e4336c6c078fcf0ea2b9e69311e27a1f",
-      "updatedAt": "2026-01-30T23:30:11.642Z"
+      "updatedAt": "2026-01-30T23:33:04.551Z"
     },
     "dotfiles": {
       "repo": "https://github.com/fbosch/dotfiles.git",
@@ -19,7 +19,7 @@
       "bytes": 507467,
       "fileCount": 184,
       "manifestSha256": "25e1d8a5baddcf4484a41278f5c324be4c1cec44",
-      "updatedAt": "2026-01-30T23:30:11.642Z"
+      "updatedAt": "2026-01-30T23:33:04.551Z"
     }
   }
 }

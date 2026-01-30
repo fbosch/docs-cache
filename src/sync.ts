@@ -321,7 +321,6 @@ export const printSyncPlan = (
 	process.stdout.write(
 		`${symbols.info} ${plan.results.length} sources (${summary.upToDate} up-to-date, ${summary.changed} changed, ${summary.missing} missing)\n`,
 	);
-	process.stdout.write(`${symbols.info} Lock ${pc.gray(rel(plan.lockPath))}\n`);
 	const shortHash = (value: string | null) => (value ? value.slice(0, 7) : "-");
 	for (const result of plan.results) {
 		if (result.status === "up-to-date") {
