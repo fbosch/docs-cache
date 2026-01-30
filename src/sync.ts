@@ -15,6 +15,7 @@ import { readManifest } from "./manifest";
 import { materializeSource } from "./materialize";
 import { resolveCacheDir } from "./paths";
 import { applyTargetDir } from "./targets";
+import { verifyCache } from "./verify";
 
 type SyncOptions = {
 	configPath?: string;
@@ -179,83 +180,127 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 				return false;
 			}
 		};
-		const jobs = await Promise.all(
-			plan.results.map(async (result) => {
-				const source = plan.sources.find((entry) => entry.id === result.id);
-				if (!source) {
-					return null;
-				}
-				const docsPresent = await hasDocs(result.id);
-				const needsMaterialize = result.status !== "up-to-date" || !docsPresent;
-				return needsMaterialize ? { result, source } : null;
-			}),
-		);
-		const filteredJobs = jobs.filter(Boolean) as Array<{
-			result: SyncResult;
-			source: (typeof plan.sources)[number];
-		}>;
-
-		const concurrency = options.concurrency ?? 4;
-		let index = 0;
-		const runNext = async () => {
-			const job = filteredJobs[index];
-			if (!job || !job.source) {
-				return;
-			}
-			index += 1;
-			const { result, source } = job;
-			if (!options.json) {
-				process.stdout.write(`${symbols.info} Fetching ${source.id}...\n`);
-			}
-			const fetch = await runFetch({
-				sourceId: source.id,
-				repo: source.repo,
-				ref: source.ref,
-				resolvedCommit: result.resolvedCommit,
-				cacheDir: plan.cacheDir,
-				depth: source.depth ?? defaults.depth,
-				timeoutMs: options.timeoutMs,
-			});
-			try {
-				const stats = await runMaterialize({
-					sourceId: source.id,
-					repoDir: fetch.repoDir,
-					cacheDir: plan.cacheDir,
-					include: source.include ?? defaults.include,
-					exclude: source.exclude,
-					maxBytes: source.maxBytes ?? defaults.maxBytes,
-				});
-				if (source.targetDir) {
-					const resolvedTarget = path.resolve(
-						path.dirname(plan.configPath),
-						source.targetDir,
-					);
-					await applyTargetDir({
-						sourceDir: path.join(plan.cacheDir, source.id),
-						targetDir: resolvedTarget,
-						mode: source.targetMode ?? defaults.targetMode,
-					});
-				}
-				result.bytes = stats.bytes;
-				result.fileCount = stats.fileCount;
-				result.manifestSha256 = result.resolvedCommit;
-				if (!options.json) {
-					process.stdout.write(
-						`${symbols.success} Synced ${source.id} (${stats.fileCount} files)\n`,
-					);
-				}
-			} finally {
-				await fetch.cleanup();
-			}
-			await runNext();
+		const buildJobs = async (ids?: string[], force?: boolean) => {
+			const pick = ids?.length
+				? plan.results.filter((result) => ids.includes(result.id))
+				: plan.results;
+			const jobs = await Promise.all(
+				pick.map(async (result) => {
+					const source = plan.sources.find((entry) => entry.id === result.id);
+					if (!source) {
+						return null;
+					}
+					const docsPresent = await hasDocs(result.id);
+					const needsMaterialize =
+						force || result.status !== "up-to-date" || !docsPresent;
+					return needsMaterialize ? { result, source } : null;
+				}),
+			);
+			return jobs.filter(Boolean) as Array<{
+				result: SyncResult;
+				source: (typeof plan.sources)[number];
+			}>;
 		};
 
-		await Promise.all(
-			Array.from(
-				{ length: Math.min(concurrency, filteredJobs.length) },
-				runNext,
-			),
-		);
+		const runJobs = async (
+			jobs: Array<{
+				result: SyncResult;
+				source: (typeof plan.sources)[number];
+			}>,
+		) => {
+			const concurrency = options.concurrency ?? 4;
+			let index = 0;
+			const runNext = async () => {
+				const job = jobs[index];
+				if (!job || !job.source) {
+					return;
+				}
+				index += 1;
+				const { result, source } = job;
+				if (!options.json) {
+					process.stdout.write(`${symbols.info} Fetching ${source.id}...\n`);
+				}
+				const fetch = await runFetch({
+					sourceId: source.id,
+					repo: source.repo,
+					ref: source.ref,
+					resolvedCommit: result.resolvedCommit,
+					cacheDir: plan.cacheDir,
+					depth: source.depth ?? defaults.depth,
+					timeoutMs: options.timeoutMs,
+				});
+				try {
+					const stats = await runMaterialize({
+						sourceId: source.id,
+						repoDir: fetch.repoDir,
+						cacheDir: plan.cacheDir,
+						include: source.include ?? defaults.include,
+						exclude: source.exclude,
+						maxBytes: source.maxBytes ?? defaults.maxBytes,
+					});
+					if (source.targetDir) {
+						const resolvedTarget = path.resolve(
+							path.dirname(plan.configPath),
+							source.targetDir,
+						);
+						await applyTargetDir({
+							sourceDir: path.join(plan.cacheDir, source.id),
+							targetDir: resolvedTarget,
+							mode: source.targetMode ?? defaults.targetMode,
+						});
+					}
+					result.bytes = stats.bytes;
+					result.fileCount = stats.fileCount;
+					result.manifestSha256 = result.resolvedCommit;
+					if (!options.json) {
+						process.stdout.write(
+							`${symbols.success} Synced ${source.id} (${stats.fileCount} files)\n`,
+						);
+					}
+				} finally {
+					await fetch.cleanup();
+				}
+				await runNext();
+			};
+
+			await Promise.all(
+				Array.from({ length: Math.min(concurrency, jobs.length) }, runNext),
+			);
+		};
+
+		const initialJobs = await buildJobs();
+		await runJobs(initialJobs);
+		const verifyReport = await verifyCache({
+			configPath: plan.configPath,
+			cacheDirOverride: plan.cacheDir,
+			json: true,
+		});
+		const failed = verifyReport.results.filter((result) => !result.ok);
+		if (failed.length > 0) {
+			const retryJobs = await buildJobs(
+				failed.map((result) => result.id),
+				true,
+			);
+			if (retryJobs.length > 0) {
+				await runJobs(retryJobs);
+			}
+			const retryReport = await verifyCache({
+				configPath: plan.configPath,
+				cacheDirOverride: plan.cacheDir,
+				json: true,
+			});
+			const stillFailed = retryReport.results.filter((result) => !result.ok);
+			if (stillFailed.length > 0) {
+				if (!options.json) {
+					const details = stillFailed
+						.map((result) => `${result.id} (${result.issues.join("; ")})`)
+						.join(", ");
+					process.stdout.write(
+						`${symbols.warn} Verify failed for ${stillFailed.length} source(s): ${details}\n`,
+					);
+				}
+			}
+		}
 	}
 	const lock = await buildLock(plan, previous);
 	await writeLock(plan.lockPath, lock);

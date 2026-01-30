@@ -5,6 +5,7 @@ import { addSources } from "../add";
 import { redactRepoUrl } from "../git/redact";
 import { getStatus, printStatus } from "../status";
 import { printSyncPlan, runSync } from "../sync";
+import { printVerify, verifyCache } from "../verify";
 import { ExitCode } from "./exit-code";
 import { parseArgs } from "./parse-args";
 import { symbols } from "./symbols";
@@ -175,6 +176,22 @@ const runCommand = async (
 		}
 		return;
 	}
+	if (command === "verify") {
+		const report = await verifyCache({
+			configPath: options.config,
+			cacheDirOverride: options.cacheDir,
+			json: options.json,
+		});
+		if (options.json) {
+			process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+		} else {
+			printVerify(report);
+		}
+		if (report.results.some((result) => !result.ok)) {
+			process.exit(ExitCode.FatalError);
+		}
+		return;
+	}
 	process.stdout.write(`${CLI_NAME} ${command}: not implemented yet.\n`);
 };
 
@@ -225,6 +242,7 @@ export async function main(): Promise<void> {
 export { parseArgs } from "./parse-args";
 export { redactRepoUrl };
 export { printSyncPlan, runSync } from "../sync";
+export { verifyCache } from "../verify";
 
 function errorHandler(error: Error): void {
 	const message = error.message || String(error);

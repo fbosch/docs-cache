@@ -80,9 +80,6 @@ export const printStatus = (status: Awaited<ReturnType<typeof getStatus>>) => {
 	process.stdout.write(
 		`${symbols.info} Cache dir: ${status.cacheDir} (${cacheState})\n`,
 	);
-	process.stdout.write(
-		`${symbols.info} Lock: ${status.lockPath} (${lockState})\n`,
-	);
 	for (const source of status.sources) {
 		const docsState = source.docsExists ? "present" : "missing";
 		const lockStateLabel = source.lockEntry ? "present" : "missing";

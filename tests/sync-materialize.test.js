@@ -60,6 +60,10 @@ test("sync materializes via mocked fetch", async () => {
 			materializeSource: async ({ cacheDir: cacheRoot, sourceId }) => {
 				const outDir = path.join(cacheRoot, sourceId);
 				await mkdir(outDir, { recursive: true });
+				await writeFile(
+					path.join(outDir, "manifest.json"),
+					JSON.stringify([{ path: "README.md", size: 5 }], null, 2),
+				);
 				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
 				return { bytes: 5, fileCount: 1 };
 			},
@@ -119,6 +123,7 @@ test("sync re-materializes when docs missing even if commit unchanged", async ()
 	);
 
 	let materialized = false;
+	let attempt = 0;
 	const manifestPath = path.join(cacheDir, "local", "manifest.json");
 	await runSync(
 		{
@@ -139,9 +144,11 @@ test("sync re-materializes when docs missing even if commit unchanged", async ()
 			}),
 			materializeSource: async ({ cacheDir: cacheRoot, sourceId }) => {
 				materialized = true;
+				attempt += 1;
 				const outDir = path.join(cacheRoot, sourceId);
 				await mkdir(outDir, { recursive: true });
-				await writeFile(manifestPath, "[]\n", "utf8");
+				const entries = attempt === 1 ? [] : [{ path: "README.md", size: 5 }];
+				await writeFile(manifestPath, JSON.stringify(entries, null, 2));
 				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
 				return { bytes: 5, fileCount: 1 };
 			},
