@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export type CacheMode = "materialize" | "sparse";
@@ -53,6 +53,20 @@ export interface DocsCacheResolvedSource {
 }
 
 export const DEFAULT_CONFIG_FILENAME = "docs.config.json";
+export const DEFAULT_CACHE_DIR = ".docs";
+export const DEFAULT_CONFIG: DocsCacheConfig = {
+	version: 1,
+	cacheDir: DEFAULT_CACHE_DIR,
+	defaults: {
+		ref: "HEAD",
+		mode: "materialize",
+		depth: 1,
+		required: true,
+		maxBytes: 200000000,
+		allowHosts: ["github.com", "gitlab.com"],
+	},
+	sources: [],
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
@@ -232,10 +246,21 @@ export const resolveSources = (
 		integrity: source.integrity,
 	}));
 
-export const loadConfig = async (configPath?: string) => {
-	const resolvedPath = configPath
+export const resolveConfigPath = (configPath?: string) =>
+	configPath
 		? path.resolve(configPath)
 		: path.resolve(process.cwd(), DEFAULT_CONFIG_FILENAME);
+
+export const writeConfig = async (
+	configPath: string,
+	config: DocsCacheConfig,
+) => {
+	const data = `${JSON.stringify(config, null, 2)}\n`;
+	await writeFile(configPath, data, "utf8");
+};
+
+export const loadConfig = async (configPath?: string) => {
+	const resolvedPath = resolveConfigPath(configPath);
 	let raw: string;
 	try {
 		raw = await readFile(resolvedPath, "utf8");

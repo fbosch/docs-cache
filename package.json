@@ -12,7 +12,7 @@
 		"node": ">=18"
 	},
 	"bin": {
-		"docs-cache": "./dist/cli/index.cjs"
+		"docs-cache": "./dist/cli.cjs"
 	},
 	"files": [
 		"dist"
@@ -24,24 +24,30 @@
 		"prepublishOnly": "pnpm build",
 		"release": "bumpp && npm publish",
 		"test": "node --test",
+		"size": "pnpm run build && size-limit",
 		"test:watch": "node --test --watch",
 		"typecheck": "tsc --noEmit",
 		"prepare": "simple-git-hooks"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.3.8",
+		"@size-limit/file": "^11.2.0",
 		"@types/node": "^24.2.1",
 		"bumpp": "^10.3.2",
 		"lint-staged": "^16.2.7",
-		"size-limit": "^11.2.0",
 		"simple-git-hooks": "^2.13.1",
+		"size-limit": "^11.2.0",
 		"typescript": "^5.9.3",
 		"unbuild": "^3.6.1"
 	},
 	"size-limit": [
 		{
 			"path": "dist/cli.cjs",
-			"limit": "10 KB"
+			"limit": "10 kB"
+		},
+		{
+			"path": "dist/cli.mjs",
+			"limit": "10 kB"
 		}
 	],
 	"simple-git-hooks": {

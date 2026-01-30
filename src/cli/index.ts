@@ -1,3 +1,6 @@
+import { addSource } from "../add";
+import { getStatus, printStatus } from "../status";
+
 export const CLI_NAME = "docs-cache";
 
 export type CliOptions = {
@@ -10,13 +13,14 @@ export type CliOptions = {
 	timeoutMs?: number;
 };
 
-const COMMANDS = ["sync", "status", "clean", "prune", "verify"] as const;
+const COMMANDS = ["add", "sync", "status", "clean", "prune", "verify"] as const;
 type Command = (typeof COMMANDS)[number];
 
 const HELP_TEXT = `
 Usage: ${CLI_NAME} <command> [options]
 
 Commands:
+  add     Add a source to the config
   sync    Synchronize cache with config
   status  Show cache status
   clean   Remove cache
@@ -65,16 +69,18 @@ const parseNumber = (value: string, label: string) => {
 	return parsed;
 };
 
-const parseOptions = (args: string[]): CliOptions => {
+const parseOptions = (args: string[]) => {
 	const options: CliOptions = {
 		offline: false,
 		failOnMiss: false,
 		json: false,
 	};
+	const positionals: string[] = [];
 	for (let index = 0; index < args.length; index += 1) {
 		const arg = args[index];
 		if (!arg.startsWith("--")) {
-			throw new Error(`Unknown argument '${arg}'.`);
+			positionals.push(arg);
+			continue;
 		}
 		const [flag, inlineValue] = arg.split("=", 2);
 		switch (flag) {
@@ -123,7 +129,7 @@ const parseOptions = (args: string[]): CliOptions => {
 				throw new Error(`Unknown option '${flag}'.`);
 		}
 	}
-	return options;
+	return { options, positionals };
 };
 
 const printHelp = () => {
@@ -133,9 +139,42 @@ const printHelp = () => {
 const isHelpRequest = (args: string[]) =>
 	args.length === 0 || args.some((arg) => HELP_FLAGS.has(arg));
 
-const runCommand = async (command: Command, options: CliOptions) => {
-	if (options) {
-		void options;
+const runCommand = async (
+	command: Command,
+	options: CliOptions,
+	positionals: string[],
+) => {
+	if (command === "add") {
+		const [id, repo] = positionals;
+		if (!id || !repo) {
+			throw new Error("Usage: docs-cache add <id> <repo>");
+		}
+		const result = await addSource({
+			configPath: options.config,
+			id,
+			repo,
+		});
+		if (options.json) {
+			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+		} else {
+			process.stdout.write(
+				`Added ${result.sourceId} -> ${result.sourceRepo} in ${result.configPath}\n`,
+			);
+		}
+		return;
+	}
+	if (command === "status") {
+		const status = await getStatus({
+			configPath: options.config,
+			cacheDirOverride: options.cacheDir,
+			json: options.json,
+		});
+		if (options.json) {
+			process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+		} else {
+			printStatus(status);
+		}
+		return;
 	}
 	process.stdout.write(`${CLI_NAME} ${command}: not implemented yet.\n`);
 };
@@ -160,8 +199,11 @@ export const main = async (args = process.argv.slice(2)) => {
 		return;
 	}
 	let options: CliOptions;
+	let positionals: string[];
 	try {
-		options = parseOptions(optionArgs);
+		const parsed = parseOptions(optionArgs);
+		options = parsed.options;
+		positionals = parsed.positionals;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		process.stderr.write(`${CLI_NAME}: ${message}\n`);
@@ -170,5 +212,12 @@ export const main = async (args = process.argv.slice(2)) => {
 		return;
 	}
 
-	await runCommand(command as Command, options);
+	if (command !== "add" && positionals.length > 0) {
+		process.stderr.write(`${CLI_NAME}: unexpected arguments.\n`);
+		printHelp();
+		process.exitCode = 1;
+		return;
+	}
+
+	await runCommand(command as Command, options, positionals);
 };

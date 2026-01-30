@@ -13,3 +13,26 @@ pnpm.
 - Lint: `pnpm lint`
 - Test: `pnpm test`
 - Typecheck: `pnpm typecheck`
+
+## CLI architecture
+
+- Keep the CLI entrypoint in `src/cli/index.ts` with a `main()` export and
+  centralized error handling.
+- Parse arguments in `src/cli/parse-args.ts`; keep parsing isolated from
+  command execution.
+- Define exit codes in `src/cli/exit-code.ts` and use them consistently.
+- Provide a minimal runner in `src/cli/run.ts` that just calls `main()`.
+- Keep the bin wrapper minimal (dynamic import of `dist/cli.mjs`, call `main`).
+
+## Project patterns
+
+- Use `node:` specifiers for built-in modules.
+- Keep modules small and single-purpose; prefer focused helpers in `src/`.
+- Place shared types in `src/types/` and import them via `import type`.
+- Use `index.ts` barrels for public entrypoints.
+
+## Naming conventions
+
+- Files use kebab-case (e.g. `parse-args.ts`).
+- Types/interfaces use PascalCase; functions/variables use camelCase.
+- Use `index.ts` barrels for public entrypoints.
