@@ -30,11 +30,21 @@ const git = async (
 	args: string[],
 	options?: { cwd?: string; timeoutMs?: number },
 ) => {
-	await execFileAsync("git", args, {
-		cwd: options?.cwd,
-		timeout: options?.timeoutMs,
-		maxBuffer: 1024 * 1024,
-	});
+	await execFileAsync(
+		"git",
+		[
+			"-c",
+			"core.hooksPath=/dev/null",
+			"-c",
+			"submodule.recurse=false",
+			...args,
+		],
+		{
+			cwd: options?.cwd,
+			timeout: options?.timeoutMs,
+			maxBuffer: 1024 * 1024,
+		},
+	);
 };
 
 export const checkoutRepo = async (params: CheckoutParams) => {
@@ -51,6 +61,7 @@ export const checkoutRepo = async (params: CheckoutParams) => {
 				"--filter=blob:none",
 				"--depth",
 				String(params.depth),
+				"--recurse-submodules=no",
 				params.repo,
 				repoDir,
 			],
@@ -65,6 +76,7 @@ export const checkoutRepo = async (params: CheckoutParams) => {
 				"--filter=blob:none",
 				"--depth",
 				String(params.depth),
+				"--recurse-submodules=no",
 				"origin",
 				params.ref,
 			],
