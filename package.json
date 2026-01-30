@@ -12,7 +12,7 @@
 		"node": ">=18"
 	},
 	"bin": {
-		"docs": "./dist/cli.cjs"
+		"docs-cache": "./dist/cli/index.cjs"
 	},
 	"files": [
 		"dist"
@@ -33,10 +33,17 @@
 		"@types/node": "^24.2.1",
 		"bumpp": "^10.3.2",
 		"lint-staged": "^16.2.7",
+		"size-limit": "^11.2.0",
 		"simple-git-hooks": "^2.13.1",
 		"typescript": "^5.9.3",
 		"unbuild": "^3.6.1"
 	},
+	"size-limit": [
+		{
+			"path": "dist/cli.cjs",
+			"limit": "10 KB"
+		}
+	],
 	"simple-git-hooks": {
 		"pre-commit": "pnpm lint-staged"
 	},

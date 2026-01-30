@@ -1,0 +1,34 @@
+{
+	"version": 1,
+	"cacheDir": ".docs",
+	"defaults": {
+		"ref": "HEAD",
+		"mode": "materialize",
+		"depth": 1,
+		"required": true,
+		"maxBytes": 200000000,
+		"allowHosts": ["github.com", "gitlab.com"]
+	},
+	"sources": [
+		{
+			"id": "vitest",
+			"repo": "https://github.com/vitest-dev/vitest.git",
+			"include": ["docs/**", "README.md"],
+			"exclude": ["docs/**/.cache/**"],
+			"integrity": {
+				"type": "commit",
+				"value": null
+			}
+		},
+		{
+			"id": "node",
+			"repo": "https://github.com/nodejs/node.git",
+			"ref": "v20.11.1",
+			"mode": "sparse",
+			"depth": 1,
+			"include": ["doc/api/**"],
+			"required": false,
+			"maxBytes": 50000000
+		}
+	]
+}

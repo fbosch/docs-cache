@@ -16,4 +16,10 @@ test("docs config schema has required top-level keys", async () => {
 		"sources",
 	]);
 	assert.equal(schema.properties?.version?.const, 1);
+	assert.equal(schema.properties?.cacheDir?.default, ".docs");
+	assert.equal(schema.properties?.defaults?.properties?.ref?.default, "HEAD");
+	assert.equal(
+		schema.properties?.defaults?.properties?.mode?.default,
+		"materialize",
+	);
 });

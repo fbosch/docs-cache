@@ -7,11 +7,13 @@
 	"properties": {
 		"version": {
 			"type": "integer",
-			"const": 1
+			"const": 1,
+			"default": 1
 		},
 		"cacheDir": {
 			"type": "string",
-			"minLength": 1
+			"minLength": 1,
+			"default": ".docs"
 		},
 		"defaults": {
 			"type": "object",
@@ -27,26 +29,32 @@
 			"properties": {
 				"ref": {
 					"type": "string",
-					"minLength": 1
+					"minLength": 1,
+					"default": "HEAD"
 				},
 				"mode": {
 					"type": "string",
-					"enum": ["materialize", "sparse"]
+					"enum": ["materialize", "sparse"],
+					"default": "materialize"
 				},
 				"depth": {
 					"type": "number",
-					"minimum": 1
+					"minimum": 1,
+					"default": 1
 				},
 				"required": {
-					"type": "boolean"
+					"type": "boolean",
+					"default": true
 				},
 				"maxBytes": {
 					"type": "number",
-					"minimum": 1
+					"minimum": 1,
+					"default": 200000000
 				},
 				"allowHosts": {
 					"type": "array",
 					"minItems": 1,
+					"default": ["github.com", "gitlab.com"],
 					"items": {
 						"type": "string",
 						"minLength": 1
