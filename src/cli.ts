@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { CLI_NAME } from "./index.js";
+
+const CLI_NAME = "docs";
 
 const COMMANDS = ["sync", "status", "clean", "prune", "verify"] as const;
 type Command = (typeof COMMANDS)[number];
