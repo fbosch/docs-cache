@@ -11,6 +11,7 @@ export type ParsedArgs = {
 	command: Command | null;
 	options: CliOptions;
 	positionals: string[];
+	rawArgs: string[];
 	help: boolean;
 };
 
@@ -19,6 +20,8 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 		const cli = cac("docs-cache");
 
 		cli
+			.option("--source <repo>", "Source repo (add only)")
+			.option("--target <dir>", "Target directory for source (add only)")
 			.option("--config <path>", "Path to config file")
 			.option("--cache-dir <path>", "Override cache directory")
 			.option("--offline", "Disable network access")
@@ -59,10 +62,12 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 			throw new Error("--timeout-ms must be a positive number.");
 		}
 
+		const rawArgs = argv.slice(2);
 		return {
 			command: command ?? null,
 			options,
 			positionals: result.args.slice(1),
+			rawArgs,
 			help: Boolean(result.options.help),
 		};
 	} catch (error) {

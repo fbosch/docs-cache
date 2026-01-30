@@ -24,6 +24,8 @@ Commands:
   verify  Validate cache integrity
 
 Global options:
+  --source <repo> (add only)
+  --target <dir> (add only)
   --config <path>
   --cache-dir <path>
   --offline
@@ -43,35 +45,88 @@ const printError = (message: string) => {
 	process.stderr.write(`${symbols.error} ${message}\n`);
 };
 
+const parseAddEntries = (rawArgs: string[]) => {
+	const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
+	const tail = commandIndex === -1 ? [] : rawArgs.slice(commandIndex + 1);
+	const entries: Array<{ repo: string; targetDir?: string }> = [];
+	let lastIndex = -1;
+	const skipNextFor = new Set([
+		"--config",
+		"--cache-dir",
+		"--concurrency",
+		"--timeout-ms",
+	]);
+	for (let index = 0; index < tail.length; index += 1) {
+		const arg = tail[index];
+		if (arg === "--source") {
+			const next = tail[index + 1];
+			if (!next || next.startsWith("-")) {
+				throw new Error("--source expects a value.");
+			}
+			entries.push({ repo: next });
+			lastIndex = entries.length - 1;
+			index += 1;
+			continue;
+		}
+		if (arg === "--target" || arg === "--target-dir") {
+			const next = tail[index + 1];
+			if (!next || next.startsWith("-")) {
+				throw new Error("--target expects a value.");
+			}
+			if (lastIndex === -1) {
+				throw new Error("--target must follow a --source entry.");
+			}
+			entries[lastIndex].targetDir = next;
+			index += 1;
+			continue;
+		}
+		if (skipNextFor.has(arg)) {
+			index += 1;
+			continue;
+		}
+		if (arg.startsWith("--")) {
+			continue;
+		}
+		entries.push({ repo: arg });
+		lastIndex = entries.length - 1;
+	}
+	return entries;
+};
+
 const runCommand = async (
 	command: string,
 	options: CliOptions,
 	positionals: string[],
+	rawArgs: string[],
 ) => {
 	if (command === "add") {
-		if (positionals.length === 0) {
-			throw new Error("Usage: docs-cache add <repo...>");
+		const entries = parseAddEntries(rawArgs);
+		if (entries.length === 0) {
+			throw new Error(
+				"Usage: docs-cache add [--source <repo> --target <dir>] <repo...>",
+			);
 		}
-		const entries = positionals.map((repo) => ({ repo }));
 		const result = await addSources({
 			configPath: options.config,
 			entries,
-			targetDir: options.targetDir,
 		});
 		if (options.json) {
 			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 		} else {
-			if (result.sources.length > 1) {
-				process.stdout.write(
-					`${symbols.success} Added ${pc.cyan(String(result.sources.length))} sources\n`,
-				);
-			} else {
-				const source = result.sources[0];
+			for (const source of result.sources) {
 				const repoLabel = source.repo
 					.replace(/^https?:\/\//, "")
 					.replace(/\.git$/, "");
+				const targetLabel = source.targetDir
+					? ` ${pc.dim("->")} ${pc.magenta(source.targetDir)}`
+					: "";
 				process.stdout.write(
-					`${symbols.success} Added ${pc.cyan(source.id)} ${pc.dim("(")}${pc.blue(repoLabel)}${pc.dim(")")}\n`,
+					`${symbols.success} Added ${pc.cyan(source.id)} ${pc.dim("(")}${pc.blue(repoLabel)}${pc.dim(")")}${targetLabel}\n`,
+				);
+			}
+			if (result.skipped?.length) {
+				process.stdout.write(
+					`${symbols.warn} Skipped ${pc.cyan(String(result.skipped.length))} existing source${result.skipped.length === 1 ? "" : "s"}: ${result.skipped.join(", ")}\n`,
 				);
 			}
 			process.stdout.write(
@@ -120,6 +175,7 @@ export async function main(): Promise<void> {
 		process.on("unhandledRejection", errorHandler);
 
 		const parsed = parseArgs();
+		const rawArgs = parsed.rawArgs;
 
 		if (parsed.help) {
 			printHelp();
@@ -143,7 +199,12 @@ export async function main(): Promise<void> {
 			process.exit(ExitCode.InvalidArgument);
 		}
 
-		await runCommand(parsed.command, parsed.options, parsed.positionals);
+		await runCommand(
+			parsed.command,
+			parsed.options,
+			parsed.positionals,
+			parsed.rawArgs,
+		);
 	} catch (error) {
 		errorHandler(error as Error);
 	}

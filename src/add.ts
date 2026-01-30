@@ -83,8 +83,7 @@ const resolveRepoInput = (repo: string) => {
 
 export const addSources = async (params: {
 	configPath?: string;
-	entries: Array<{ id?: string; repo: string }>;
-	targetDir?: string;
+	entries: Array<{ id?: string; repo: string; targetDir?: string }>;
 }) => {
 	const resolvedPath = resolveConfigPath(params.configPath);
 	let config = DEFAULT_CONFIG;
@@ -98,23 +97,35 @@ export const addSources = async (params: {
 	const schema =
 		"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json";
 	const existingIds = new Set(config.sources.map((source) => source.id));
-	const newSources = params.entries.map((entry) => {
-		const resolved = resolveRepoInput(entry.repo);
-		const sourceId = entry.id || resolved.inferredId;
-		if (!sourceId) {
-			throw new Error("Unable to infer id. Provide an explicit id.");
-		}
-		if (existingIds.has(sourceId)) {
-			throw new Error(`Source '${sourceId}' already exists in config.`);
-		}
-		existingIds.add(sourceId);
-		return {
-			id: sourceId,
-			repo: resolved.repoUrl,
-			...(params.targetDir ? { targetDir: params.targetDir } : {}),
-			...(resolved.ref ? { ref: resolved.ref } : {}),
-		};
-	});
+	const skipped: string[] = [];
+	const newSources = params.entries
+		.map((entry) => {
+			const resolved = resolveRepoInput(entry.repo);
+			const sourceId = entry.id || resolved.inferredId;
+			if (!sourceId) {
+				throw new Error("Unable to infer id. Provide an explicit id.");
+			}
+			if (existingIds.has(sourceId)) {
+				skipped.push(sourceId);
+				return null;
+			}
+			existingIds.add(sourceId);
+			return {
+				id: sourceId,
+				repo: resolved.repoUrl,
+				...(entry.targetDir ? { targetDir: entry.targetDir } : {}),
+				...(resolved.ref ? { ref: resolved.ref } : {}),
+			};
+		})
+		.filter(Boolean) as Array<{
+		id: string;
+		repo: string;
+		targetDir?: string;
+		ref?: string;
+	}>;
+	if (newSources.length === 0) {
+		throw new Error("All sources already exist in config.");
+	}
 	const nextConfig: DocsCacheConfig = {
 		$schema: schema,
 		sources: [...config.sources, ...newSources],
@@ -131,6 +142,7 @@ export const addSources = async (params: {
 	return {
 		configPath: resolvedPath,
 		sources: newSources,
+		skipped,
 		created: true,
 	};
 };

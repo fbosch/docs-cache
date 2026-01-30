@@ -46,6 +46,53 @@ test("add supports multiple github shorthands", async () => {
 	);
 });
 
+test("add skips existing sources", async () => {
+	const tmpPath = path.join(tmpdir(), `docs-config-${Date.now()}-skip.json`);
+	await execFileAsync("node", [
+		"bin/docs-cache.mjs",
+		"add",
+		"fbosch/nixos",
+		"fbosch/dotfiles",
+		"--config",
+		tmpPath,
+	]);
+	await execFileAsync("node", [
+		"bin/docs-cache.mjs",
+		"add",
+		"fbosch/nixos",
+		"fbosch/notes",
+		"--config",
+		tmpPath,
+	]);
+
+	const raw = await readFile(tmpPath, "utf8");
+	const config = JSON.parse(raw);
+	assert.equal(config.sources.length, 3);
+});
+
+test("add supports per-source target dirs", async () => {
+	const tmpPath = path.join(tmpdir(), `docs-config-${Date.now()}-targets.json`);
+	await execFileAsync("node", [
+		"bin/docs-cache.mjs",
+		"add",
+		"--source",
+		"fbosch/nixos",
+		"--target",
+		"./docs/one",
+		"--source",
+		"fbosch/dotfiles",
+		"--target",
+		"./docs/two",
+		"--config",
+		tmpPath,
+	]);
+
+	const raw = await readFile(tmpPath, "utf8");
+	const config = JSON.parse(raw);
+	assert.equal(config.sources[0].targetDir, "./docs/one");
+	assert.equal(config.sources[1].targetDir, "./docs/two");
+});
+
 test("add supports full https gitlab url", async () => {
 	const tmpPath = path.join(tmpdir(), `docs-config-${Date.now()}-gitlab.json`);
 	await execFileAsync("node", [
