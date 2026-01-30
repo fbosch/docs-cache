@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import { redactRepoUrl } from "./redact";
+
 const execFileAsync = promisify(execFile);
 
 type ResolveRemoteParams = {
@@ -35,12 +37,16 @@ const parseRepoHost = (repo: string) => {
 const enforceHostAllowlist = (repo: string, allowHosts: string[]) => {
 	const host = parseRepoHost(repo);
 	if (!host) {
-		throw new Error(`Unsupported repo URL '${repo}'. Use HTTPS or SSH.`);
+		throw new Error(
+			`Unsupported repo URL '${redactRepoUrl(repo)}'. Use HTTPS or SSH.`,
+		);
 	}
 	const normalizedHost = host.toLowerCase();
 	const allowed = allowHosts.map((entry) => entry.toLowerCase());
 	if (!allowed.includes(normalizedHost)) {
-		throw new Error(`Host '${host}' is not in allowHosts.`);
+		throw new Error(
+			`Host '${host}' is not in allowHosts for '${redactRepoUrl(repo)}'.`,
+		);
 	}
 };
 
@@ -68,7 +74,7 @@ export const resolveRemoteCommit = async (params: ResolveRemoteParams) => {
 	const resolvedCommit = parseLsRemote(stdout);
 	if (!resolvedCommit) {
 		throw new Error(
-			`Unable to resolve ref '${params.ref}' for ${params.repo}.`,
+			`Unable to resolve ref '${params.ref}' for ${redactRepoUrl(params.repo)}.`,
 		);
 	}
 

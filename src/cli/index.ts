@@ -1,6 +1,7 @@
 import process from "node:process";
 
 import { addSource } from "../add";
+import { redactRepoUrl } from "../git/redact";
 import { getStatus, printStatus } from "../status";
 import { ExitCode } from "./exit-code";
 import { parseArgs } from "./parse-args";
@@ -109,6 +110,7 @@ export async function main(): Promise<void> {
 }
 
 export { parseArgs } from "./parse-args";
+export { redactRepoUrl };
 
 function errorHandler(error: Error): void {
 	const message = error.message || String(error);
