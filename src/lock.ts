@@ -90,8 +90,8 @@ export const validateLock = (input: unknown): DocsCacheLock => {
 	};
 };
 
-export const resolveLockPath = (cacheDir: string, lockName?: string) =>
-	path.resolve(cacheDir, lockName ?? DEFAULT_LOCK_FILENAME);
+export const resolveLockPath = (configPath: string, lockName?: string) =>
+	path.resolve(path.dirname(configPath), lockName ?? DEFAULT_LOCK_FILENAME);
 
 export const readLock = async (lockPath: string) => {
 	let raw: string;

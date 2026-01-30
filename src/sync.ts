@@ -7,16 +7,38 @@ import {
 	type DocsCacheDefaults,
 	loadConfig,
 } from "./config";
+import { fetchSource } from "./git/fetch-source";
 import { resolveRemoteCommit } from "./git/resolve-remote";
-import { readLock, writeLock } from "./lock";
+import { readLock, resolveLockPath, writeLock } from "./lock";
+import { materializeSource } from "./materialize";
 import { resolveCacheDir } from "./paths";
+import { applyTargetDir } from "./targets";
 
 type SyncOptions = {
 	configPath?: string;
 	cacheDirOverride?: string;
 	json: boolean;
 	lockOnly: boolean;
+	sourceFilter?: string[];
 	timeoutMs?: number;
+};
+
+type SyncDeps = {
+	resolveRemoteCommit?: typeof resolveRemoteCommit;
+	fetchSource?: typeof fetchSource;
+	materializeSource?: typeof materializeSource;
+};
+
+type SyncResult = {
+	id: string;
+	repo: string;
+	ref: string;
+	resolvedCommit: string;
+	lockCommit: string | null;
+	status: "up-to-date" | "changed" | "missing";
+	bytes?: number;
+	fileCount?: number;
+	manifestSha256?: string;
 };
 
 const exists = async (target: string) => {
@@ -28,7 +50,10 @@ const exists = async (target: string) => {
 	}
 };
 
-export const getSyncPlan = async (options: SyncOptions) => {
+export const getSyncPlan = async (
+	options: SyncOptions,
+	deps: SyncDeps = {},
+) => {
 	const { config, resolvedPath, sources } = await loadConfig(
 		options.configPath,
 	);
@@ -39,7 +64,7 @@ export const getSyncPlan = async (options: SyncOptions) => {
 		config.cacheDir ?? DEFAULT_CACHE_DIR,
 		options.cacheDirOverride,
 	);
-	const lockPath = path.join(resolvedCacheDir, "docs.lock");
+	const lockPath = resolveLockPath(resolvedPath);
 	const lockExists = await exists(lockPath);
 
 	let lockData: Awaited<ReturnType<typeof readLock>> | null = null;
@@ -47,9 +72,13 @@ export const getSyncPlan = async (options: SyncOptions) => {
 		lockData = await readLock(lockPath);
 	}
 
-	const results = await Promise.all(
-		sources.map(async (source) => {
-			const resolved = await resolveRemoteCommit({
+	const resolveCommit = deps.resolveRemoteCommit ?? resolveRemoteCommit;
+	const filteredSources = options.sourceFilter?.length
+		? sources.filter((source) => options.sourceFilter?.includes(source.id))
+		: sources;
+	const results: SyncResult[] = await Promise.all(
+		filteredSources.map(async (source) => {
+			const resolved = await resolveCommit({
 				repo: source.repo,
 				ref: source.ref,
 				allowHosts: defaults.allowHosts,
@@ -69,6 +98,9 @@ export const getSyncPlan = async (options: SyncOptions) => {
 				resolvedCommit: resolved.resolvedCommit,
 				lockCommit: lockEntry?.resolvedCommit ?? null,
 				status,
+				bytes: lockEntry?.bytes,
+				fileCount: lockEntry?.fileCount,
+				manifestSha256: lockEntry?.manifestSha256,
 			};
 		}),
 	);
@@ -79,6 +111,8 @@ export const getSyncPlan = async (options: SyncOptions) => {
 		lockPath,
 		lockExists,
 		results,
+		sources: filteredSources,
+		defaults,
 	};
 };
 
@@ -104,9 +138,10 @@ const buildLock = async (
 			repo: result.repo,
 			ref: result.ref,
 			resolvedCommit: result.resolvedCommit,
-			bytes: prior?.bytes ?? 0,
-			fileCount: prior?.fileCount ?? 0,
-			manifestSha256: prior?.manifestSha256 ?? "",
+			bytes: result.bytes ?? prior?.bytes ?? 0,
+			fileCount: result.fileCount ?? prior?.fileCount ?? 0,
+			manifestSha256:
+				result.manifestSha256 ?? prior?.manifestSha256 ?? result.resolvedCommit,
 			updatedAt: now,
 		};
 	}
@@ -118,15 +153,61 @@ const buildLock = async (
 	};
 };
 
-export const runSync = async (options: SyncOptions) => {
-	const plan = await getSyncPlan(options);
-	if (!options.lockOnly) {
-		return plan;
-	}
+export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
+	const plan = await getSyncPlan(options, deps);
 	await mkdir(plan.cacheDir, { recursive: true });
 	let previous: Awaited<ReturnType<typeof readLock>> | null = null;
 	if (plan.lockExists) {
 		previous = await readLock(plan.lockPath);
+	}
+	if (!options.lockOnly) {
+		const defaults = plan.defaults;
+		const runFetch = deps.fetchSource ?? fetchSource;
+		const runMaterialize = deps.materializeSource ?? materializeSource;
+		for (const result of plan.results) {
+			if (result.status === "up-to-date") {
+				continue;
+			}
+			const source = plan.sources.find((entry) => entry.id === result.id);
+			if (!source) {
+				continue;
+			}
+			const fetch = await runFetch({
+				sourceId: source.id,
+				repo: source.repo,
+				ref: source.ref,
+				resolvedCommit: result.resolvedCommit,
+				cacheDir: plan.cacheDir,
+				depth: source.depth ?? defaults.depth,
+				timeoutMs: options.timeoutMs,
+			});
+			try {
+				const stats = await runMaterialize({
+					sourceId: source.id,
+					repoDir: fetch.repoDir,
+					cacheDir: plan.cacheDir,
+					include: source.include ?? defaults.include,
+					exclude: source.exclude,
+					maxBytes: source.maxBytes ?? defaults.maxBytes,
+				});
+				if (source.targetDir) {
+					const resolvedTarget = path.resolve(
+						path.dirname(plan.configPath),
+						source.targetDir,
+					);
+					await applyTargetDir({
+						sourceDir: path.join(plan.cacheDir, "sources", source.id),
+						targetDir: resolvedTarget,
+						mode: source.targetMode ?? defaults.targetMode,
+					});
+				}
+				result.bytes = stats.bytes;
+				result.fileCount = stats.fileCount;
+				result.manifestSha256 = result.resolvedCommit;
+			} finally {
+				await fetch.cleanup();
+			}
+		}
 	}
 	const lock = await buildLock(plan, previous);
 	await writeLock(plan.lockPath, lock);

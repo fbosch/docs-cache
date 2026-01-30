@@ -13,6 +13,7 @@ test("add supports ssh shorthand with ref", async () => {
 	await execFileAsync("node", [
 		"bin/docs-cache.mjs",
 		"add",
+		"--offline",
 		"--config",
 		tmpPath,
 		"git@github.com:fbosch/docs-cache.git#main",
@@ -30,6 +31,7 @@ test("add supports multiple github shorthands", async () => {
 	await execFileAsync("node", [
 		"bin/docs-cache.mjs",
 		"add",
+		"--offline",
 		"fbosch/nixos",
 		"fbosch/dotfiles",
 		"--config",
@@ -51,6 +53,7 @@ test("add skips existing sources", async () => {
 	await execFileAsync("node", [
 		"bin/docs-cache.mjs",
 		"add",
+		"--offline",
 		"fbosch/nixos",
 		"fbosch/dotfiles",
 		"--config",
@@ -59,6 +62,7 @@ test("add skips existing sources", async () => {
 	await execFileAsync("node", [
 		"bin/docs-cache.mjs",
 		"add",
+		"--offline",
 		"fbosch/nixos",
 		"fbosch/notes",
 		"--config",
@@ -75,6 +79,7 @@ test("add supports per-source target dirs", async () => {
 	await execFileAsync("node", [
 		"bin/docs-cache.mjs",
 		"add",
+		"--offline",
 		"--source",
 		"fbosch/nixos",
 		"--target",
@@ -98,6 +103,7 @@ test("add supports full https gitlab url", async () => {
 	await execFileAsync("node", [
 		"bin/docs-cache.mjs",
 		"add",
+		"--offline",
 		"https://gitlab.com/acme/docs.git",
 		"--config",
 		tmpPath,

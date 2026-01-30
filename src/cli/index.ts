@@ -110,6 +110,18 @@ const runCommand = async (
 			configPath: options.config,
 			entries,
 		});
+		if (!options.offline) {
+			await runSync({
+				configPath: options.config,
+				cacheDirOverride: options.cacheDir,
+				json: options.json,
+				lockOnly: options.lockOnly,
+				sourceFilter: result.sources.map((source) => source.id),
+				timeoutMs: options.timeoutMs,
+			});
+		} else if (!options.json) {
+			process.stdout.write(`${symbols.warn} Offline: skipped sync\n`);
+		}
 		if (options.json) {
 			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 		} else {
@@ -212,6 +224,7 @@ export async function main(): Promise<void> {
 
 export { parseArgs } from "./parse-args";
 export { redactRepoUrl };
+export { runSync } from "../sync";
 
 function errorHandler(error: Error): void {
 	const message = error.message || String(error);

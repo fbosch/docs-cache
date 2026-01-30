@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { symbols } from "./cli/symbols";
 import { DEFAULT_CACHE_DIR, loadConfig } from "./config";
-import { readLock } from "./lock";
+import { readLock, resolveLockPath } from "./lock";
 import { getCacheLayout, resolveCacheDir } from "./paths";
 
 type StatusOptions = {
@@ -30,7 +30,7 @@ export const getStatus = async (options: StatusOptions) => {
 		options.cacheDirOverride,
 	);
 	const cacheDirExists = await exists(resolvedCacheDir);
-	const lockPath = path.join(resolvedCacheDir, "docs.lock");
+	const lockPath = resolveLockPath(resolvedPath);
 	const lockExists = await exists(lockPath);
 
 	let lockValid = false;
