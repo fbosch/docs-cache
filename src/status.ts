@@ -1,7 +1,7 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
-
-import { loadConfig } from "./config";
+import { symbols } from "./cli/symbols";
+import { DEFAULT_CACHE_DIR, loadConfig } from "./config";
 import { readLock } from "./lock";
 import { getCacheLayout, resolveCacheDir } from "./paths";
 
@@ -26,7 +26,7 @@ export const getStatus = async (options: StatusOptions) => {
 	);
 	const resolvedCacheDir = resolveCacheDir(
 		resolvedPath,
-		config.cacheDir,
+		config.cacheDir ?? DEFAULT_CACHE_DIR,
 		options.cacheDirOverride,
 	);
 	const cacheDirExists = await exists(resolvedCacheDir);
@@ -77,13 +77,17 @@ export const printStatus = (status: Awaited<ReturnType<typeof getStatus>>) => {
 		: "missing";
 	const cacheState = status.cacheDirExists ? "present" : "missing";
 
-	process.stdout.write(`Cache dir: ${status.cacheDir} (${cacheState})\n`);
-	process.stdout.write(`Lock: ${status.lockPath} (${lockState})\n`);
+	process.stdout.write(
+		`${symbols.info} Cache dir: ${status.cacheDir} (${cacheState})\n`,
+	);
+	process.stdout.write(
+		`${symbols.info} Lock: ${status.lockPath} (${lockState})\n`,
+	);
 	for (const source of status.sources) {
 		const docsState = source.docsExists ? "present" : "missing";
 		const lockStateLabel = source.lockEntry ? "present" : "missing";
 		process.stdout.write(
-			`${source.id}: docs=${docsState} lock=${lockStateLabel}\n`,
+			`${symbols.info} ${source.id}: docs=${docsState} lock=${lockStateLabel}\n`,
 		);
 	}
 };

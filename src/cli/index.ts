@@ -6,6 +6,7 @@ import { getStatus, printStatus } from "../status";
 import { printSyncPlan, runSync } from "../sync";
 import { ExitCode } from "./exit-code";
 import { parseArgs } from "./parse-args";
+import { symbols } from "./symbols";
 import type { CliOptions } from "./types";
 
 export const CLI_NAME = "docs-cache";
@@ -37,6 +38,10 @@ const printHelp = () => {
 	process.stdout.write(HELP_TEXT.trimStart());
 };
 
+const printError = (message: string) => {
+	process.stderr.write(`${symbols.error} ${message}\n`);
+};
+
 const runCommand = async (
 	command: string,
 	options: CliOptions,
@@ -59,9 +64,7 @@ const runCommand = async (
 		if (options.json) {
 			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 		} else {
-			process.stdout.write(
-				`Added ${result.sourceId} -> ${result.sourceRepo} in ${result.configPath}\n`,
-			);
+			process.stdout.write(`${symbols.success} Added ${result.sourceRepo}\n`);
 		}
 		return;
 	}
@@ -117,15 +120,13 @@ export async function main(): Promise<void> {
 		}
 
 		if (parsed.command !== "add" && parsed.positionals.length > 0) {
-			process.stderr.write(`${CLI_NAME}: unexpected arguments.\n`);
+			printError(`${CLI_NAME}: unexpected arguments.`);
 			printHelp();
 			process.exit(ExitCode.InvalidArgument);
 		}
 
 		if (parsed.command !== "add" && parsed.options.targetDir) {
-			process.stderr.write(
-				`${CLI_NAME}: --target-dir is only valid for add.\n`,
-			);
+			printError(`${CLI_NAME}: --target-dir is only valid for add.`);
 			printHelp();
 			process.exit(ExitCode.InvalidArgument);
 		}
@@ -141,6 +142,6 @@ export { redactRepoUrl };
 
 function errorHandler(error: Error): void {
 	const message = error.message || String(error);
-	console.error(message);
+	printError(message);
 	process.exit(ExitCode.FatalError);
 }

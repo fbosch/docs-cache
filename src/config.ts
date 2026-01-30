@@ -14,6 +14,7 @@ export interface DocsCacheDefaults {
 	ref: string;
 	mode: CacheMode;
 	include: string[];
+	targetMode: "symlink" | "copy";
 	depth: number;
 	required: boolean;
 	maxBytes: number;
@@ -24,6 +25,7 @@ export interface DocsCacheSource {
 	id: string;
 	repo: string;
 	targetDir?: string;
+	targetMode?: "symlink" | "copy";
 	ref?: string;
 	mode?: CacheMode;
 	depth?: number;
@@ -45,6 +47,7 @@ export interface DocsCacheResolvedSource {
 	id: string;
 	repo: string;
 	targetDir?: string;
+	targetMode?: "symlink" | "copy";
 	ref: string;
 	mode: CacheMode;
 	depth: number;
@@ -67,6 +70,7 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 			"README*",
 			"LICENSE*",
 		],
+		targetMode: "symlink",
 		depth: 1,
 		required: true,
 		maxBytes: 200000000,
@@ -170,6 +174,12 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				defaultsInput.include !== undefined
 					? assertStringArray(defaultsInput.include, "defaults.include")
 					: defaultValues.include,
+			targetMode:
+				defaultsInput.targetMode !== undefined
+					? (assertString(defaultsInput.targetMode, "defaults.targetMode") as
+							| "symlink"
+							| "copy")
+					: defaultValues.targetMode,
 			depth:
 				defaultsInput.depth !== undefined
 					? assertPositiveNumber(defaultsInput.depth, "defaults.depth")
@@ -206,6 +216,18 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				entry.targetDir,
 				`sources[${index}].targetDir`,
 			);
+		}
+		if (entry.targetMode !== undefined) {
+			const targetMode = assertString(
+				entry.targetMode,
+				`sources[${index}].targetMode`,
+			);
+			if (targetMode !== "symlink" && targetMode !== "copy") {
+				throw new Error(
+					`sources[${index}].targetMode must be "symlink" or "copy".`,
+				);
+			}
+			source.targetMode = targetMode;
 		}
 		if (entry.ref !== undefined) {
 			source.ref = assertString(entry.ref, `sources[${index}].ref`);
@@ -268,6 +290,7 @@ export const resolveSources = (
 		id: source.id,
 		repo: source.repo,
 		targetDir: source.targetDir,
+		targetMode: source.targetMode ?? defaults.targetMode,
 		ref: source.ref ?? defaults.ref,
 		mode: source.mode ?? defaults.mode,
 		depth: source.depth ?? defaults.depth,

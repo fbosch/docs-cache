@@ -42,6 +42,11 @@
 						"minLength": 1
 					}
 				},
+				"targetMode": {
+					"type": "string",
+					"enum": ["symlink", "copy"],
+					"default": "symlink"
+				},
 				"depth": {
 					"type": "number",
 					"minimum": 1,
@@ -85,6 +90,10 @@
 					"targetDir": {
 						"type": "string",
 						"minLength": 1
+					},
+					"targetMode": {
+						"type": "string",
+						"enum": ["symlink", "copy"]
 					},
 					"ref": {
 						"type": "string",

@@ -22,4 +22,8 @@ test("docs config schema has required top-level keys", async () => {
 		"README*",
 		"LICENSE*",
 	]);
+	assert.equal(
+		schema.properties?.defaults?.properties?.targetMode?.default,
+		"symlink",
+	);
 });

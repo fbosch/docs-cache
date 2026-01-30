@@ -1,7 +1,12 @@
 import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
-
-import { loadConfig } from "./config";
+import { symbols } from "./cli/symbols";
+import {
+	DEFAULT_CACHE_DIR,
+	DEFAULT_CONFIG,
+	type DocsCacheDefaults,
+	loadConfig,
+} from "./config";
 import { resolveRemoteCommit } from "./git/resolve-remote";
 import { readLock, writeLock } from "./lock";
 import { resolveCacheDir } from "./paths";
@@ -27,9 +32,11 @@ export const getSyncPlan = async (options: SyncOptions) => {
 	const { config, resolvedPath, sources } = await loadConfig(
 		options.configPath,
 	);
+	const defaults = (config.defaults ??
+		DEFAULT_CONFIG.defaults) as DocsCacheDefaults;
 	const resolvedCacheDir = resolveCacheDir(
 		resolvedPath,
-		config.cacheDir,
+		config.cacheDir ?? DEFAULT_CACHE_DIR,
 		options.cacheDirOverride,
 	);
 	const lockPath = path.join(resolvedCacheDir, "docs.lock");
@@ -45,7 +52,7 @@ export const getSyncPlan = async (options: SyncOptions) => {
 			const resolved = await resolveRemoteCommit({
 				repo: source.repo,
 				ref: source.ref,
-				allowHosts: config.defaults.allowHosts,
+				allowHosts: defaults.allowHosts,
 				timeoutMs: options.timeoutMs,
 			});
 			const lockEntry = lockData?.sources?.[source.id];
@@ -130,13 +137,13 @@ export const printSyncPlan = (
 	plan: Awaited<ReturnType<typeof getSyncPlan>>,
 ) => {
 	process.stdout.write(`Config: ${plan.configPath}\n`);
-	process.stdout.write(`Cache dir: ${plan.cacheDir}\n`);
+	process.stdout.write(`${symbols.info} Cache dir: ${plan.cacheDir}\n`);
 	process.stdout.write(
-		`Lock: ${plan.lockPath} (${plan.lockExists ? "present" : "missing"})\n`,
+		`${symbols.info} Lock: ${plan.lockPath} (${plan.lockExists ? "present" : "missing"})\n`,
 	);
 	for (const result of plan.results) {
 		process.stdout.write(
-			`${result.id}: ${result.status} (${result.lockCommit ?? "-"} -> ${result.resolvedCommit})\n`,
+			`${symbols.info} ${result.id}: ${result.status} (${result.lockCommit ?? "-"} -> ${result.resolvedCommit})\n`,
 		);
 	}
 };
