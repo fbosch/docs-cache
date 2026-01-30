@@ -47,11 +47,11 @@ export const getStatus = async (options: StatusOptions) => {
 	const sourceStatus = await Promise.all(
 		sources.map(async (source) => {
 			const layout = getCacheLayout(resolvedCacheDir, source.id);
-			const docsExists = await exists(layout.docsDir);
+			const docsExists = await exists(layout.sourceDir);
 			const lockEntry = lockData?.sources?.[source.id] ?? null;
 			return {
 				id: source.id,
-				docsPath: layout.docsDir,
+				docsPath: layout.sourceDir,
 				docsExists,
 				lockEntry,
 			};

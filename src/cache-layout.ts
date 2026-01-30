@@ -15,7 +15,6 @@ export const ensureCacheLayout = async (
 		sourceIds.map(async (sourceId) => {
 			const layout = getCacheLayout(cacheDir, sourceId);
 			await mkdir(layout.sourceDir, { recursive: true });
-			await mkdir(layout.docsDir, { recursive: true });
 		}),
 	);
 };
