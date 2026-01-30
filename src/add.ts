@@ -2,6 +2,7 @@ import { access, readFile } from "node:fs/promises";
 
 import {
 	DEFAULT_CONFIG,
+	type DocsCacheConfig,
 	resolveConfigPath,
 	validateConfig,
 	writeConfig,
@@ -57,14 +58,17 @@ const resolveRepoInput = (repo: string) => {
 
 export const addSource = async (params: {
 	configPath?: string;
-	id: string;
+	id?: string;
 	repo: string;
+	targetDir?: string;
 }) => {
 	const resolvedPath = resolveConfigPath(params.configPath);
 	let config = DEFAULT_CONFIG;
+	let rawConfig: DocsCacheConfig | null = null;
 	if (await exists(resolvedPath)) {
 		const raw = await readFile(resolvedPath, "utf8");
-		config = validateConfig(JSON.parse(raw.toString()));
+		rawConfig = JSON.parse(raw.toString());
+		config = validateConfig(rawConfig);
 	}
 
 	const resolved = resolveRepoInput(params.repo);
@@ -77,16 +81,28 @@ export const addSource = async (params: {
 		throw new Error(`Source '${sourceId}' already exists in config.`);
 	}
 
-	config.sources = [
-		...config.sources,
-		{
-			id: sourceId,
-			repo: resolved.repoUrl,
-			...(resolved.ref ? { ref: resolved.ref } : {}),
-		},
-	];
+	const schema =
+		"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json";
+	const nextConfig: DocsCacheConfig = {
+		$schema: schema,
+		sources: [
+			...config.sources,
+			{
+				id: sourceId,
+				repo: resolved.repoUrl,
+				...(params.targetDir ? { targetDir: params.targetDir } : {}),
+				...(resolved.ref ? { ref: resolved.ref } : {}),
+			},
+		],
+	};
+	if (rawConfig?.cacheDir) {
+		nextConfig.cacheDir = rawConfig.cacheDir;
+	}
+	if (rawConfig?.defaults) {
+		nextConfig.defaults = rawConfig.defaults;
+	}
 
-	await writeConfig(resolvedPath, config);
+	await writeConfig(resolvedPath, nextConfig);
 
 	return {
 		configPath: resolvedPath,

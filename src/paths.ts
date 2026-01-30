@@ -19,7 +19,7 @@ export const getCacheLayout = (cacheDir: string, sourceId: string) => {
 	const reposDir = path.join(cacheDir, "repos");
 	const sourcesDir = path.join(cacheDir, "sources");
 	const sourceDir = path.join(sourcesDir, sourceId);
-	const materializedDir = path.join(sourceDir, "materialized");
+	const docsDir = path.join(sourceDir, "docs");
 	const manifestPath = path.join(sourceDir, "manifest.json");
 	const lockPath = path.join(cacheDir, DEFAULT_LOCK_FILENAME);
 	const indexPath = path.join(cacheDir, DEFAULT_INDEX_FILENAME);
@@ -28,7 +28,7 @@ export const getCacheLayout = (cacheDir: string, sourceId: string) => {
 		reposDir,
 		sourcesDir,
 		sourceDir,
-		materializedDir,
+		docsDir,
 		manifestPath,
 		lockPath,
 		indexPath,

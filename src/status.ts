@@ -47,12 +47,12 @@ export const getStatus = async (options: StatusOptions) => {
 	const sourceStatus = await Promise.all(
 		sources.map(async (source) => {
 			const layout = getCacheLayout(resolvedCacheDir, source.id);
-			const materializedExists = await exists(layout.materializedDir);
+			const docsExists = await exists(layout.docsDir);
 			const lockEntry = lockData?.sources?.[source.id] ?? null;
 			return {
 				id: source.id,
-				materializedPath: layout.materializedDir,
-				materializedExists,
+				docsPath: layout.docsDir,
+				docsExists,
 				lockEntry,
 			};
 		}),
@@ -80,10 +80,10 @@ export const printStatus = (status: Awaited<ReturnType<typeof getStatus>>) => {
 	process.stdout.write(`Cache dir: ${status.cacheDir} (${cacheState})\n`);
 	process.stdout.write(`Lock: ${status.lockPath} (${lockState})\n`);
 	for (const source of status.sources) {
-		const materializedState = source.materializedExists ? "present" : "missing";
+		const docsState = source.docsExists ? "present" : "missing";
 		const lockStateLabel = source.lockEntry ? "present" : "missing";
 		process.stdout.write(
-			`${source.id}: materialized=${materializedState} lock=${lockStateLabel}\n`,
+			`${source.id}: docs=${docsState} lock=${lockStateLabel}\n`,
 		);
 	}
 };

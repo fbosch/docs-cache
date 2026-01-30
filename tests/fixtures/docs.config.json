@@ -1,19 +1,5 @@
 {
-	"version": 1,
-	"cacheDir": ".docs",
-	"defaults": {
-		"ref": "HEAD",
-		"mode": "materialize",
-		"include": [
-			"**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}",
-			"README*",
-			"LICENSE*"
-		],
-		"depth": 1,
-		"required": true,
-		"maxBytes": 200000000,
-		"allowHosts": ["github.com", "gitlab.com"]
-	},
+	"$schema": "https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
 	"sources": [
 		{
 			"id": "vitest",

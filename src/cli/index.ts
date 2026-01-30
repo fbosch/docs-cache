@@ -3,6 +3,7 @@ import process from "node:process";
 import { addSource } from "../add";
 import { redactRepoUrl } from "../git/redact";
 import { getStatus, printStatus } from "../status";
+import { printSyncPlan, runSync } from "../sync";
 import { ExitCode } from "./exit-code";
 import { parseArgs } from "./parse-args";
 import type { CliOptions } from "./types";
@@ -25,6 +26,8 @@ Global options:
   --cache-dir <path>
   --offline
   --fail-on-miss
+  --lock-only
+  --target-dir <path> (add only)
   --concurrency <n>
   --json
   --timeout-ms <n>
@@ -51,6 +54,7 @@ const runCommand = async (
 			configPath: options.config,
 			id,
 			repo,
+			targetDir: options.targetDir,
 		});
 		if (options.json) {
 			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -71,6 +75,21 @@ const runCommand = async (
 			process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
 		} else {
 			printStatus(status);
+		}
+		return;
+	}
+	if (command === "sync") {
+		const plan = await runSync({
+			configPath: options.config,
+			cacheDirOverride: options.cacheDir,
+			json: options.json,
+			lockOnly: options.lockOnly,
+			timeoutMs: options.timeoutMs,
+		});
+		if (options.json) {
+			process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
+		} else {
+			printSyncPlan(plan);
 		}
 		return;
 	}
@@ -99,6 +118,14 @@ export async function main(): Promise<void> {
 
 		if (parsed.command !== "add" && parsed.positionals.length > 0) {
 			process.stderr.write(`${CLI_NAME}: unexpected arguments.\n`);
+			printHelp();
+			process.exit(ExitCode.InvalidArgument);
+		}
+
+		if (parsed.command !== "add" && parsed.options.targetDir) {
+			process.stderr.write(
+				`${CLI_NAME}: --target-dir is only valid for add.\n`,
+			);
 			printHelp();
 			process.exit(ExitCode.InvalidArgument);
 		}

@@ -23,6 +23,7 @@ export interface DocsCacheDefaults {
 export interface DocsCacheSource {
 	id: string;
 	repo: string;
+	targetDir?: string;
 	ref?: string;
 	mode?: CacheMode;
 	depth?: number;
@@ -34,15 +35,16 @@ export interface DocsCacheSource {
 }
 
 export interface DocsCacheConfig {
-	version: 1;
-	cacheDir: string;
-	defaults: DocsCacheDefaults;
+	$schema?: string;
+	cacheDir?: string;
+	defaults?: Partial<DocsCacheDefaults>;
 	sources: DocsCacheSource[];
 }
 
 export interface DocsCacheResolvedSource {
 	id: string;
 	repo: string;
+	targetDir?: string;
 	ref: string;
 	mode: CacheMode;
 	depth: number;
@@ -56,7 +58,6 @@ export interface DocsCacheResolvedSource {
 export const DEFAULT_CONFIG_FILENAME = "docs.config.json";
 export const DEFAULT_CACHE_DIR = ".docs";
 export const DEFAULT_CONFIG: DocsCacheConfig = {
-	version: 1,
 	cacheDir: DEFAULT_CACHE_DIR,
 	defaults: {
 		ref: "HEAD",
@@ -145,32 +146,48 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 		throw new Error("Config must be a JSON object.");
 	}
 
-	const version = input.version;
-	if (version !== 1) {
-		throw new Error("Config version must be 1.");
+	const cacheDir = input.cacheDir
+		? assertString(input.cacheDir, "cacheDir")
+		: DEFAULT_CACHE_DIR;
+
+	const defaultsInput = input.defaults;
+	const defaultValues = DEFAULT_CONFIG.defaults as DocsCacheDefaults;
+	let defaults: DocsCacheDefaults = defaultValues;
+	if (defaultsInput !== undefined) {
+		if (!isRecord(defaultsInput)) {
+			throw new Error("defaults must be an object.");
+		}
+		defaults = {
+			ref:
+				defaultsInput.ref !== undefined
+					? assertString(defaultsInput.ref, "defaults.ref")
+					: defaultValues.ref,
+			mode:
+				defaultsInput.mode !== undefined
+					? assertMode(defaultsInput.mode, "defaults.mode")
+					: defaultValues.mode,
+			include:
+				defaultsInput.include !== undefined
+					? assertStringArray(defaultsInput.include, "defaults.include")
+					: defaultValues.include,
+			depth:
+				defaultsInput.depth !== undefined
+					? assertPositiveNumber(defaultsInput.depth, "defaults.depth")
+					: defaultValues.depth,
+			required:
+				defaultsInput.required !== undefined
+					? assertBoolean(defaultsInput.required, "defaults.required")
+					: defaultValues.required,
+			maxBytes:
+				defaultsInput.maxBytes !== undefined
+					? assertPositiveNumber(defaultsInput.maxBytes, "defaults.maxBytes")
+					: defaultValues.maxBytes,
+			allowHosts:
+				defaultsInput.allowHosts !== undefined
+					? assertStringArray(defaultsInput.allowHosts, "defaults.allowHosts")
+					: defaultValues.allowHosts,
+		};
 	}
-
-	const cacheDir = assertString(input.cacheDir, "cacheDir");
-
-	if (!isRecord(input.defaults)) {
-		throw new Error("defaults must be an object.");
-	}
-
-	const defaults: DocsCacheDefaults = {
-		ref: assertString(input.defaults.ref, "defaults.ref"),
-		mode: assertMode(input.defaults.mode, "defaults.mode"),
-		include: assertStringArray(input.defaults.include, "defaults.include"),
-		depth: assertPositiveNumber(input.defaults.depth, "defaults.depth"),
-		required: assertBoolean(input.defaults.required, "defaults.required"),
-		maxBytes: assertPositiveNumber(
-			input.defaults.maxBytes,
-			"defaults.maxBytes",
-		),
-		allowHosts: assertStringArray(
-			input.defaults.allowHosts,
-			"defaults.allowHosts",
-		),
-	};
 
 	if (!Array.isArray(input.sources)) {
 		throw new Error("sources must be an array.");
@@ -184,6 +201,12 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 			id: assertString(entry.id, `sources[${index}].id`),
 			repo: assertString(entry.repo, `sources[${index}].repo`),
 		};
+		if (entry.targetDir !== undefined) {
+			source.targetDir = assertString(
+				entry.targetDir,
+				`sources[${index}].targetDir`,
+			);
+		}
 		if (entry.ref !== undefined) {
 			source.ref = assertString(entry.ref, `sources[${index}].ref`);
 		}
@@ -230,7 +253,6 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 	});
 
 	return {
-		version: 1,
 		cacheDir,
 		defaults,
 		sources,
@@ -239,19 +261,23 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 
 export const resolveSources = (
 	config: DocsCacheConfig,
-): DocsCacheResolvedSource[] =>
-	config.sources.map((source) => ({
+): DocsCacheResolvedSource[] => {
+	const defaults = (config.defaults ??
+		DEFAULT_CONFIG.defaults) as DocsCacheDefaults;
+	return config.sources.map((source) => ({
 		id: source.id,
 		repo: source.repo,
-		ref: source.ref ?? config.defaults.ref,
-		mode: source.mode ?? config.defaults.mode,
-		depth: source.depth ?? config.defaults.depth,
-		include: source.include ?? config.defaults.include,
+		targetDir: source.targetDir,
+		ref: source.ref ?? defaults.ref,
+		mode: source.mode ?? defaults.mode,
+		depth: source.depth ?? defaults.depth,
+		include: source.include ?? defaults.include,
 		exclude: source.exclude,
-		required: source.required ?? config.defaults.required,
-		maxBytes: source.maxBytes ?? config.defaults.maxBytes,
+		required: source.required ?? defaults.required,
+		maxBytes: source.maxBytes ?? defaults.maxBytes,
 		integrity: source.integrity,
 	}));
+};
 
 export const resolveConfigPath = (configPath?: string) =>
 	configPath

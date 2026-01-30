@@ -9,13 +9,8 @@ test("docs config schema has required top-level keys", async () => {
 	const schema = JSON.parse(raw.toString());
 
 	assert.equal(schema.type, "object");
-	assert.deepEqual(schema.required, [
-		"version",
-		"cacheDir",
-		"defaults",
-		"sources",
-	]);
-	assert.equal(schema.properties?.version?.const, 1);
+	assert.deepEqual(schema.required, ["sources"]);
+	assert.ok(schema.properties?.$schema);
 	assert.equal(schema.properties?.cacheDir?.default, ".docs");
 	assert.equal(schema.properties?.defaults?.properties?.ref?.default, "HEAD");
 	assert.equal(

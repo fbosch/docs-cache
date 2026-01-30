@@ -39,6 +39,7 @@ const parseOptions = (args: string[]) => {
 	const options: CliOptions = {
 		offline: false,
 		failOnMiss: false,
+		lockOnly: false,
 		json: false,
 	};
 	const positionals: string[] = [];
@@ -74,6 +75,17 @@ const parseOptions = (args: string[]) => {
 				break;
 			case "--fail-on-miss":
 				options.failOnMiss = true;
+				break;
+			case "--target-dir": {
+				const { value, nextIndex } = inlineValue
+					? { value: inlineValue, nextIndex: index }
+					: readValue(args, index, flag);
+				options.targetDir = value;
+				index = nextIndex;
+				break;
+			}
+			case "--lock-only":
+				options.lockOnly = true;
 				break;
 			case "--json":
 				options.json = true;
@@ -114,7 +126,12 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 		if (args.length === 0) {
 			return {
 				command: null,
-				options: { offline: false, failOnMiss: false, json: false },
+				options: {
+					offline: false,
+					failOnMiss: false,
+					lockOnly: false,
+					json: false,
+				},
 				positionals: [],
 				help: true,
 			};
@@ -124,7 +141,12 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 		if (command && HELP_FLAGS.has(command)) {
 			return {
 				command: null,
-				options: { offline: false, failOnMiss: false, json: false },
+				options: {
+					offline: false,
+					failOnMiss: false,
+					lockOnly: false,
+					json: false,
+				},
 				positionals: [],
 				help: true,
 			};

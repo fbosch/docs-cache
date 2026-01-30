@@ -3,12 +3,11 @@
 	"title": "Docs Cache Config",
 	"type": "object",
 	"additionalProperties": false,
-	"required": ["version", "cacheDir", "defaults", "sources"],
+	"required": ["sources"],
 	"properties": {
-		"version": {
-			"type": "integer",
-			"const": 1,
-			"default": 1
+		"$schema": {
+			"type": "string",
+			"minLength": 1
 		},
 		"cacheDir": {
 			"type": "string",
@@ -18,15 +17,7 @@
 		"defaults": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": [
-				"ref",
-				"mode",
-				"include",
-				"depth",
-				"required",
-				"maxBytes",
-				"allowHosts"
-			],
+			"required": [],
 			"properties": {
 				"ref": {
 					"type": "string",
@@ -88,6 +79,10 @@
 						"minLength": 1
 					},
 					"repo": {
+						"type": "string",
+						"minLength": 1
+					},
+					"targetDir": {
 						"type": "string",
 						"minLength": 1
 					},

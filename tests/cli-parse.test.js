@@ -29,6 +29,9 @@ test("parseArgs handles flags and numbers", async (t) => {
 		".docs",
 		"--offline",
 		"--fail-on-miss",
+		"--lock-only",
+		"--target-dir",
+		"docs",
 		"--concurrency",
 		"4",
 		"--timeout-ms",
@@ -41,6 +44,8 @@ test("parseArgs handles flags and numbers", async (t) => {
 	assert.equal(result.options.cacheDir, ".docs");
 	assert.equal(result.options.offline, true);
 	assert.equal(result.options.failOnMiss, true);
+	assert.equal(result.options.lockOnly, true);
+	assert.equal(result.options.targetDir, "docs");
 	assert.equal(result.options.concurrency, 4);
 	assert.equal(result.options.timeoutMs, 2000);
 	assert.equal(result.options.json, true);
