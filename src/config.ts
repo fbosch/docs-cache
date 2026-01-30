@@ -13,6 +13,7 @@ export interface DocsCacheIntegrity {
 export interface DocsCacheDefaults {
 	ref: string;
 	mode: CacheMode;
+	include: string[];
 	depth: number;
 	required: boolean;
 	maxBytes: number;
@@ -60,6 +61,11 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 	defaults: {
 		ref: "HEAD",
 		mode: "materialize",
+		include: [
+			"**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}",
+			"README*",
+			"LICENSE*",
+		],
 		depth: 1,
 		required: true,
 		maxBytes: 200000000,
@@ -153,6 +159,7 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 	const defaults: DocsCacheDefaults = {
 		ref: assertString(input.defaults.ref, "defaults.ref"),
 		mode: assertMode(input.defaults.mode, "defaults.mode"),
+		include: assertStringArray(input.defaults.include, "defaults.include"),
 		depth: assertPositiveNumber(input.defaults.depth, "defaults.depth"),
 		required: assertBoolean(input.defaults.required, "defaults.required"),
 		maxBytes: assertPositiveNumber(
@@ -239,7 +246,7 @@ export const resolveSources = (
 		ref: source.ref ?? config.defaults.ref,
 		mode: source.mode ?? config.defaults.mode,
 		depth: source.depth ?? config.defaults.depth,
-		include: source.include,
+		include: source.include ?? config.defaults.include,
 		exclude: source.exclude,
 		required: source.required ?? config.defaults.required,
 		maxBytes: source.maxBytes ?? config.defaults.maxBytes,

@@ -21,6 +21,7 @@
 			"required": [
 				"ref",
 				"mode",
+				"include",
 				"depth",
 				"required",
 				"maxBytes",
@@ -36,6 +37,19 @@
 					"type": "string",
 					"enum": ["materialize", "sparse"],
 					"default": "materialize"
+				},
+				"include": {
+					"type": "array",
+					"minItems": 1,
+					"default": [
+						"**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}",
+						"README*",
+						"LICENSE*"
+					],
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
 				},
 				"depth": {
 					"type": "number",

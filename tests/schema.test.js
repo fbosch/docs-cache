@@ -22,4 +22,9 @@ test("docs config schema has required top-level keys", async () => {
 		schema.properties?.defaults?.properties?.mode?.default,
 		"materialize",
 	);
+	assert.deepEqual(schema.properties?.defaults?.properties?.include?.default, [
+		"**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}",
+		"README*",
+		"LICENSE*",
+	]);
 });
