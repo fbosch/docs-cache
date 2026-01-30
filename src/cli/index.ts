@@ -1,6 +1,7 @@
+import path from "node:path";
 import process from "node:process";
-
-import { addSource } from "../add";
+import pc from "picocolors";
+import { addSources } from "../add";
 import { redactRepoUrl } from "../git/redact";
 import { getStatus, printStatus } from "../status";
 import { printSyncPlan, runSync } from "../sync";
@@ -15,7 +16,7 @@ const HELP_TEXT = `
 Usage: ${CLI_NAME} <command> [options]
 
 Commands:
-  add     Add a source to the config (supports github:org/repo#ref)
+  add     Add sources to the config (supports github:org/repo#ref)
   sync    Synchronize cache with config
   status  Show cache status
   clean   Remove cache
@@ -48,23 +49,34 @@ const runCommand = async (
 	positionals: string[],
 ) => {
 	if (command === "add") {
-		const [first, second] = positionals;
-		if (!first) {
-			throw new Error("Usage: docs-cache add [id] <repo>");
+		if (positionals.length === 0) {
+			throw new Error("Usage: docs-cache add <repo...>");
 		}
-		const hasExplicitId = Boolean(second);
-		const id = hasExplicitId ? first : "";
-		const repo = hasExplicitId ? second : first;
-		const result = await addSource({
+		const entries = positionals.map((repo) => ({ repo }));
+		const result = await addSources({
 			configPath: options.config,
-			id,
-			repo,
+			entries,
 			targetDir: options.targetDir,
 		});
 		if (options.json) {
 			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 		} else {
-			process.stdout.write(`${symbols.success} Added ${result.sourceRepo}\n`);
+			if (result.sources.length > 1) {
+				process.stdout.write(
+					`${symbols.success} Added ${pc.cyan(String(result.sources.length))} sources\n`,
+				);
+			} else {
+				const source = result.sources[0];
+				const repoLabel = source.repo
+					.replace(/^https?:\/\//, "")
+					.replace(/\.git$/, "");
+				process.stdout.write(
+					`${symbols.success} Added ${pc.cyan(source.id)} ${pc.dim("(")}${pc.blue(repoLabel)}${pc.dim(")")}\n`,
+				);
+			}
+			process.stdout.write(
+				`${symbols.info} Updated ${pc.gray(path.relative(process.cwd(), result.configPath) || "docs.config.json")}\n`,
+			);
 		}
 		return;
 	}

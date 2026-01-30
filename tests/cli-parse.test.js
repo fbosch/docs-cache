@@ -61,14 +61,14 @@ test("parseArgs handles add positional args", async (t) => {
 		"node",
 		"docs-cache",
 		"add",
-		"vitest",
 		"https://github.com/vitest-dev/vitest.git",
+		"github:fbosch/docs-cache",
 	]);
 
 	assert.equal(result.command, "add");
 	assert.deepEqual(result.positionals, [
-		"vitest",
 		"https://github.com/vitest-dev/vitest.git",
+		"github:fbosch/docs-cache",
 	]);
 });
 
