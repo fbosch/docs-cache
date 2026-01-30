@@ -12,7 +12,7 @@ const HELP_TEXT = `
 Usage: ${CLI_NAME} <command> [options]
 
 Commands:
-  add     Add a source to the config
+  add     Add a source to the config (supports github:org/repo#ref)
   sync    Synchronize cache with config
   status  Show cache status
   clean   Remove cache
@@ -39,10 +39,13 @@ const runCommand = async (
 	positionals: string[],
 ) => {
 	if (command === "add") {
-		const [id, repo] = positionals;
-		if (!id || !repo) {
-			throw new Error("Usage: docs-cache add <id> <repo>");
+		const [first, second] = positionals;
+		if (!first) {
+			throw new Error("Usage: docs-cache add [id] <repo>");
 		}
+		const hasExplicitId = Boolean(second);
+		const id = hasExplicitId ? first : "";
+		const repo = hasExplicitId ? second : first;
 		const result = await addSource({
 			configPath: options.config,
 			id,

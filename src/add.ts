@@ -16,6 +16,45 @@ const exists = async (target: string) => {
 	}
 };
 
+const resolveRepoInput = (repo: string) => {
+	const trimmed = repo.trim();
+	const shortcutMatch = trimmed.match(/^(github|gitlab):(.+)$/i);
+	if (shortcutMatch) {
+		const provider = shortcutMatch[1].toLowerCase();
+		const rawPath = shortcutMatch[2];
+		const [pathPart, rawRef] = rawPath.split("#", 2);
+		const sanitizedPath = pathPart.replace(/^\//, "");
+		const inferredId = sanitizedPath
+			.split("/")
+			.filter(Boolean)
+			.pop()
+			?.replace(/\.git$/i, "");
+		const host = provider === "gitlab" ? "gitlab.com" : "github.com";
+		const suffix = sanitizedPath.endsWith(".git") ? "" : ".git";
+		const repoUrl = `https://${host}/${sanitizedPath}${suffix}`;
+		const ref = rawRef?.trim() || undefined;
+		return { repoUrl, ref, inferredId };
+	}
+
+	const sshMatch = trimmed.match(/^git@([^:]+):(.+)$/);
+	if (sshMatch) {
+		const host = sshMatch[1];
+		const rawPath = sshMatch[2];
+		const [pathPart, rawRef] = rawPath.split("#", 2);
+		const sanitizedPath = pathPart.replace(/^\//, "");
+		const inferredId = sanitizedPath
+			.split("/")
+			.filter(Boolean)
+			.pop()
+			?.replace(/\.git$/i, "");
+		const repoUrl = `git@${host}:${sanitizedPath}`;
+		const ref = rawRef?.trim() || undefined;
+		return { repoUrl, ref, inferredId };
+	}
+
+	return { repoUrl: trimmed, ref: undefined, inferredId: undefined };
+};
+
 export const addSource = async (params: {
 	configPath?: string;
 	id: string;
@@ -28,15 +67,22 @@ export const addSource = async (params: {
 		config = validateConfig(JSON.parse(raw.toString()));
 	}
 
-	if (config.sources.some((source) => source.id === params.id)) {
-		throw new Error(`Source '${params.id}' already exists in config.`);
+	const resolved = resolveRepoInput(params.repo);
+	const sourceId = params.id || resolved.inferredId;
+	if (!sourceId) {
+		throw new Error("Unable to infer id. Provide an explicit id.");
+	}
+
+	if (config.sources.some((source) => source.id === sourceId)) {
+		throw new Error(`Source '${sourceId}' already exists in config.`);
 	}
 
 	config.sources = [
 		...config.sources,
 		{
-			id: params.id,
-			repo: params.repo,
+			id: sourceId,
+			repo: resolved.repoUrl,
+			...(resolved.ref ? { ref: resolved.ref } : {}),
 		},
 	];
 
@@ -44,8 +90,9 @@ export const addSource = async (params: {
 
 	return {
 		configPath: resolvedPath,
-		sourceId: params.id,
-		sourceRepo: params.repo,
+		sourceId: sourceId,
+		sourceRepo: resolved.repoUrl,
 		created: true,
+		ref: resolved.ref,
 	};
 };

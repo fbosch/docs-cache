@@ -66,3 +66,39 @@ test("parseArgs handles add positional args", async (t) => {
 		"https://github.com/vitest-dev/vitest.git",
 	]);
 });
+
+test("parseArgs handles shorthand repo only", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs([
+		"node",
+		"docs-cache",
+		"add",
+		"github:fbosch/docs-cache",
+	]);
+
+	assert.equal(result.command, "add");
+	assert.deepEqual(result.positionals, ["github:fbosch/docs-cache"]);
+});
+
+test("parseArgs handles ssh repo only", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs([
+		"node",
+		"docs-cache",
+		"add",
+		"git@github.com:fbosch/docs-cache.git",
+	]);
+
+	assert.equal(result.command, "add");
+	assert.deepEqual(result.positionals, [
+		"git@github.com:fbosch/docs-cache.git",
+	]);
+});
