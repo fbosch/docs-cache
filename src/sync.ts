@@ -202,6 +202,28 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 			}>;
 		};
 
+		const ensureTargets = async () => {
+			await Promise.all(
+				plan.sources.map(async (source) => {
+					if (!source.targetDir) {
+						return;
+					}
+					const resolvedTarget = path.resolve(
+						path.dirname(plan.configPath),
+						source.targetDir,
+					);
+					if (await exists(resolvedTarget)) {
+						return;
+					}
+					await applyTargetDir({
+						sourceDir: path.join(plan.cacheDir, source.id),
+						targetDir: resolvedTarget,
+						mode: source.targetMode ?? defaults.targetMode,
+					});
+				}),
+			);
+		};
+
 		const runJobs = async (
 			jobs: Array<{
 				result: SyncResult;
@@ -270,6 +292,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 
 		const initialJobs = await buildJobs();
 		await runJobs(initialJobs);
+		await ensureTargets();
 		const verifyReport = await verifyCache({
 			configPath: plan.configPath,
 			cacheDirOverride: plan.cacheDir,
@@ -283,6 +306,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 			);
 			if (retryJobs.length > 0) {
 				await runJobs(retryJobs);
+				await ensureTargets();
 			}
 			const retryReport = await verifyCache({
 				configPath: plan.configPath,

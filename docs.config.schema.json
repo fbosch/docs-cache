@@ -14,6 +14,10 @@
 			"minLength": 1,
 			"default": ".docs"
 		},
+		"targetMode": {
+			"type": "string",
+			"enum": ["symlink", "copy"]
+		},
 		"defaults": {
 			"type": "object",
 			"additionalProperties": false,
@@ -44,8 +48,7 @@
 				},
 				"targetMode": {
 					"type": "string",
-					"enum": ["symlink", "copy"],
-					"default": "symlink"
+					"enum": ["symlink", "copy"]
 				},
 				"depth": {
 					"type": "number",

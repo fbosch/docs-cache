@@ -31,50 +31,79 @@ export const verifyCache = async (options: VerifyOptions) => {
 		options.cacheDirOverride,
 	);
 
+	const verifyDir = async (directory: string, label: "source" | "target") => {
+		if (!(await exists(directory))) {
+			return {
+				ok: false,
+				issues: [
+					label === "source"
+						? "missing source directory"
+						: "missing target directory",
+				],
+			};
+		}
+		try {
+			const manifest = await readManifest(directory);
+			const missing: string[] = [];
+			const sizeMismatch: string[] = [];
+			for (const entry of manifest.entries) {
+				const filePath = path.join(directory, entry.path);
+				if (!(await exists(filePath))) {
+					missing.push(entry.path);
+					continue;
+				}
+				const info = await stat(filePath);
+				if (info.size !== entry.size) {
+					sizeMismatch.push(entry.path);
+				}
+			}
+			const issues: string[] = [];
+			if (missing.length > 0) {
+				issues.push(
+					label === "source"
+						? `missing files: ${missing.length}`
+						: `target missing files: ${missing.length}`,
+				);
+			}
+			if (sizeMismatch.length > 0) {
+				issues.push(
+					label === "source"
+						? `size mismatch: ${sizeMismatch.length}`
+						: `target size mismatch: ${sizeMismatch.length}`,
+				);
+			}
+			return {
+				ok: issues.length === 0,
+				issues,
+			};
+		} catch (error) {
+			return {
+				ok: false,
+				issues: [
+					label === "source" ? "missing manifest" : "missing target manifest",
+				],
+			};
+		}
+	};
+
 	const results = await Promise.all(
 		sources.map(async (source) => {
 			const sourceDir = path.join(cacheDir, source.id);
-			if (!(await exists(sourceDir))) {
-				return {
-					id: source.id,
-					ok: false,
-					issues: ["missing source directory"],
-				};
+			const sourceReport = await verifyDir(sourceDir, "source");
+			const issues = [...sourceReport.issues];
+			if (source.targetDir && source.targetMode === "copy") {
+				const targetDir = path.resolve(
+					path.dirname(resolvedPath),
+					source.targetDir,
+				);
+				const targetReport = await verifyDir(targetDir, "target");
+				issues.push(...targetReport.issues);
 			}
-			try {
-				const manifest = await readManifest(sourceDir);
-				const missing: string[] = [];
-				const sizeMismatch: string[] = [];
-				for (const entry of manifest.entries) {
-					const filePath = path.join(sourceDir, entry.path);
-					if (!(await exists(filePath))) {
-						missing.push(entry.path);
-						continue;
-					}
-					const info = await stat(filePath);
-					if (info.size !== entry.size) {
-						sizeMismatch.push(entry.path);
-					}
-				}
-				const issues: string[] = [];
-				if (missing.length > 0) {
-					issues.push(`missing files: ${missing.length}`);
-				}
-				if (sizeMismatch.length > 0) {
-					issues.push(`size mismatch: ${sizeMismatch.length}`);
-				}
-				return {
-					id: source.id,
-					ok: issues.length === 0,
-					issues,
-				};
-			} catch (error) {
-				return {
-					id: source.id,
-					ok: false,
-					issues: ["missing manifest"],
-				};
-			}
+			return {
+				id: source.id,
+				ok: issues.length === 0,
+				issues,
+			};
 		}),
 	);
 

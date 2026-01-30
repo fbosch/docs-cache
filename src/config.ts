@@ -14,7 +14,7 @@ export interface DocsCacheDefaults {
 	ref: string;
 	mode: CacheMode;
 	include: string[];
-	targetMode: "symlink" | "copy";
+	targetMode?: "symlink" | "copy";
 	depth: number;
 	required: boolean;
 	maxBytes: number;
@@ -39,6 +39,7 @@ export interface DocsCacheSource {
 export interface DocsCacheConfig {
 	$schema?: string;
 	cacheDir?: string;
+	targetMode?: "symlink" | "copy";
 	defaults?: Partial<DocsCacheDefaults>;
 	sources: DocsCacheSource[];
 }
@@ -60,6 +61,7 @@ export interface DocsCacheResolvedSource {
 
 export const DEFAULT_CONFIG_FILENAME = "docs.config.json";
 export const DEFAULT_CACHE_DIR = ".docs";
+const DEFAULT_TARGET_MODE = process.platform === "win32" ? "copy" : "symlink";
 export const DEFAULT_CONFIG: DocsCacheConfig = {
 	cacheDir: DEFAULT_CACHE_DIR,
 	defaults: {
@@ -70,7 +72,7 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 			"README*",
 			"LICENSE*",
 		],
-		targetMode: "symlink",
+		targetMode: DEFAULT_TARGET_MODE,
 		depth: 1,
 		required: true,
 		maxBytes: 200000000,
@@ -155,6 +157,10 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 		: DEFAULT_CACHE_DIR;
 
 	const defaultsInput = input.defaults;
+	const targetModeOverride =
+		input.targetMode !== undefined
+			? (assertString(input.targetMode, "targetMode") as "symlink" | "copy")
+			: undefined;
 	const defaultValues = DEFAULT_CONFIG.defaults as DocsCacheDefaults;
 	let defaults: DocsCacheDefaults = defaultValues;
 	if (defaultsInput !== undefined) {
@@ -179,7 +185,7 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 					? (assertString(defaultsInput.targetMode, "defaults.targetMode") as
 							| "symlink"
 							| "copy")
-					: defaultValues.targetMode,
+					: (targetModeOverride ?? defaultValues.targetMode),
 			depth:
 				defaultsInput.depth !== undefined
 					? assertPositiveNumber(defaultsInput.depth, "defaults.depth")
@@ -196,6 +202,11 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				defaultsInput.allowHosts !== undefined
 					? assertStringArray(defaultsInput.allowHosts, "defaults.allowHosts")
 					: defaultValues.allowHosts,
+		};
+	} else if (targetModeOverride !== undefined) {
+		defaults = {
+			...defaultValues,
+			targetMode: targetModeOverride,
 		};
 	}
 
@@ -276,6 +287,7 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 
 	return {
 		cacheDir,
+		targetMode: targetModeOverride,
 		defaults,
 		sources,
 	};

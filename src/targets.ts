@@ -4,7 +4,7 @@ import path from "node:path";
 type TargetParams = {
 	sourceDir: string;
 	targetDir: string;
-	mode: "symlink" | "copy";
+	mode?: "symlink" | "copy";
 };
 
 const removeTarget = async (targetDir: string) => {
@@ -16,7 +16,9 @@ export const applyTargetDir = async (params: TargetParams) => {
 	await mkdir(parentDir, { recursive: true });
 	await removeTarget(params.targetDir);
 
-	if (params.mode === "copy") {
+	const defaultMode = process.platform === "win32" ? "copy" : "symlink";
+	const mode = params.mode ?? defaultMode;
+	if (mode === "copy") {
 		await cp(params.sourceDir, params.targetDir, { recursive: true });
 		return;
 	}
