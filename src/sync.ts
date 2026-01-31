@@ -1,7 +1,7 @@
 import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import pc from "picocolors";
-import { symbols } from "./cli/symbols";
+import { symbols, ui } from "./cli/ui";
 import {
 	DEFAULT_CACHE_DIR,
 	DEFAULT_CONFIG,
@@ -264,7 +264,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 				index += 1;
 				const { result, source } = job;
 				if (!options.json) {
-					process.stdout.write(`${symbols.info} Fetching ${source.id}...\n`);
+					ui.step("Fetching", source.id);
 				}
 				const fetch = await runFetch({
 					sourceId: source.id,
@@ -299,8 +299,10 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					result.fileCount = stats.fileCount;
 					result.manifestSha256 = result.resolvedCommit;
 					if (!options.json) {
-						process.stdout.write(
-							`${symbols.success} Synced ${source.id} (${stats.fileCount} files)\n`,
+						ui.item(
+							symbols.success,
+							source.id,
+							`synced ${stats.fileCount} files`,
 						);
 					}
 				} finally {
@@ -348,8 +350,8 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						const details = stillFailed
 							.map((result) => `${result.id} (${result.issues.join("; ")})`)
 							.join(", ");
-						process.stdout.write(
-							`${symbols.warn} Verify failed for ${stillFailed.length} source(s): ${details}\n`,
+						ui.line(
+							`${symbols.warn} Verify failed for ${stillFailed.length} source(s): ${details}`,
 						);
 					}
 				}
@@ -365,32 +367,45 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 export const printSyncPlan = (
 	plan: Awaited<ReturnType<typeof getSyncPlan>>,
 ) => {
-	const rel = (value: string) =>
-		path.relative(process.cwd(), value) || path.basename(value);
 	const summary = {
 		upToDate: plan.results.filter((r) => r.status === "up-to-date").length,
 		changed: plan.results.filter((r) => r.status === "changed").length,
 		missing: plan.results.filter((r) => r.status === "missing").length,
 	};
-	process.stdout.write(
-		`${symbols.info} ${plan.results.length} sources (${summary.upToDate} up-to-date, ${summary.changed} changed, ${summary.missing} missing)\n`,
+
+	if (plan.results.length === 0) {
+		ui.line(`${symbols.info} No sources to sync.`);
+		return;
+	}
+
+	ui.line(
+		`${symbols.info} ${plan.results.length} sources (${summary.upToDate} up-to-date, ${summary.changed} changed, ${summary.missing} missing)`,
 	);
-	const shortHash = (value: string | null) => (value ? value.slice(0, 7) : "-");
+
 	for (const result of plan.results) {
+		const shortResolved = ui.hash(result.resolvedCommit);
+		const shortLock = ui.hash(result.lockCommit);
+
 		if (result.status === "up-to-date") {
-			process.stdout.write(
-				`${symbols.success} ${pc.cyan(result.id)} ${pc.dim("up-to-date")} ${pc.gray(shortHash(result.resolvedCommit))}\n`,
+			ui.item(
+				symbols.success,
+				result.id,
+				`${pc.dim("up-to-date")} ${pc.gray(shortResolved)}`,
 			);
 			continue;
 		}
 		if (result.status === "changed") {
-			process.stdout.write(
-				`${symbols.warn} ${pc.cyan(result.id)} ${pc.dim("changed")} ${pc.gray(shortHash(result.lockCommit))} ${pc.dim("->")} ${pc.gray(shortHash(result.resolvedCommit))}\n`,
+			ui.item(
+				symbols.warn,
+				result.id,
+				`${pc.dim("changed")} ${pc.gray(shortLock)} ${pc.dim("->")} ${pc.gray(shortResolved)}`,
 			);
 			continue;
 		}
-		process.stdout.write(
-			`${symbols.warn} ${pc.cyan(result.id)} ${pc.dim("missing")} ${pc.gray(shortHash(result.resolvedCommit))}\n`,
+		ui.item(
+			symbols.warn,
+			result.id,
+			`${pc.dim("missing")} ${pc.gray(shortResolved)}`,
 		);
 	}
 };

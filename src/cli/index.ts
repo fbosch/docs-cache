@@ -8,8 +8,8 @@ import { printSyncPlan, runSync } from "../sync";
 import { printVerify, verifyCache } from "../verify";
 import { ExitCode } from "./exit-code";
 import { parseArgs } from "./parse-args";
-import { symbols } from "./symbols";
 import type { CliOptions } from "./types";
+import { symbols, ui } from "./ui";
 
 export const CLI_NAME = "docs-cache";
 
@@ -123,7 +123,7 @@ const runCommand = async (
 				timeoutMs: options.timeoutMs,
 			});
 		} else if (!options.json) {
-			process.stdout.write(`${symbols.warn} Offline: skipped sync\n`);
+			ui.line(`${symbols.warn} Offline: skipped sync`);
 		}
 		if (options.json) {
 			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -135,17 +135,19 @@ const runCommand = async (
 				const targetLabel = source.targetDir
 					? ` ${pc.dim("->")} ${pc.magenta(source.targetDir)}`
 					: "";
-				process.stdout.write(
-					`${symbols.success} Added ${pc.cyan(source.id)} ${pc.dim("(")}${pc.blue(repoLabel)}${pc.dim(")")}${targetLabel}\n`,
+				ui.item(
+					symbols.success,
+					source.id,
+					`${pc.blue(repoLabel)}${targetLabel}`,
 				);
 			}
 			if (result.skipped?.length) {
-				process.stdout.write(
-					`${symbols.warn} Skipped ${pc.cyan(String(result.skipped.length))} existing source${result.skipped.length === 1 ? "" : "s"}: ${result.skipped.join(", ")}\n`,
+				ui.line(
+					`${symbols.warn} Skipped ${result.skipped.length} existing source${result.skipped.length === 1 ? "" : "s"}: ${result.skipped.join(", ")}`,
 				);
 			}
-			process.stdout.write(
-				`${symbols.info} Updated ${pc.gray(path.relative(process.cwd(), result.configPath) || "docs.config.json")}\n`,
+			ui.line(
+				`${symbols.info} Updated ${pc.gray(path.relative(process.cwd(), result.configPath) || "docs.config.json")}`,
 			);
 		}
 		return;
@@ -196,7 +198,7 @@ const runCommand = async (
 		}
 		return;
 	}
-	process.stdout.write(`${CLI_NAME} ${command}: not implemented yet.\n`);
+	ui.line(`${CLI_NAME} ${command}: not implemented yet.`);
 };
 
 /**

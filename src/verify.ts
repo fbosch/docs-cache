@@ -1,7 +1,6 @@
 import { access, stat } from "node:fs/promises";
 import path from "node:path";
-import pc from "picocolors";
-import { symbols } from "./cli/symbols";
+import { symbols, ui } from "./cli/ui";
 import { DEFAULT_CACHE_DIR, loadConfig } from "./config";
 import { readManifest } from "./manifest";
 import { resolveCacheDir } from "./paths";
@@ -118,16 +117,21 @@ export const printVerify = (
 ) => {
 	const okCount = report.results.filter((r) => r.ok).length;
 	const failCount = report.results.length - okCount;
-	process.stdout.write(
-		`${symbols.info} Verified ${report.results.length} sources (${okCount} ok, ${failCount} failed)\n`,
+
+	if (report.results.length === 0) {
+		ui.line(`${symbols.warn} No sources to verify.`);
+		return;
+	}
+
+	ui.line(
+		`${symbols.info} Verified ${report.results.length} sources (${okCount} ok, ${failCount} failed)`,
 	);
+
 	for (const result of report.results) {
 		if (result.ok) {
-			process.stdout.write(`${symbols.success} ${pc.cyan(result.id)}\n`);
+			ui.item(symbols.success, result.id);
 		} else {
-			process.stdout.write(
-				`${symbols.warn} ${pc.cyan(result.id)} ${pc.dim("-")} ${result.issues.join(", ")}\n`,
-			);
+			ui.item(symbols.warn, result.id, result.issues.join(", "));
 		}
 	}
 };

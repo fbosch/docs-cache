@@ -1,27 +1,20 @@
 # docs-cache
 
-Reproducible local caching of documentation repositories.
+Deterministic local caching of documentation repositories.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![npm version](https://img.shields.io/npm/v/docs-cache)](https://www.npmjs.com/package/docs-cache)
 
 ## Purpose
 
-`docs-cache` allows agents and tooling to consume documentation from Git repositories in a fast, deterministic way. It caches content locally, pins versions via a lockfile, and works offline.
+Enables agents and tooling to access Git-based documentation with versioning and offline support. It downloads documentation from repositories into a local cache, pins exact commits in a lockfile.
 
 ## Features
 
-- **Reproducible**: `docs.lock` pins commits and file metadata.
+- **Deterministic**: `docs.lock` pins commits and file metadata.
 - **Fast**: Local cache avoids network roundtrips after sync.
-- **Flexible**: Materialize full repos or sparse subdirectories.
-- **Secure**: File size limits, path traversal checks, and host allowlists.
-- **Gitignored**: Cache lives in `.docs/` or configured dir and should be gitignored.
-
-## Installation
-
-```bash
-pnpm add -D docs-cache
-```
+- **Flexible**: Cache full repos or just the subfolders you need.
+- **Gitignored**: Cache lives in `.docs/` or a configured dir and should be gitignored.
 
 ## Usage
 
@@ -48,17 +41,13 @@ npx docs-cache status
 
 ```json
 {
-  "$schema": "./docs.config.schema.json",
-  "defaults": {
-    "include": ["docs/**", "README.md"],
-    "targetMode": "symlink"
-  },
+  "$schema": "https://github.com/fbosch/docs-cache/blob/master/docs.config.schema.json",
   "sources": [
     {
       "id": "framework",
       "repo": "https://github.com/framework/core.git",
       "ref": "main",
-      "targetDir": "./docs/framework",
+      "targetDir": "./agents/skills/framework-skill/references" // Symlink/Copy
       "include": ["guide/**"]
     }
   ]
@@ -92,7 +81,7 @@ Use `postinstall` to ensure docs are ready for local agents immediately after in
 // package.json
 {
   "scripts": {
-    "postinstall": "docs-cache sync || exit 0"
+    "postinstall": "docs-cache sync"
   }
 }
 ```

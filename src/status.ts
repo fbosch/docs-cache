@@ -1,6 +1,6 @@
 import { access } from "node:fs/promises";
-import path from "node:path";
-import { symbols } from "./cli/symbols";
+import pc from "picocolors";
+import { symbols, ui } from "./cli/ui";
 import { DEFAULT_CACHE_DIR, loadConfig } from "./config";
 import { readLock, resolveLockPath } from "./lock";
 import { getCacheLayout, resolveCacheDir } from "./paths";
@@ -70,21 +70,31 @@ export const getStatus = async (options: StatusOptions) => {
 };
 
 export const printStatus = (status: Awaited<ReturnType<typeof getStatus>>) => {
+	const relCache = ui.path(status.cacheDir);
+	const cacheState = status.cacheDirExists
+		? pc.green("present")
+		: pc.red("missing");
 	const lockState = status.lockExists
 		? status.lockValid
-			? "present"
-			: "invalid"
-		: "missing";
-	const cacheState = status.cacheDirExists ? "present" : "missing";
+			? pc.green("valid")
+			: pc.red("invalid")
+		: pc.yellow("missing");
 
-	process.stdout.write(
-		`${symbols.info} Cache dir: ${status.cacheDir} (${cacheState})\n`,
-	);
+	ui.header("Cache", `${relCache} (${cacheState})`);
+	ui.header("Lock", `docs.lock (${lockState})`);
+
+	if (status.sources.length === 0) {
+		ui.line();
+		ui.line(`${symbols.warn} No sources configured.`);
+		return;
+	}
+
+	ui.line();
 	for (const source of status.sources) {
-		const docsState = source.docsExists ? "present" : "missing";
-		const lockStateLabel = source.lockEntry ? "present" : "missing";
-		process.stdout.write(
-			`${symbols.info} ${source.id}: docs=${docsState} lock=${lockStateLabel}\n`,
-		);
+		const icon = source.docsExists ? symbols.success : symbols.error;
+		const lockLabel = source.lockEntry ? pc.green("locked") : pc.yellow("new");
+		const shortHash = ui.hash(source.lockEntry?.resolvedCommit);
+
+		ui.item(icon, source.id.padEnd(20), `${lockLabel.padEnd(10)} ${shortHash}`);
 	}
 };
