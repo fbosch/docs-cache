@@ -12,5 +12,8 @@ export default defineBuildConfig({
 	rollup: {
 		emitCJS: false,
 		inlineDependencies: ["picocolors"],
+		esbuild: {
+			minify: true,
+		},
 	},
 });

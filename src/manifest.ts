@@ -7,7 +7,7 @@ type ManifestEntry = {
 	size: number;
 };
 
-export const MANIFEST_FILENAME = ".manifest.ndjson";
+export const MANIFEST_FILENAME = ".manifest.jsonl";
 
 export const readManifest = async (sourceDir: string) => {
 	const manifestPath = path.join(sourceDir, MANIFEST_FILENAME);

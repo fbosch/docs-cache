@@ -58,7 +58,7 @@ test("sync writes index.json when enabled", async () => {
 				const outDir = path.join(cacheRoot, sourceId);
 				await mkdir(outDir, { recursive: true });
 				await writeFile(
-					path.join(outDir, ".manifest.ndjson"),
+					path.join(outDir, ".manifest.jsonl"),
 					`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
 				);
 				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
