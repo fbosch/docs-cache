@@ -27,7 +27,7 @@
 		"test": "pnpm build && node --test",
 		"test:coverage": "pnpm build && c8 --include dist --exclude bin --reporter=text node --test",
 		"schema:build": "node scripts/generate-schema.mjs",
-		"size": "pnpm run build && size-limit",
+		"size": "pnpm run build && node scripts/update-size-badge.mjs",
 		"test:watch": "node --test --watch",
 		"typecheck": "tsc --noEmit",
 		"prepare": "simple-git-hooks"
