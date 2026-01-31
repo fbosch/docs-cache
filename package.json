@@ -7,6 +7,23 @@
 	"description": "CLI for deterministic local caching of external documentation for agents and tools",
 	"author": "Frederik Bosch",
 	"license": "MIT",
+	"homepage": "https://github.com/fbosch/docs-cache#readme",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/fbosch/docs-cache.git"
+	},
+	"bugs": {
+		"url": "https://github.com/fbosch/docs-cache/issues"
+	},
+	"keywords": [
+		"docs",
+		"documentation",
+		"cache",
+		"agent",
+		"ai",
+		"git",
+		"cli"
+	],
 	"sideEffects": false,
 	"engines": {
 		"node": ">=18"
@@ -17,10 +34,19 @@
 	"files": [
 		"bin",
 		"dist/cli.mjs",
+		"dist/cli.d.ts",
+		"dist/cli.d.mts",
+		"dist/api.mjs",
+		"dist/api.d.ts",
+		"dist/api.d.mts",
+		"dist/lock.mjs",
+		"dist/lock.d.ts",
+		"dist/lock.d.mts",
 		"dist/chunks/*.mjs",
 		"dist/shared/*.mjs",
 		"README.md",
-		"LICENSE"
+		"LICENSE",
+		"docs.config.schema.json"
 	],
 	"scripts": {
 		"build": "unbuild",
