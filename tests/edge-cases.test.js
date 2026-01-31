@@ -36,7 +36,7 @@ test("config rejects duplicate source IDs", async () => {
 	await assert.rejects(() => loadConfig(configPath), /Duplicate source IDs/i);
 });
 
-test("config rejects source ID with path traversal characters", async () => {
+test("config allows source ID with path traversal characters (potential issue)", async () => {
 	const configPath = await writeConfig({
 		sources: [{ id: "../evil", repo: "https://github.com/example/repo.git" }],
 	});
@@ -46,7 +46,7 @@ test("config rejects source ID with path traversal characters", async () => {
 	// TODO: Should validate sourceId to prevent path traversal
 });
 
-test("config rejects source ID with special characters", async () => {
+test("config allows source ID with special characters (potential issue)", async () => {
 	// Test various special characters that could break shell or file systems
 	const specialChars = ["foo:bar", "foo|bar", "foo*bar", "foo?bar", "foo<bar"];
 
@@ -203,7 +203,7 @@ test("config with malformed JSON", async () => {
 	await assert.rejects(() => loadConfig(configPath), /Invalid JSON/i);
 });
 
-test("config with BOM (Byte Order Mark) fails to parse", async () => {
+test("config rejects BOM (Byte Order Mark)", async () => {
 	const tmpRoot = path.join(
 		tmpdir(),
 		`docs-cache-bom-${Date.now().toString(36)}`,
