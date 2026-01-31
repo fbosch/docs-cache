@@ -95,8 +95,15 @@ export const materializeSource = async (params: MaterializeParams) => {
 				if (hasTarget) {
 					try {
 						await rename(backupPath, target);
-					} catch {
-						// ignore restore failures
+					} catch (restoreError) {
+						// Log but don't fail - the original error is more important
+						const restoreMsg =
+							restoreError instanceof Error
+								? restoreError.message
+								: String(restoreError);
+						process.stderr.write(
+							`Warning: Failed to restore backup: ${restoreMsg}\n`,
+						);
 					}
 				}
 				throw error;

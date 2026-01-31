@@ -6,6 +6,8 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
+const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
+
 const git = async (
 	args: string[],
 	options?: { cwd?: string; timeoutMs?: number },
@@ -21,7 +23,7 @@ const git = async (
 		],
 		{
 			cwd: options?.cwd,
-			timeout: options?.timeoutMs,
+			timeout: options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
 			maxBuffer: 1024 * 1024,
 			env: {
 				...process.env,
@@ -61,7 +63,7 @@ const runGitArchive = async (
 		{ timeoutMs },
 	);
 	await execFileAsync("tar", ["-xf", archivePath, "-C", outDir], {
-		timeout: timeoutMs,
+		timeout: timeoutMs ?? DEFAULT_TIMEOUT_MS,
 		maxBuffer: 1024 * 1024,
 	});
 	await rm(archivePath, { force: true });

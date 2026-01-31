@@ -75,7 +75,7 @@ export const verifyCache = async (options: VerifyOptions) => {
 				ok: issues.length === 0,
 				issues,
 			};
-		} catch (error) {
+		} catch (_error) {
 			return {
 				ok: false,
 				issues: [
