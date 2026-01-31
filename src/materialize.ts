@@ -1,9 +1,10 @@
+import { createHash } from "node:crypto";
 import {
 	access,
+	copyFile,
 	lstat,
 	mkdir,
 	mkdtemp,
-	readFile,
 	rename,
 	rm,
 	writeFile,
@@ -21,6 +22,7 @@ type MaterializeParams = {
 	exclude?: string[];
 	maxBytes: number;
 	maxFiles?: number;
+	concurrency?: number;
 };
 
 const normalizePath = (value: string) => toPosixPath(value);
@@ -48,11 +50,16 @@ export const materializeSource = async (params: MaterializeParams) => {
 			onlyFiles: true,
 			followSymbolicLinks: false,
 		});
-		let bytes = 0;
-		const manifest: Array<{ path: string; size: number }> = [];
+
+		// Pre-validate files and compute total size
+		let totalBytes = 0;
+		const fileInfos: Array<{
+			relativePath: string;
+			normalizedPath: string;
+			size: number;
+		}> = [];
 
 		for (const relativePath of files) {
-			const relNormalized = normalizePath(relativePath);
 			const filePath = path.join(params.repoDir, relativePath);
 			const stats = await lstat(filePath);
 			if (stats.isSymbolicLink()) {
@@ -60,28 +67,61 @@ export const materializeSource = async (params: MaterializeParams) => {
 			}
 			if (
 				params.maxFiles !== undefined &&
-				manifest.length + 1 > params.maxFiles
+				fileInfos.length + 1 > params.maxFiles
 			) {
 				throw new Error(
 					`Materialized content exceeds maxFiles (${params.maxFiles}).`,
 				);
 			}
-			bytes += stats.size;
-			if (bytes > params.maxBytes) {
+			totalBytes += stats.size;
+			if (totalBytes > params.maxBytes) {
 				throw new Error(
 					`Materialized content exceeds maxBytes (${params.maxBytes}).`,
 				);
 			}
-			const targetPath = path.join(tempDir, relativePath);
-			ensureSafePath(tempDir, targetPath);
-			await mkdir(path.dirname(targetPath), { recursive: true });
-			const data = await readFile(filePath);
-			await writeFile(targetPath, data);
-			manifest.push({ path: relNormalized, size: stats.size });
+			fileInfos.push({
+				relativePath,
+				normalizedPath: normalizePath(relativePath),
+				size: stats.size,
+			});
 		}
+
+		// Copy files with concurrency control
+		const concurrency = params.concurrency ?? 10;
+		const manifest: Array<{ path: string; size: number }> = [];
+		let index = 0;
+
+		const copyNext = async () => {
+			while (index < fileInfos.length) {
+				const current = index++;
+				const fileInfo = fileInfos[current];
+				const filePath = path.join(params.repoDir, fileInfo.relativePath);
+				const targetPath = path.join(tempDir, fileInfo.relativePath);
+				ensureSafePath(tempDir, targetPath);
+				await mkdir(path.dirname(targetPath), { recursive: true });
+				// Use copyFile for better performance (doesn't load entire file into memory)
+				await copyFile(filePath, targetPath);
+				manifest.push({
+					path: fileInfo.normalizedPath,
+					size: fileInfo.size,
+				});
+			}
+		};
+
+		await Promise.all(
+			Array.from({ length: Math.min(concurrency, fileInfos.length) }, copyNext),
+		);
+
+		// Sort manifest by path for deterministic output
+		manifest.sort((a, b) => a.path.localeCompare(b.path));
 
 		const manifestData = `${JSON.stringify(manifest, null, 2)}\n`;
 		await writeFile(path.join(tempDir, "manifest.json"), manifestData, "utf8");
+
+		// Compute SHA256 hash of manifest for integrity verification
+		const manifestSha256 = createHash("sha256")
+			.update(manifestData)
+			.digest("hex");
 
 		const exists = async (target: string) => {
 			try {
@@ -124,8 +164,9 @@ export const materializeSource = async (params: MaterializeParams) => {
 
 		await replaceDirectory(tempDir, layout.sourceDir);
 		return {
-			bytes,
+			bytes: totalBytes,
 			fileCount: manifest.length,
+			manifestSha256,
 		};
 	} catch (error) {
 		await rm(tempDir, { recursive: true, force: true });

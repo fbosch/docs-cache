@@ -3,7 +3,6 @@ import process from "node:process";
 import pc from "picocolors";
 import { addSources } from "../add";
 import { cleanCache } from "../clean";
-import { redactRepoUrl } from "../git/redact";
 import { initConfig } from "../init";
 import { pruneCache } from "../prune";
 import { removeSources } from "../remove";

@@ -1,5 +1,21 @@
 export const resolveRepoInput = (repo: string) => {
 	const trimmed = repo.trim();
+
+	// Reject empty or overly long inputs
+	if (!trimmed || trimmed.length > 2048) {
+		throw new Error(
+			"Invalid repository URL: must be non-empty and under 2048 characters",
+		);
+	}
+
+	// Reject URLs with potential command injection characters
+	const dangerousChars = /[;&|`$(){}[\]<>]/;
+	if (dangerousChars.test(trimmed)) {
+		throw new Error(
+			"Invalid repository URL: contains potentially dangerous characters",
+		);
+	}
+
 	const sshMatch = trimmed.match(/^git@([^:]+):(.+)$/);
 	if (sshMatch) {
 		const host = sshMatch[1];

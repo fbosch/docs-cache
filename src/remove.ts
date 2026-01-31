@@ -2,7 +2,6 @@ import { access, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
 	DEFAULT_CONFIG,
-	DEFAULT_CONFIG_FILENAME,
 	type DocsCacheConfig,
 	resolveConfigPath,
 	validateConfig,
@@ -101,7 +100,7 @@ export const removeSources = async (params: {
 		}
 		const resolved = resolveRepoInput(token);
 		if (resolved.repoUrl && sourcesByRepo.has(resolved.repoUrl)) {
-			idsToRemove.add(sourcesByRepo.get(resolved.repoUrl)!.id);
+			idsToRemove.add(sourcesByRepo.get(resolved.repoUrl)?.id);
 			continue;
 		}
 		if (resolved.inferredId && sourcesById.has(resolved.inferredId)) {

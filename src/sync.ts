@@ -330,7 +330,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					}
 					result.bytes = stats.bytes;
 					result.fileCount = stats.fileCount;
-					result.manifestSha256 = result.resolvedCommit;
+					result.manifestSha256 = stats.manifestSha256 ?? result.resolvedCommit;
 					if (!options.json) {
 						ui.item(
 							symbols.success,

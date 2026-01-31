@@ -11,7 +11,6 @@ import {
 	DEFAULT_CONFIG,
 	DEFAULT_CONFIG_FILENAME,
 	type DocsCacheConfig,
-	resolveConfigPath,
 	writeConfig,
 } from "./config";
 
@@ -46,7 +45,7 @@ export const initConfig = async (
 	const select = deps.select ?? clackSelect;
 	const text = deps.text ?? clackText;
 	const cwd = options.cwd ?? process.cwd();
-	const defaults = {
+	const _defaults = {
 		ref: DEFAULT_CONFIG.defaults?.ref ?? "HEAD",
 		targetMode:
 			DEFAULT_CONFIG.defaults?.targetMode ??
