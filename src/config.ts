@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ConfigSchema } from "./config-schema";
 
@@ -66,6 +66,7 @@ export interface DocsCacheResolvedSource {
 
 export const DEFAULT_CONFIG_FILENAME = "docs.config.json";
 export const DEFAULT_CACHE_DIR = ".docs";
+const PACKAGE_JSON_FILENAME = "package.json";
 const DEFAULT_TARGET_MODE = process.platform === "win32" ? "copy" : "symlink";
 export const DEFAULT_CONFIG: DocsCacheConfig = {
 	cacheDir: DEFAULT_CACHE_DIR,
@@ -353,6 +354,51 @@ export const resolveConfigPath = (configPath?: string) =>
 		? path.resolve(configPath)
 		: path.resolve(process.cwd(), DEFAULT_CONFIG_FILENAME);
 
+const resolvePackagePath = () =>
+	path.resolve(process.cwd(), PACKAGE_JSON_FILENAME);
+
+const exists = async (target: string) => {
+	try {
+		await access(target);
+		return true;
+	} catch {
+		return false;
+	}
+};
+
+const loadConfigFromFile = async (
+	filePath: string,
+	mode: "config" | "package",
+) => {
+	let raw: string;
+	try {
+		raw = await readFile(filePath, "utf8");
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(`Failed to read config at ${filePath}: ${message}`);
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(`Invalid JSON in ${filePath}: ${message}`);
+	}
+	const configInput =
+		mode === "package"
+			? (parsed as Record<string, unknown>)?.["docs-cache"]
+			: parsed;
+	if (mode === "package" && configInput === undefined) {
+		throw new Error(`Missing docs-cache config in ${filePath}.`);
+	}
+	const config = validateConfig(configInput);
+	return {
+		config,
+		resolvedPath: filePath,
+		sources: resolveSources(config),
+	};
+};
+
 export const writeConfig = async (
 	configPath: string,
 	config: DocsCacheConfig,
@@ -363,24 +409,25 @@ export const writeConfig = async (
 
 export const loadConfig = async (configPath?: string) => {
 	const resolvedPath = resolveConfigPath(configPath);
-	let raw: string;
-	try {
-		raw = await readFile(resolvedPath, "utf8");
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		throw new Error(`Failed to read config at ${resolvedPath}: ${message}`);
+	const isPackageConfig = path.basename(resolvedPath) === PACKAGE_JSON_FILENAME;
+	if (configPath) {
+		return loadConfigFromFile(
+			resolvedPath,
+			isPackageConfig ? "package" : "config",
+		);
 	}
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(raw);
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		throw new Error(`Invalid JSON in ${resolvedPath}: ${message}`);
+	if (await exists(resolvedPath)) {
+		return loadConfigFromFile(resolvedPath, "config");
 	}
-	const config = validateConfig(parsed);
-	return {
-		config,
-		resolvedPath,
-		sources: resolveSources(config),
-	};
+	const packagePath = resolvePackagePath();
+	if (await exists(packagePath)) {
+		try {
+			return await loadConfigFromFile(packagePath, "package");
+		} catch {
+			// fall through to error below
+		}
+	}
+	throw new Error(
+		`No docs.config.json found at ${resolvedPath} and no docs-cache config in ${packagePath}.`,
+	);
 };

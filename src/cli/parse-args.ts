@@ -4,7 +4,15 @@ import cac from "cac";
 import { ExitCode } from "./exit-code";
 import type { CliOptions } from "./types";
 
-const COMMANDS = ["add", "sync", "status", "clean", "prune", "verify"] as const;
+const COMMANDS = [
+	"add",
+	"sync",
+	"status",
+	"clean",
+	"prune",
+	"verify",
+	"init",
+] as const;
 type Command = (typeof COMMANDS)[number];
 
 export type ParsedArgs = {

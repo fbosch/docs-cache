@@ -4,6 +4,7 @@ import pc from "picocolors";
 import { addSources } from "../add";
 import { cleanCache } from "../clean";
 import { redactRepoUrl } from "../git/redact";
+import { initConfig } from "../init";
 import { pruneCache } from "../prune";
 import { getStatus, printStatus } from "../status";
 import { printSyncPlan, runSync } from "../sync";
@@ -25,6 +26,7 @@ Commands:
   clean   Remove cache
   prune   Remove unused data
   verify  Validate cache integrity
+  init    Create a new config interactively
 
 Global options:
   --source <repo> (add only)
@@ -236,6 +238,21 @@ const runCommand = async (
 		}
 		return;
 	}
+	if (command === "init") {
+		const result = await initConfig({
+			configPath: options.config,
+			cacheDirOverride: options.cacheDir,
+			json: options.json,
+		});
+		if (options.json) {
+			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+		} else {
+			ui.line(
+				`${symbols.success} Wrote ${pc.gray(ui.path(result.configPath))}`,
+			);
+		}
+		return;
+	}
 	ui.line(`${CLI_NAME} ${command}: not implemented yet.`);
 };
 
@@ -288,6 +305,7 @@ export { redactRepoUrl };
 export { cleanCache } from "../clean";
 export { loadConfig } from "../config";
 export { enforceHostAllowlist, parseLsRemote } from "../git/resolve-remote";
+export { initConfig } from "../init";
 export { pruneCache } from "../prune";
 export { printSyncPlan, runSync } from "../sync";
 export { verifyCache } from "../verify";

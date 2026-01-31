@@ -17,6 +17,22 @@ const writeConfig = async (data) => {
 	return configPath;
 };
 
+const writePackageConfig = async (data) => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-package-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const packagePath = path.join(tmpRoot, "package.json");
+	const payload = {
+		name: "docs-cache-test",
+		version: "0.0.0",
+		"docs-cache": data,
+	};
+	await writeFile(packagePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+	return packagePath;
+};
+
 test("loadConfig rejects non-object config", async () => {
 	const configPath = await writeConfig([]);
 	await assert.rejects(
@@ -70,4 +86,17 @@ test("loadConfig rejects non-string repo", async () => {
 		() => loadConfig(configPath),
 		/sources\.0\.repo|sources\[0\]\.repo/i,
 	);
+});
+
+test("loadConfig supports package.json docs-cache config", async () => {
+	const packagePath = await writePackageConfig({
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+			},
+		],
+	});
+	const { config } = await loadConfig(packagePath);
+	assert.equal(config.sources.length, 1);
 });

@@ -1,4 +1,5 @@
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 import {
 	DEFAULT_CONFIG,
@@ -15,6 +16,43 @@ const exists = async (target: string) => {
 	} catch {
 		return false;
 	}
+};
+
+const PACKAGE_JSON = "package.json";
+
+const loadPackageConfig = async (configPath: string) => {
+	const raw = await readFile(configPath, "utf8");
+	const parsed = JSON.parse(raw) as Record<string, unknown>;
+	const config = parsed["docs-cache"];
+	if (!config) {
+		return { parsed, config: null };
+	}
+	return {
+		parsed,
+		config: validateConfig(config),
+	};
+};
+
+const resolveConfigTarget = async (configPath?: string) => {
+	if (configPath) {
+		const resolvedPath = resolveConfigPath(configPath);
+		return {
+			resolvedPath,
+			mode: path.basename(resolvedPath) === PACKAGE_JSON ? "package" : "config",
+		};
+	}
+	const defaultPath = resolveConfigPath();
+	if (await exists(defaultPath)) {
+		return { resolvedPath: defaultPath, mode: "config" };
+	}
+	const packagePath = path.resolve(process.cwd(), PACKAGE_JSON);
+	if (await exists(packagePath)) {
+		const pkg = await loadPackageConfig(packagePath);
+		if (pkg.config) {
+			return { resolvedPath: packagePath, mode: "package" };
+		}
+	}
+	return { resolvedPath: defaultPath, mode: "config" };
 };
 
 const resolveRepoInput = (repo: string) => {
@@ -85,13 +123,22 @@ export const addSources = async (params: {
 	configPath?: string;
 	entries: Array<{ id?: string; repo: string; targetDir?: string }>;
 }) => {
-	const resolvedPath = resolveConfigPath(params.configPath);
+	const target = await resolveConfigTarget(params.configPath);
+	const resolvedPath = target.resolvedPath;
 	let config = DEFAULT_CONFIG;
 	let rawConfig: DocsCacheConfig | null = null;
+	let rawPackage: Record<string, unknown> | null = null;
 	if (await exists(resolvedPath)) {
-		const raw = await readFile(resolvedPath, "utf8");
-		rawConfig = JSON.parse(raw.toString());
-		config = validateConfig(rawConfig);
+		if (target.mode === "package") {
+			const pkg = await loadPackageConfig(resolvedPath);
+			rawPackage = pkg.parsed;
+			rawConfig = pkg.config;
+			config = rawConfig ?? DEFAULT_CONFIG;
+		} else {
+			const raw = await readFile(resolvedPath, "utf8");
+			rawConfig = JSON.parse(raw.toString());
+			config = validateConfig(rawConfig);
+		}
 	}
 
 	const schema =
@@ -140,7 +187,13 @@ export const addSources = async (params: {
 		nextConfig.defaults = rawConfig.defaults;
 	}
 
-	await writeConfig(resolvedPath, nextConfig);
+	if (target.mode === "package") {
+		const pkg = rawPackage ?? {};
+		pkg["docs-cache"] = nextConfig;
+		await writeFile(resolvedPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+	} else {
+		await writeConfig(resolvedPath, nextConfig);
+	}
 
 	return {
 		configPath: resolvedPath,
