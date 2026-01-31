@@ -11,7 +11,7 @@ Deterministic local caching of documentation repositories.
 
 Allows agents and tooling to access Git-hosted documentation with a local cache and lockfile.
 
-It downloads documentation into a cache and pins resolved commits in a lock file for repeatable access.
+It downloads documentation into a cache and pins resolved commits in a lock file.
 
 ## Features
 
@@ -109,5 +109,3 @@ Use `postinstall` to ensure docs are ready for local agents immediately after in
 ## License
 
 MIT
-
-
