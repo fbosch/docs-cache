@@ -29,6 +29,14 @@ const FILE_COUNT = Number(process.env.BENCH_FILES ?? 200);
 const WARMUP = Number(process.env.BENCH_WARMUP ?? 10);
 const SYNC_ITERATIONS = Number(process.env.BENCH_SYNC_ITERATIONS ?? 10);
 const CLI_ITERATIONS = Number(process.env.BENCH_CLI_ITERATIONS ?? 10);
+const BENCH_GIT_REMOTE = process.env.BENCH_GIT_REMOTE === "1";
+const BENCH_GIT_ITERATIONS = Number(process.env.BENCH_GIT_ITERATIONS ?? 1);
+const BENCH_GIT_REPO =
+	process.env.BENCH_GIT_REPO ?? "https://github.com/fbosch/dotfiles";
+const BENCH_GIT_INCLUDE = (process.env.BENCH_GIT_INCLUDE ?? "README.md")
+	.split(",")
+	.map((entry) => entry.trim())
+	.filter((entry) => entry.length > 0);
 
 const execFileAsync = promisify(execFile);
 
@@ -47,7 +55,7 @@ const createRepo = async (root, fileCount) => {
 	return repoDir;
 };
 
-const createConfigFile = async (root) => {
+const createConfigFile = async (root, repo, include) => {
 	const configPath = path.join(root, "docs.config.json");
 	const config = {
 		$schema:
@@ -55,8 +63,8 @@ const createConfigFile = async (root) => {
 		sources: [
 			{
 				id: "bench",
-				repo: "https://example.com/repo.git",
-				include: ["docs/**/*.md"],
+				repo,
+				include,
 				maxBytes: 500000000,
 			},
 		],
@@ -68,6 +76,13 @@ const createConfigFile = async (root) => {
 const runCli = async (args) => {
 	await execFileAsync(process.execPath, ["dist/cli.mjs", ...args], {
 		cwd: process.cwd(),
+		maxBuffer: 1024 * 1024,
+	});
+};
+
+const runGit = async (args, cwd) => {
+	await execFileAsync("git", args, {
+		cwd,
 		maxBuffer: 1024 * 1024,
 	});
 };
@@ -106,7 +121,11 @@ const main = async () => {
 	const benchRoot = root;
 	try {
 		const repoDir = await createRepo(benchRoot, FILE_COUNT);
-		const configPath = await createConfigFile(benchRoot);
+		const configPath = await createConfigFile(
+			benchRoot,
+			"https://example.com/repo.git",
+			["docs/**/*.md"],
+		);
 		const cacheDir = path.join(benchRoot, ".docs");
 
 		const hotCacheDir = path.join(benchRoot, ".docs-hot");
@@ -354,6 +373,59 @@ const main = async () => {
 		process.stdout.write("\ncli\n");
 		for (const result of summarizeBench(cliBench)) {
 			process.stdout.write(`${formatRow(result)}\n`);
+		}
+
+		if (BENCH_GIT_REMOTE) {
+			const remoteRoot = path.join(benchRoot, "remote");
+			await mkdir(remoteRoot, { recursive: true });
+			const remoteRuns = [
+				{
+					label: "runSync (remote git, sparse)",
+					root: path.join(remoteRoot, "sparse"),
+					include: BENCH_GIT_INCLUDE,
+				},
+				{
+					label: "runSync (remote git, full)",
+					root: path.join(remoteRoot, "full"),
+					include: ["**/*"],
+				},
+			];
+			process.stdout.write("\nremote\n");
+			for (const run of remoteRuns) {
+				await mkdir(run.root, { recursive: true });
+				const remoteConfigPath = await createConfigFile(
+					run.root,
+					BENCH_GIT_REPO,
+					run.include,
+				);
+				const remoteBench = new Bench({
+					iterations: BENCH_GIT_ITERATIONS,
+					warmup: 0,
+				});
+				let remoteIteration = 0;
+				remoteBench.add(run.label, async () => {
+					const cacheDirOverride = path.join(
+						run.root,
+						`.docs-${remoteIteration}`,
+					);
+					remoteIteration += 1;
+					await runSync({
+						configPath: remoteConfigPath,
+						cacheDirOverride,
+						json: true,
+						lockOnly: false,
+						offline: false,
+						failOnMiss: false,
+					});
+				});
+				await remoteBench.run();
+				process.stdout.write(
+					`repo=${BENCH_GIT_REPO} include=${run.include.join(",")} iterations=${BENCH_GIT_ITERATIONS}\n`,
+				);
+				for (const result of summarizeBench(remoteBench)) {
+					process.stdout.write(`${formatRow(result)}\n`);
+				}
+			}
 		}
 	} finally {
 		await rm(benchRoot, { recursive: true, force: true });

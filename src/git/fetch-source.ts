@@ -62,6 +62,7 @@ type FetchParams = {
 	resolvedCommit: string;
 	cacheDir: string;
 	depth: number;
+	include?: string[];
 	timeoutMs?: number;
 };
 
@@ -91,8 +92,34 @@ const runGitArchive = async (
 	await rm(archivePath, { force: true });
 };
 
+const isSparseEligible = (include?: string[]) => {
+	if (!include || include.length === 0) {
+		return false;
+	}
+	for (const pattern of include) {
+		if (!pattern || pattern.includes("**")) {
+			return false;
+		}
+	}
+	return true;
+};
+
+const extractSparsePaths = (include?: string[]) => {
+	if (!include) {
+		return [];
+	}
+	const paths = include.map((pattern) => {
+		const normalized = pattern.replace(/\\/g, "/");
+		const starIndex = normalized.indexOf("*");
+		const base = starIndex === -1 ? normalized : normalized.slice(0, starIndex);
+		return base.replace(/\/+$|\/$/, "");
+	});
+	return Array.from(new Set(paths.filter((value) => value.length > 0)));
+};
+
 const cloneRepo = async (params: FetchParams, outDir: string) => {
 	const isCommitRef = /^[0-9a-f]{7,40}$/i.test(params.ref);
+	const useSparse = isSparseEligible(params.include);
 	const cloneArgs = [
 		"clone",
 		"--no-checkout",
@@ -102,6 +129,9 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 		"--recurse-submodules=no",
 		"--no-tags",
 	];
+	if (useSparse) {
+		cloneArgs.push("--sparse");
+	}
 	if (!isCommitRef) {
 		cloneArgs.push("--single-branch");
 		if (params.ref !== "HEAD") {
@@ -110,6 +140,14 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 	}
 	cloneArgs.push(params.repo, outDir);
 	await git(cloneArgs, { timeoutMs: params.timeoutMs });
+	if (useSparse) {
+		const sparsePaths = extractSparsePaths(params.include);
+		if (sparsePaths.length > 0) {
+			await git(["-C", outDir, "sparse-checkout", "set", ...sparsePaths], {
+				timeoutMs: params.timeoutMs,
+			});
+		}
+	}
 	await git(["-C", outDir, "checkout", "--detach", params.resolvedCommit], {
 		timeoutMs: params.timeoutMs,
 	});

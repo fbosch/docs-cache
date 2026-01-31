@@ -305,6 +305,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					resolvedCommit: result.resolvedCommit,
 					cacheDir: plan.cacheDir,
 					depth: source.depth ?? defaults.depth,
+					include: source.include ?? defaults.include,
 					timeoutMs: options.timeoutMs,
 				});
 				try {
