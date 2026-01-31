@@ -23,21 +23,23 @@ export const DefaultsSchema = z
 	})
 	.strict();
 
-export const SourceSchema = z.object({
-	id: z.string().min(1),
-	repo: z.string().min(1),
-	targetDir: z.string().min(1).optional(),
-	targetMode: TargetModeSchema.optional(),
-	ref: z.string().min(1).optional(),
-	mode: CacheModeSchema.optional(),
-	depth: z.number().min(1).optional(),
-	include: z.array(z.string().min(1)).optional(),
-	exclude: z.array(z.string().min(1)).optional(),
-	required: z.boolean().optional(),
-	maxBytes: z.number().min(1).optional(),
-	maxFiles: z.number().min(1).optional(),
-	integrity: IntegritySchema.optional(),
-});
+export const SourceSchema = z
+	.object({
+		id: z.string().min(1),
+		repo: z.string().min(1),
+		targetDir: z.string().min(1).optional(),
+		targetMode: TargetModeSchema.optional(),
+		ref: z.string().min(1).optional(),
+		mode: CacheModeSchema.optional(),
+		depth: z.number().min(1).optional(),
+		include: z.array(z.string().min(1)).optional(),
+		exclude: z.array(z.string().min(1)).optional(),
+		required: z.boolean().optional(),
+		maxBytes: z.number().min(1).optional(),
+		maxFiles: z.number().min(1).optional(),
+		integrity: IntegritySchema.optional(),
+	})
+	.strict();
 
 export const ConfigSchema = z
 	.object({

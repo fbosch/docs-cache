@@ -387,7 +387,7 @@ test("config with unknown fields is rejected", async () => {
 	await assert.rejects(() => loadConfig(configPath), /does not match schema/i);
 });
 
-test("source with unknown fields is currently allowed", async () => {
+test("source with unknown fields is now rejected", async () => {
 	const configPath = await writeConfig({
 		sources: [
 			{
@@ -397,13 +397,12 @@ test("source with unknown fields is currently allowed", async () => {
 			},
 		],
 	});
-	// SourceSchema has .strict() mode added, but Zod appears to strip
-	// unknown fields instead of rejecting them in this version.
-	// This documents the current behavior.
-	const { sources } = await loadConfig(configPath);
-	assert.equal(sources[0].id, "test");
-	// The unknown field is not included in the resolved source
-	assert.equal(sources[0].unknownSourceField, undefined);
+	// SourceSchema now has .strict() mode properly applied
+	// Unknown fields should be rejected
+	await assert.rejects(
+		() => loadConfig(configPath),
+		/Unrecognized key|does not match schema/i,
+	);
 });
 
 test("depth must be positive", async () => {
