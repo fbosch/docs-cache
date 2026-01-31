@@ -1,15 +1,6 @@
 import path from "node:path";
 import process from "node:process";
 import pc from "picocolors";
-import { addSources } from "../add";
-import { cleanCache } from "../clean";
-import { redactRepoUrl } from "../git/redact";
-import { initConfig } from "../init";
-import { pruneCache } from "../prune";
-import { removeSources } from "../remove";
-import { getStatus, printStatus } from "../status";
-import { printSyncPlan, runSync } from "../sync";
-import { printVerify, verifyCache } from "../verify";
 import { ExitCode } from "./exit-code";
 import { parseArgs } from "./parse-args";
 import type { CliOptions } from "./types";
@@ -107,6 +98,8 @@ const runCommand = async (
 	rawArgs: string[],
 ) => {
 	if (command === "add") {
+		const { addSources } = await import("../add");
+		const { runSync } = await import("../sync");
 		const entries = parseAddEntries(rawArgs);
 		if (entries.length === 0) {
 			throw new Error(
@@ -159,6 +152,8 @@ const runCommand = async (
 		return;
 	}
 	if (command === "remove") {
+		const { removeSources } = await import("../remove");
+		const { pruneCache } = await import("../prune");
 		if (positionals.length === 0) {
 			throw new Error("Usage: docs-cache remove <id...>");
 		}
@@ -201,6 +196,7 @@ const runCommand = async (
 		return;
 	}
 	if (command === "status") {
+		const { getStatus, printStatus } = await import("../status");
 		const status = await getStatus({
 			configPath: options.config,
 			cacheDirOverride: options.cacheDir,
@@ -214,6 +210,7 @@ const runCommand = async (
 		return;
 	}
 	if (command === "clean") {
+		const { cleanCache } = await import("../clean");
 		const result = await cleanCache({
 			configPath: options.config,
 			cacheDirOverride: options.cacheDir,
@@ -233,6 +230,7 @@ const runCommand = async (
 		return;
 	}
 	if (command === "prune") {
+		const { pruneCache } = await import("../prune");
 		const result = await pruneCache({
 			configPath: options.config,
 			cacheDirOverride: options.cacheDir,
@@ -250,6 +248,7 @@ const runCommand = async (
 		return;
 	}
 	if (command === "sync") {
+		const { printSyncPlan, runSync } = await import("../sync");
 		const plan = await runSync({
 			configPath: options.config,
 			cacheDirOverride: options.cacheDir,
@@ -267,6 +266,7 @@ const runCommand = async (
 		return;
 	}
 	if (command === "verify") {
+		const { printVerify, verifyCache } = await import("../verify");
 		const report = await verifyCache({
 			configPath: options.config,
 			cacheDirOverride: options.cacheDir,
@@ -283,6 +283,7 @@ const runCommand = async (
 		return;
 	}
 	if (command === "init") {
+		const { initConfig } = await import("../init");
 		if (options.config) {
 			throw new Error("Init does not accept --config. Use the project root.");
 		}

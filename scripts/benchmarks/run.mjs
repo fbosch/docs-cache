@@ -1,13 +1,36 @@
+import { execFile } from "node:child_process";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { Bench } from "tinybench";
 
-import { loadConfig, runSync } from "../../dist/api.mjs";
+import {
+	cleanCache,
+	enforceHostAllowlist,
+	loadConfig,
+	parseArgs,
+	parseLsRemote,
+	pruneCache,
+	redactRepoUrl,
+	resolveRepoInput,
+	runSync,
+	verifyCache,
+} from "../../dist/api.mjs";
+import {
+	readLock,
+	resolveLockPath,
+	validateLock,
+	writeLock,
+} from "../../dist/lock.mjs";
 
 const ITERATIONS = Number(process.env.BENCH_ITERATIONS ?? 50);
 const FILE_COUNT = Number(process.env.BENCH_FILES ?? 200);
 const WARMUP = Number(process.env.BENCH_WARMUP ?? 10);
+const SYNC_ITERATIONS = Number(process.env.BENCH_SYNC_ITERATIONS ?? 10);
+const CLI_ITERATIONS = Number(process.env.BENCH_CLI_ITERATIONS ?? 10);
+
+const execFileAsync = promisify(execFile);
 
 const formatMs = (value) => `${value.toFixed(2)}ms`;
 
@@ -40,6 +63,13 @@ const createConfigFile = async (root) => {
 	};
 	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 	return configPath;
+};
+
+const runCli = async (args) => {
+	await execFileAsync(process.execPath, ["dist/cli.mjs", ...args], {
+		cwd: process.cwd(),
+		maxBuffer: 1024 * 1024,
+	});
 };
 
 const formatRow = (result) => {
@@ -77,6 +107,7 @@ const main = async () => {
 	try {
 		const repoDir = await createRepo(benchRoot, FILE_COUNT);
 		const configPath = await createConfigFile(benchRoot);
+		const cacheDir = path.join(benchRoot, ".docs");
 
 		const hotCacheDir = path.join(benchRoot, ".docs-hot");
 		await runSync(
@@ -101,17 +132,120 @@ const main = async () => {
 			},
 		);
 
-		const bench = new Bench({
+		const lockPath = resolveLockPath(configPath);
+		const lockData = await readLock(lockPath);
+
+		const fastBench = new Bench({
 			iterations: ITERATIONS,
 			warmup: WARMUP,
 		});
-
-		bench.add("loadConfig", async () => {
+		fastBench.add("loadConfig", async () => {
 			await loadConfig(configPath);
 		});
+		fastBench.add("parseArgs", () => {
+			parseArgs([
+				"node",
+				"docs-cache",
+				"sync",
+				"--config",
+				configPath,
+				"--cache-dir",
+				cacheDir,
+				"--json",
+				"--timeout-ms",
+				"5000",
+			]);
+		});
+		fastBench.add("resolveRepoInput", () => {
+			resolveRepoInput("github:org/repo#main");
+		});
+		fastBench.add("enforceHostAllowlist", () => {
+			enforceHostAllowlist("https://github.com/org/repo.git", [
+				"github.com",
+				"gitlab.com",
+			]);
+		});
+		fastBench.add("parseLsRemote", () => {
+			parseLsRemote("abc123\tHEAD\n");
+		});
+		fastBench.add("redactRepoUrl", () => {
+			redactRepoUrl("https://token:secret@github.com/org/repo.git");
+		});
+		fastBench.add("validateLock", () => {
+			validateLock(lockData);
+		});
+		fastBench.add("readLock", async () => {
+			await readLock(lockPath);
+		});
+		fastBench.add("writeLock", async () => {
+			const tempLock = path.join(
+				benchRoot,
+				`docs.lock.${Math.random().toString(36).slice(2)}`,
+			);
+			await writeLock(tempLock, lockData);
+		});
+		await fastBench.run();
 
+		const ioBench = new Bench({
+			iterations: ITERATIONS,
+			warmup: WARMUP,
+		});
+		ioBench.add("verifyCache", async () => {
+			await verifyCache({
+				configPath,
+				cacheDirOverride: hotCacheDir,
+				json: true,
+			});
+		});
+		ioBench.add("pruneCache", async () => {
+			const extra = path.join(
+				hotCacheDir,
+				`unused-${Math.random().toString(36).slice(2)}`,
+			);
+			await mkdir(extra, { recursive: true });
+			await pruneCache({
+				configPath,
+				cacheDirOverride: hotCacheDir,
+				json: true,
+			});
+		});
+		ioBench.add("cleanCache", async () => {
+			const tempCache = path.join(benchRoot, `cleanup-${Date.now()}`);
+			await runSync(
+				{
+					configPath,
+					cacheDirOverride: tempCache,
+					json: true,
+					lockOnly: false,
+					offline: false,
+					failOnMiss: false,
+				},
+				{
+					resolveRemoteCommit: async () => ({
+						repo: "https://example.com/repo.git",
+						ref: "HEAD",
+						resolvedCommit: "abc123",
+					}),
+					fetchSource: async () => ({
+						repoDir,
+						cleanup: async () => undefined,
+					}),
+				},
+			);
+			await cleanCache({
+				configPath,
+				cacheDirOverride: tempCache,
+				json: true,
+			});
+		});
+		await ioBench.run();
+
+		const syncBench = new Bench({
+			iterations: SYNC_ITERATIONS,
+			warmup: Math.min(WARMUP, 3),
+		});
 		let coldIteration = 0;
-		bench.add("runSync (cold cache)", async () => {
+		syncBench.add("runSync (cold cache)", async () => {
 			const cacheDirOverride = path.join(benchRoot, `.docs-${coldIteration}`);
 			coldIteration += 1;
 			await runSync(
@@ -136,8 +270,7 @@ const main = async () => {
 				},
 			);
 		});
-
-		bench.add("runSync (hot cache)", async () => {
+		syncBench.add("runSync (hot cache)", async () => {
 			await runSync(
 				{
 					configPath,
@@ -160,12 +293,66 @@ const main = async () => {
 				},
 			);
 		});
+		await syncBench.run();
 
-		await bench.run();
-		const results = summarizeBench(bench);
+		const cliBench = new Bench({
+			iterations: CLI_ITERATIONS,
+			warmup: Math.min(WARMUP, 3),
+		});
+		cliBench.add("cli --help", async () => {
+			await runCli(["--help"]);
+		});
+		cliBench.add("cli status --json", async () => {
+			await runCli([
+				"status",
+				"--json",
+				"--config",
+				configPath,
+				"--cache-dir",
+				hotCacheDir,
+			]);
+		});
+		cliBench.add("cli verify --json", async () => {
+			await runCli([
+				"verify",
+				"--json",
+				"--config",
+				configPath,
+				"--cache-dir",
+				hotCacheDir,
+			]);
+		});
+		cliBench.add("cli sync --offline", async () => {
+			await runCli([
+				"sync",
+				"--offline",
+				"--json",
+				"--config",
+				configPath,
+				"--cache-dir",
+				hotCacheDir,
+			]);
+		});
+		await cliBench.run();
+
 		process.stdout.write("\nBenchmarks\n");
-		process.stdout.write(`files=${FILE_COUNT} iterations=${ITERATIONS}\n`);
-		for (const result of results) {
+		process.stdout.write(
+			`files=${FILE_COUNT} iterations=${ITERATIONS} sync=${SYNC_ITERATIONS} cli=${CLI_ITERATIONS}\n`,
+		);
+		process.stdout.write("\nfast\n");
+		for (const result of summarizeBench(fastBench)) {
+			process.stdout.write(`${formatRow(result)}\n`);
+		}
+		process.stdout.write("\nio\n");
+		for (const result of summarizeBench(ioBench)) {
+			process.stdout.write(`${formatRow(result)}\n`);
+		}
+		process.stdout.write("\nsync\n");
+		for (const result of summarizeBench(syncBench)) {
+			process.stdout.write(`${formatRow(result)}\n`);
+		}
+		process.stdout.write("\ncli\n");
+		for (const result of summarizeBench(cliBench)) {
 			process.stdout.write(`${formatRow(result)}\n`);
 		}
 	} finally {
