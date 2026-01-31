@@ -16,7 +16,11 @@
 	},
 	"files": [
 		"bin",
-		"dist"
+		"dist/cli.mjs",
+		"dist/chunks/*.mjs",
+		"dist/shared/*.mjs",
+		"README.md",
+		"LICENSE"
 	],
 	"scripts": {
 		"build": "unbuild",
@@ -28,7 +32,7 @@
 		"test:coverage": "pnpm build && c8 --include dist --exclude bin --reporter=text node --test",
 		"bench": "pnpm build && node scripts/benchmarks/run.mjs",
 		"schema:build": "node scripts/generate-schema.mjs",
-		"size": "node scripts/update-size-badge.mjs",
+		"size": "size-limit",
 		"test:watch": "node --test --watch",
 		"typecheck": "tsc --noEmit",
 		"prepare": "simple-git-hooks"
