@@ -22,7 +22,7 @@
 		"build": "unbuild",
 		"dev": "unbuild --stub",
 		"lint": "biome check .",
-		"prepublishOnly": "pnpm build && pnpm schema:build",
+		"prepublishOnly": "pnpm audit --audit-level=high && pnpm build && pnpm schema:build",
 		"release": "bumpp && npm publish",
 		"test": "pnpm build && node --test",
 		"test:coverage": "pnpm build && c8 --include dist --exclude bin --reporter=text node --test",
