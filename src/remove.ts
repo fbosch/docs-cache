@@ -100,7 +100,10 @@ export const removeSources = async (params: {
 		}
 		const resolved = resolveRepoInput(token);
 		if (resolved.repoUrl && sourcesByRepo.has(resolved.repoUrl)) {
-			idsToRemove.add(sourcesByRepo.get(resolved.repoUrl)?.id);
+			const source = sourcesByRepo.get(resolved.repoUrl);
+			if (source) {
+				idsToRemove.add(source.id);
+			}
 			continue;
 		}
 		if (resolved.inferredId && sourcesById.has(resolved.inferredId)) {

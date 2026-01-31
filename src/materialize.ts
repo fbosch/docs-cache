@@ -88,12 +88,15 @@ export const materializeSource = async (params: MaterializeParams) => {
 
 		// Copy files with concurrency control
 		const concurrency = params.concurrency ?? 10;
-		const manifest: Array<{ path: string; size: number }> = [];
 		let index = 0;
 
-		const copyNext = async () => {
+		const copyNext = async (): Promise<
+			Array<{ path: string; size: number }>
+		> => {
+			const results: Array<{ path: string; size: number }> = [];
 			while (index < fileInfos.length) {
 				const current = index++;
+				if (current >= fileInfos.length) break;
 				const fileInfo = fileInfos[current];
 				const filePath = path.join(params.repoDir, fileInfo.relativePath);
 				const targetPath = path.join(tempDir, fileInfo.relativePath);
@@ -101,18 +104,20 @@ export const materializeSource = async (params: MaterializeParams) => {
 				await mkdir(path.dirname(targetPath), { recursive: true });
 				// Use copyFile for better performance (doesn't load entire file into memory)
 				await copyFile(filePath, targetPath);
-				manifest.push({
+				results.push({
 					path: fileInfo.normalizedPath,
 					size: fileInfo.size,
 				});
 			}
+			return results;
 		};
 
-		await Promise.all(
+		const manifestChunks = await Promise.all(
 			Array.from({ length: Math.min(concurrency, fileInfos.length) }, copyNext),
 		);
 
-		// Sort manifest by path for deterministic output
+		// Flatten and sort manifest by path for deterministic output
+		const manifest = manifestChunks.flat();
 		manifest.sort((a, b) => a.path.localeCompare(b.path));
 
 		const manifestData = `${JSON.stringify(manifest, null, 2)}\n`;
