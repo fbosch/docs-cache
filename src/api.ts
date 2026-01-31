@@ -8,4 +8,5 @@ export { pruneCache } from "./prune";
 export { removeSources } from "./remove";
 export { resolveRepoInput } from "./resolve-repo";
 export { printSyncPlan, runSync } from "./sync";
+export { applyTargetDir } from "./targets";
 export { verifyCache } from "./verify";

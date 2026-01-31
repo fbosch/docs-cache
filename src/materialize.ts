@@ -104,16 +104,24 @@ export const materializeSource = async (params: MaterializeParams) => {
 	let manifestStreamRef: ReturnType<typeof createWriteStream> | null = null;
 	const closeManifestStream = async () => {
 		const stream = manifestStreamRef;
-		if (!stream) {
+		if (!stream || stream.closed || stream.destroyed) {
 			return;
 		}
 		await new Promise<void>((resolve) => {
-			if (stream.closed || stream.destroyed) {
+			const cleanup = () => {
+				stream.off("close", onClose);
+				stream.off("error", onError);
 				resolve();
-				return;
+			};
+			const onClose = () => cleanup();
+			const onError = () => cleanup();
+			stream.once("close", onClose);
+			stream.once("error", onError);
+			try {
+				stream.end();
+			} catch {
+				cleanup();
 			}
-			stream.once("close", () => resolve());
-			stream.end();
 		});
 	};
 
@@ -283,7 +291,11 @@ export const materializeSource = async (params: MaterializeParams) => {
 			manifestSha256,
 		};
 	} catch (error) {
-		await closeManifestStream();
+		try {
+			await closeManifestStream();
+		} catch {
+			// Ignore cleanup errors to preserve root cause.
+		}
 		await rm(tempDir, { recursive: true, force: true });
 		throw error;
 	}

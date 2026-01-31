@@ -268,6 +268,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						sourceDir: path.join(plan.cacheDir, source.id),
 						targetDir: resolvedTarget,
 						mode: source.targetMode ?? defaults.targetMode,
+						explicitTargetMode: source.targetMode !== undefined,
 					});
 				}),
 			);
@@ -352,6 +353,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 							sourceDir: path.join(plan.cacheDir, source.id),
 							targetDir: resolvedTarget,
 							mode: source.targetMode ?? defaults.targetMode,
+							explicitTargetMode: source.targetMode !== undefined,
 						});
 					}
 					result.bytes = stats.bytes;
