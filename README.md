@@ -20,6 +20,9 @@ It downloads documentation from repositories into a local cache and pins exact c
 ## Usage
 
 ```bash
+# 0. Initialize (optional)
+npx docs-cache init
+
 # 1. Add Sources
 npx docs-cache add github:owner/repo#main
 npx docs-cache add https://github.com/framework/core.git
@@ -38,7 +41,7 @@ npx docs-cache status
 
 ## Configuration
 
-`docs.config.json` at project root:
+`docs.config.json` at project root (or `docs-cache` inside `package.json`):
 
 ```json
 {
