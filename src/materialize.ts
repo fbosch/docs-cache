@@ -104,17 +104,38 @@ export const materializeSource = async (params: MaterializeParams) => {
 		);
 		let bytes = 0;
 		const manifest: Array<{ path: string; size: number }> = [];
+		const concurrency = 64;
 
-		for (const relativePath of files) {
-			const relNormalized = normalizePath(relativePath);
-			const filePath = path.join(params.repoDir, relativePath);
-			const fileHandle = await openFileNoFollow(filePath);
-			if (!fileHandle) {
-				continue;
-			}
-			try {
-				const stats = await fileHandle.stat();
-				if (!stats.isFile()) {
+		for (let i = 0; i < files.length; i += concurrency) {
+			const batch = files.slice(i, i + concurrency);
+			const results = await Promise.all(
+				batch.map(async (relativePath) => {
+					const relNormalized = normalizePath(relativePath);
+					const filePath = path.join(params.repoDir, relativePath);
+					const fileHandle = await openFileNoFollow(filePath);
+					if (!fileHandle) {
+						return null;
+					}
+					try {
+						const stats = await fileHandle.stat();
+						if (!stats.isFile()) {
+							return null;
+						}
+						const targetPath = path.join(tempDir, relativePath);
+						ensureSafePath(tempDir, targetPath);
+						const data = await fileHandle.readFile();
+						await writeFile(targetPath, data);
+						return {
+							path: relNormalized,
+							size: stats.size,
+						};
+					} finally {
+						await fileHandle.close();
+					}
+				}),
+			);
+			for (const entry of results) {
+				if (!entry) {
 					continue;
 				}
 				if (
@@ -125,19 +146,13 @@ export const materializeSource = async (params: MaterializeParams) => {
 						`Materialized content exceeds maxFiles (${params.maxFiles}).`,
 					);
 				}
-				bytes += stats.size;
+				bytes += entry.size;
 				if (bytes > params.maxBytes) {
 					throw new Error(
 						`Materialized content exceeds maxBytes (${params.maxBytes}).`,
 					);
 				}
-				const targetPath = path.join(tempDir, relativePath);
-				ensureSafePath(tempDir, targetPath);
-				const data = await fileHandle.readFile();
-				await writeFile(targetPath, data);
-				manifest.push({ path: relNormalized, size: stats.size });
-			} finally {
-				await fileHandle.close();
+				manifest.push(entry);
 			}
 		}
 

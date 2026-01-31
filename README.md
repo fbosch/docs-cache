@@ -11,7 +11,7 @@ Deterministic local caching of documentation repositories.
 
 Provides agents and automation tools with local access to Git-hosted documentation through a deterministic cache.
 
-Documentation is synced locally and tracked in a lockfile, reusing existing copies when the resolved commit is unchanged.
+Documentation is synced locally, reused when unchanged, and exposed through configurable symlinks for different tools and agents.
 
 ## Features
 
@@ -109,4 +109,3 @@ Use `postinstall` to ensure docs are ready for local agents immediately after in
 ## License
 
 MIT
-
