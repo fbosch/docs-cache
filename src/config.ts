@@ -68,11 +68,7 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 	defaults: {
 		ref: "HEAD",
 		mode: "materialize",
-		include: [
-			"**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}",
-			"README*",
-			"LICENSE*",
-		],
+		include: ["**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}"],
 		targetMode: DEFAULT_TARGET_MODE,
 		depth: 1,
 		required: true,

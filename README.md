@@ -67,10 +67,10 @@ npx docs-cache status
 
 - `repo`: Git URL
 - `ref`: Branch, tag, or commit
-- `include`: Glob patterns to copy, defaults to `**/*`
+- `include`: Glob patterns to copy, defaults to `"**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}"`,
 - `exclude`: Glob patterns to skip
 - `targetDir`: Optional path where files should be symlinked/copied to, outside `.docs`
-- `targetMode`: Defaults to `symlink` on Unix or `copy` on Windows
+- `targetMode`: Defaults to `symlink` on Unix and `copy` on Windows
 
 > **Note**: Sources are always downloaded to `.docs/<id>/`. If you provide a `targetDir`, `docs-cache` will create a symlink or copy pointing from the cache to that target directory. The target should be outside `.docs`.
 

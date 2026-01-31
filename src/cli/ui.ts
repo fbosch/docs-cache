@@ -1,5 +1,6 @@
 import path from "node:path";
 import pc from "picocolors";
+import { toPosixPath } from "../paths";
 
 export const symbols = {
 	error: pc.red("✖"),
@@ -12,7 +13,8 @@ export const ui = {
 	// Formatters
 	path: (value: string) => {
 		const rel = path.relative(process.cwd(), value);
-		return rel.length < value.length ? rel : value;
+		const selected = rel.length < value.length ? rel : value;
+		return toPosixPath(selected);
 	},
 	hash: (value: string | null | undefined) => {
 		return value ? value.slice(0, 7) : "-";

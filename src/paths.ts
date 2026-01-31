@@ -3,6 +3,8 @@ import path from "node:path";
 export const DEFAULT_LOCK_FILENAME = "docs.lock";
 export const DEFAULT_INDEX_FILENAME = "index.json";
 
+export const toPosixPath = (value: string) => value.replace(/\\/g, "/");
+
 export const resolveCacheDir = (
 	configPath: string,
 	cacheDir: string,
