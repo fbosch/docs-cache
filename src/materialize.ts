@@ -93,6 +93,15 @@ export const materializeSource = async (params: MaterializeParams) => {
 			onlyFiles: true,
 			followSymbolicLinks: false,
 		});
+		const targetDirs = new Set<string>();
+		for (const relativePath of files) {
+			targetDirs.add(path.dirname(relativePath));
+		}
+		await Promise.all(
+			Array.from(targetDirs, (dir) =>
+				mkdir(path.join(tempDir, dir), { recursive: true }),
+			),
+		);
 		let bytes = 0;
 		const manifest: Array<{ path: string; size: number }> = [];
 
@@ -124,7 +133,6 @@ export const materializeSource = async (params: MaterializeParams) => {
 				}
 				const targetPath = path.join(tempDir, relativePath);
 				ensureSafePath(tempDir, targetPath);
-				await mkdir(path.dirname(targetPath), { recursive: true });
 				const data = await fileHandle.readFile();
 				await writeFile(targetPath, data);
 				manifest.push({ path: relNormalized, size: stats.size });
