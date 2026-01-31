@@ -358,6 +358,7 @@ export { enforceHostAllowlist, parseLsRemote } from "../git/resolve-remote";
 export { initConfig } from "../init";
 export { pruneCache } from "../prune";
 export { removeSources } from "../remove";
+export { resolveRepoInput } from "../resolve-repo";
 export { printSyncPlan, runSync } from "../sync";
 export { verifyCache } from "../verify";
 
