@@ -213,6 +213,16 @@ const loadToolVersion = async () => {
 		const pkg = JSON.parse(raw.toString());
 		return typeof pkg.version === "string" ? pkg.version : "0.0.0";
 	} catch {
+		// fallback to dist/chunks relative location
+	}
+	try {
+		const raw = await readFile(
+			new URL("../../package.json", import.meta.url),
+			"utf8",
+		);
+		const pkg = JSON.parse(raw.toString());
+		return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+	} catch {
 		return "0.0.0";
 	}
 };

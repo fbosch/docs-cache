@@ -5,6 +5,7 @@ import {
 	DEFAULT_CONFIG,
 	type DocsCacheConfig,
 	resolveConfigPath,
+	stripDefaultConfigValues,
 	validateConfig,
 	writeConfig,
 } from "./config";
@@ -132,7 +133,7 @@ export const addSources = async (params: {
 
 	if (target.mode === "package") {
 		const pkg = rawPackage ?? {};
-		pkg["docs-cache"] = nextConfig;
+		pkg["docs-cache"] = stripDefaultConfigValues(nextConfig);
 		await writeFile(resolvedPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 	} else {
 		await writeConfig(resolvedPath, nextConfig);

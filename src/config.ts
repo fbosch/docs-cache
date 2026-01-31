@@ -86,6 +86,75 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 	sources: [],
 };
 
+const isEqualStringArray = (left?: string[], right?: string[]) => {
+	if (!left || !right) {
+		return left === right;
+	}
+	if (left.length !== right.length) {
+		return false;
+	}
+	return left.every((value, index) => value === right[index]);
+};
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value);
+
+const pruneDefaults = (
+	value: Record<string, unknown>,
+	baseline: Record<string, unknown>,
+): Record<string, unknown> => {
+	const result: Record<string, unknown> = {};
+	for (const [key, entry] of Object.entries(value)) {
+		const base = baseline[key];
+		if (Array.isArray(entry) && Array.isArray(base)) {
+			if (!isEqualStringArray(entry, base)) {
+				result[key] = entry;
+			}
+			continue;
+		}
+		if (isObject(entry) && isObject(base)) {
+			const pruned = pruneDefaults(entry, base);
+			if (Object.keys(pruned).length > 0) {
+				result[key] = pruned;
+			}
+			continue;
+		}
+		if (entry !== base) {
+			result[key] = entry;
+		}
+	}
+	return result;
+};
+
+export const stripDefaultConfigValues = (
+	config: DocsCacheConfig,
+): DocsCacheConfig => {
+	const baseline: DocsCacheConfig = {
+		...DEFAULT_CONFIG,
+		$schema: config.$schema,
+		defaults: {
+			...DEFAULT_CONFIG.defaults,
+			...(config.targetMode ? { targetMode: config.targetMode } : undefined),
+		},
+	};
+	const pruned = pruneDefaults(
+		config as unknown as Record<string, unknown>,
+		baseline as unknown as Record<string, unknown>,
+	);
+	const next: DocsCacheConfig = {
+		$schema: pruned.$schema as DocsCacheConfig["$schema"],
+		cacheDir: pruned.cacheDir as DocsCacheConfig["cacheDir"],
+		index: pruned.index as DocsCacheConfig["index"],
+		targetMode: pruned.targetMode as DocsCacheConfig["targetMode"],
+		defaults: pruned.defaults as DocsCacheConfig["defaults"],
+		sources: config.sources,
+	};
+	if (!next.defaults || Object.keys(next.defaults).length === 0) {
+		delete next.defaults;
+	}
+	return next;
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
 
