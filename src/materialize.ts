@@ -20,6 +20,7 @@ type MaterializeParams = {
 	include: string[];
 	exclude?: string[];
 	maxBytes: number;
+	maxFiles?: number;
 };
 
 const normalizePath = (value: string) => toPosixPath(value);
@@ -56,6 +57,14 @@ export const materializeSource = async (params: MaterializeParams) => {
 			const stats = await lstat(filePath);
 			if (stats.isSymbolicLink()) {
 				continue;
+			}
+			if (
+				params.maxFiles !== undefined &&
+				manifest.length + 1 > params.maxFiles
+			) {
+				throw new Error(
+					`Materialized content exceeds maxFiles (${params.maxFiles}).`,
+				);
 			}
 			bytes += stats.size;
 			if (bytes > params.maxBytes) {

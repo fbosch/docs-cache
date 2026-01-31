@@ -122,3 +122,57 @@ test("materialize skips symlinked files", async () => {
 	assert.equal(await exists(path.join(docsRoot, "README.md")), true);
 	assert.equal(await exists(path.join(docsRoot, "linked.md")), false);
 });
+
+test("materialize enforces maxFiles limit", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-max-files-${Date.now().toString(36)}`,
+	);
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const repoDir = path.join(tmpRoot, "repo");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	await mkdir(repoDir, { recursive: true });
+	await writeFile(path.join(repoDir, "a.md"), "a", "utf8");
+	await writeFile(path.join(repoDir, "b.md"), "b", "utf8");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+				include: ["**/*.md"],
+				maxFiles: 1,
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+
+	await assert.rejects(
+		() =>
+			runSync(
+				{
+					configPath,
+					cacheDirOverride: cacheDir,
+					json: false,
+					lockOnly: false,
+					offline: false,
+					failOnMiss: false,
+				},
+				{
+					resolveRemoteCommit: async () => ({
+						repo: "https://example.com/repo.git",
+						ref: "HEAD",
+						resolvedCommit: "abc123",
+					}),
+					fetchSource: async () => ({
+						repoDir,
+						cleanup: async () => undefined,
+					}),
+				},
+			),
+		/maxFiles/i,
+	);
+});

@@ -15,6 +15,7 @@ export const DefaultsSchema = z.object({
 	depth: z.number().min(1),
 	required: z.boolean(),
 	maxBytes: z.number().min(1),
+	maxFiles: z.number().min(1).optional(),
 	allowHosts: z.array(z.string().min(1)).min(1),
 });
 
@@ -30,6 +31,7 @@ export const SourceSchema = z.object({
 	exclude: z.array(z.string().min(1)).optional(),
 	required: z.boolean().optional(),
 	maxBytes: z.number().min(1).optional(),
+	maxFiles: z.number().min(1).optional(),
 	integrity: IntegritySchema.optional(),
 });
 

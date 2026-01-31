@@ -19,6 +19,7 @@ export interface DocsCacheDefaults {
 	depth: number;
 	required: boolean;
 	maxBytes: number;
+	maxFiles?: number;
 	allowHosts: string[];
 }
 
@@ -34,6 +35,7 @@ export interface DocsCacheSource {
 	exclude?: string[];
 	required?: boolean;
 	maxBytes?: number;
+	maxFiles?: number;
 	integrity?: DocsCacheIntegrity;
 }
 
@@ -57,6 +59,7 @@ export interface DocsCacheResolvedSource {
 	exclude?: string[];
 	required: boolean;
 	maxBytes: number;
+	maxFiles?: number;
 	integrity?: DocsCacheIntegrity;
 }
 
@@ -211,6 +214,10 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				defaultsInput.maxBytes !== undefined
 					? assertPositiveNumber(defaultsInput.maxBytes, "defaults.maxBytes")
 					: defaultValues.maxBytes,
+			maxFiles:
+				defaultsInput.maxFiles !== undefined
+					? assertPositiveNumber(defaultsInput.maxFiles, "defaults.maxFiles")
+					: defaultValues.maxFiles,
 			allowHosts:
 				defaultsInput.allowHosts !== undefined
 					? assertStringArray(defaultsInput.allowHosts, "defaults.allowHosts")
@@ -289,6 +296,12 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				`sources[${index}].maxBytes`,
 			);
 		}
+		if (entry.maxFiles !== undefined) {
+			source.maxFiles = assertPositiveNumber(
+				entry.maxFiles,
+				`sources[${index}].maxFiles`,
+			);
+		}
 		if (entry.integrity !== undefined) {
 			source.integrity = assertIntegrity(
 				entry.integrity,
@@ -323,6 +336,7 @@ export const resolveSources = (
 		exclude: source.exclude,
 		required: source.required ?? defaults.required,
 		maxBytes: source.maxBytes ?? defaults.maxBytes,
+		maxFiles: source.maxFiles ?? defaults.maxFiles,
 		integrity: source.integrity,
 	}));
 };

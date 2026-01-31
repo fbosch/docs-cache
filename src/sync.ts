@@ -283,6 +283,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						include: source.include ?? defaults.include,
 						exclude: source.exclude,
 						maxBytes: source.maxBytes ?? defaults.maxBytes,
+						maxFiles: source.maxFiles ?? defaults.maxFiles,
 					});
 					if (source.targetDir) {
 						const resolvedTarget = path.resolve(

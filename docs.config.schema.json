@@ -48,6 +48,10 @@
 					"type": "number",
 					"minimum": 1
 				},
+				"maxFiles": {
+					"type": "number",
+					"minimum": 1
+				},
 				"allowHosts": {
 					"minItems": 1,
 					"type": "array",
@@ -110,6 +114,10 @@
 						"type": "boolean"
 					},
 					"maxBytes": {
+						"type": "number",
+						"minimum": 1
+					},
+					"maxFiles": {
 						"type": "number",
 						"minimum": 1
 					},
