@@ -318,6 +318,21 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 		return source;
 	});
 
+	// Validate unique source IDs
+	const idSet = new Set<string>();
+	const duplicates: string[] = [];
+	for (const source of sources) {
+		if (idSet.has(source.id)) {
+			duplicates.push(source.id);
+		}
+		idSet.add(source.id);
+	}
+	if (duplicates.length > 0) {
+		throw new Error(
+			`Duplicate source IDs found: ${duplicates.join(", ")}. Each source must have a unique ID.`,
+		);
+	}
+
 	return {
 		cacheDir,
 		targetMode: targetModeOverride,
