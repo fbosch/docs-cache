@@ -49,8 +49,7 @@
 		"simple-git-hooks": "^2.13.1",
 		"size-limit": "^11.2.0",
 		"typescript": "^5.9.3",
-		"unbuild": "^3.6.1",
-		"zod-to-json-schema": "^3.25.1"
+		"unbuild": "^3.6.1"
 	},
 	"size-limit": [
 		{

@@ -1,13 +1,13 @@
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { toJSONSchema } from "zod";
 
 const moduleUrl = new URL("../dist/config-schema.mjs", import.meta.url);
 const modulePath = fileURLToPath(moduleUrl);
 const schemaModule = await import(modulePath);
 
-const schema = zodToJsonSchema(schemaModule.ConfigSchema, {
+const schema = toJSONSchema(schemaModule.ConfigSchema, {
 	name: "DocsCacheConfig",
 });
 
