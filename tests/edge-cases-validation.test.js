@@ -114,6 +114,14 @@ test("targetDir with Windows-style path is allowed", async () => {
 		],
 	});
 
+	if (process.platform === "win32") {
+		await assert.rejects(
+			() => loadConfig(configPath),
+			/targetDir.*escapes project directory/i,
+		);
+		return;
+	}
+
 	const { sources } = await loadConfig(configPath);
 	assert.equal(sources[0].targetDir, "C:\\Users\\test\\docs");
 });
