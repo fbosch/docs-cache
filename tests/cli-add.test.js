@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -112,4 +112,32 @@ test("add supports full https gitlab url", async () => {
 	const raw = await readFile(tmpPath, "utf8");
 	const config = JSON.parse(raw);
 	assert.equal(config.sources[0].repo, "https://gitlab.com/acme/docs.git");
+});
+
+test("add writes package.json without default fields", async () => {
+	const tmpRoot = path.join(tmpdir(), `docs-cache-add-package-${Date.now()}`);
+	await mkdir(tmpRoot, { recursive: true });
+	const packagePath = path.join(tmpRoot, "package.json");
+	await writeFile(
+		packagePath,
+		JSON.stringify({ name: "x", version: "0.0.0" }),
+		"utf8",
+	);
+
+	await execFileAsync("node", [
+		"bin/docs-cache.mjs",
+		"add",
+		"--offline",
+		"https://github.com/fbosch/docs-cache.git",
+		"--config",
+		packagePath,
+	]);
+
+	const raw = await readFile(packagePath, "utf8");
+	const pkg = JSON.parse(raw);
+	assert.ok(pkg["docs-cache"]);
+	assert.equal(pkg["docs-cache"].cacheDir, undefined);
+	assert.equal(pkg["docs-cache"].index, undefined);
+	assert.equal(pkg["docs-cache"].defaults, undefined);
+	assert.equal(pkg["docs-cache"].targetMode, undefined);
 });

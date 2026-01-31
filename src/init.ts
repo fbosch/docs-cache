@@ -10,6 +10,7 @@ import {
 	DEFAULT_CACHE_DIR,
 	DEFAULT_CONFIG_FILENAME,
 	type DocsCacheConfig,
+	stripDefaultConfigValues,
 	writeConfig,
 } from "./config";
 
@@ -130,7 +131,7 @@ export const initConfig = async (
 		if (answers.index) {
 			baseConfig.index = true;
 		}
-		pkg["docs-cache"] = baseConfig;
+		pkg["docs-cache"] = stripDefaultConfigValues(baseConfig);
 		await writeFile(
 			resolvedConfigPath,
 			`${JSON.stringify(pkg, null, 2)}\n`,
