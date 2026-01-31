@@ -2,7 +2,9 @@ import path from "node:path";
 import process from "node:process";
 import pc from "picocolors";
 import { addSources } from "../add";
+import { cleanCache } from "../clean";
 import { redactRepoUrl } from "../git/redact";
+import { pruneCache } from "../prune";
 import { getStatus, printStatus } from "../status";
 import { printSyncPlan, runSync } from "../sync";
 import { printVerify, verifyCache } from "../verify";
@@ -165,6 +167,42 @@ const runCommand = async (
 		}
 		return;
 	}
+	if (command === "clean") {
+		const result = await cleanCache({
+			configPath: options.config,
+			cacheDirOverride: options.cacheDir,
+			json: options.json,
+		});
+		if (options.json) {
+			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+		} else if (result.removed) {
+			ui.line(
+				`${symbols.success} Removed cache at ${ui.path(result.cacheDir)}`,
+			);
+		} else {
+			ui.line(
+				`${symbols.info} Cache already missing at ${ui.path(result.cacheDir)}`,
+			);
+		}
+		return;
+	}
+	if (command === "prune") {
+		const result = await pruneCache({
+			configPath: options.config,
+			cacheDirOverride: options.cacheDir,
+			json: options.json,
+		});
+		if (options.json) {
+			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+		} else if (result.removed.length === 0) {
+			ui.line(`${symbols.info} No cache entries to prune.`);
+		} else {
+			ui.line(
+				`${symbols.success} Pruned ${result.removed.length} cache entr${result.removed.length === 1 ? "y" : "ies"}: ${result.removed.join(", ")}`,
+			);
+		}
+		return;
+	}
 	if (command === "sync") {
 		const plan = await runSync({
 			configPath: options.config,
@@ -247,8 +285,10 @@ export async function main(): Promise<void> {
 
 export { parseArgs } from "./parse-args";
 export { redactRepoUrl };
+export { cleanCache } from "../clean";
 export { loadConfig } from "../config";
 export { enforceHostAllowlist, parseLsRemote } from "../git/resolve-remote";
+export { pruneCache } from "../prune";
 export { printSyncPlan, runSync } from "../sync";
 export { verifyCache } from "../verify";
 

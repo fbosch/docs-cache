@@ -48,6 +48,20 @@ type SyncResult = {
 	manifestSha256?: string;
 };
 
+const formatBytes = (value: number) => {
+	if (value < 1024) {
+		return `${value} B`;
+	}
+	const units = ["KB", "MB", "GB", "TB"];
+	let size = value;
+	let index = -1;
+	while (size >= 1024 && index < units.length - 1) {
+		size /= 1024;
+		index += 1;
+	}
+	return `${size.toFixed(1)} ${units[index]}`;
+};
+
 const exists = async (target: string) => {
 	try {
 		await access(target);
@@ -189,6 +203,8 @@ const buildLock = async (
 };
 
 export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
+	const startTime = process.hrtime.bigint();
+	let warningCount = 0;
 	const plan = await getSyncPlan(options, deps);
 	await mkdir(plan.cacheDir, { recursive: true });
 	let previous: Awaited<ReturnType<typeof readLock>> | null = null;
@@ -351,6 +367,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 				});
 				const stillFailed = retryReport.results.filter((result) => !result.ok);
 				if (stillFailed.length > 0) {
+					warningCount += 1;
 					if (!options.json) {
 						const details = stillFailed
 							.map((result) => `${result.id} (${result.issues.join("; ")})`)
@@ -365,6 +382,20 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 	}
 	const lock = await buildLock(plan, previous);
 	await writeLock(plan.lockPath, lock);
+	if (!options.json) {
+		const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1_000_000;
+		const totalBytes = plan.results.reduce(
+			(sum, result) => sum + (result.bytes ?? 0),
+			0,
+		);
+		const totalFiles = plan.results.reduce(
+			(sum, result) => sum + (result.fileCount ?? 0),
+			0,
+		);
+		ui.line(
+			`${symbols.info} Completed in ${elapsedMs.toFixed(0)}ms · ${formatBytes(totalBytes)} · ${totalFiles} files${warningCount ? ` · ${warningCount} warning${warningCount === 1 ? "" : "s"}` : ""}`,
+		);
+	}
 	if (plan.config.index) {
 		await writeIndex({
 			cacheDir: plan.cacheDir,
