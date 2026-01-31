@@ -1,15 +1,12 @@
 import { defineBuildConfig } from "unbuild";
 
 export default defineBuildConfig({
-	entries: [
-		{ input: "src/cli/index", name: "cli" },
-		{ input: "src/config-schema", name: "config-schema" },
-	],
+	entries: [{ input: "src/cli/index", name: "cli" }],
 	declaration: true,
 	clean: true,
 	sourcemap: true,
-	externals: ["cac"],
 	rollup: {
 		emitCJS: false,
+		inlineDependencies: ["picocolors"],
 	},
 });

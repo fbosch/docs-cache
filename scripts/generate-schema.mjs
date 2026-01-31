@@ -1,11 +1,9 @@
 import { writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-
+import { createJiti } from "jiti";
 import { toJSONSchema } from "zod";
 
-const moduleUrl = new URL("../dist/config-schema.mjs", import.meta.url);
-const modulePath = fileURLToPath(moduleUrl);
-const schemaModule = await import(modulePath);
+const jiti = createJiti(import.meta.url, { interopDefault: true });
+const schemaModule = await jiti.import("../src/config-schema.ts");
 
 const schema = toJSONSchema(schemaModule.ConfigSchema, {
 	name: "DocsCacheConfig",
