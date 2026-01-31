@@ -7,7 +7,8 @@ Deterministic local caching of documentation repositories.
 
 ## Purpose
 
-Enables agents and tooling to access Git-based documentation with versioning and offline support. It downloads documentation from repositories into a local cache, pins exact commits in a lockfile.
+Enables agents and tooling to access Git-based documentation with versioning.
+It downloads documentation from repositories into a local cache and pins exact commits in a lockfile.
 
 ## Features
 
