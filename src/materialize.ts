@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
 	access,
 	lstat,
@@ -80,7 +81,12 @@ export const materializeSource = async (params: MaterializeParams) => {
 			manifest.push({ path: relNormalized, size: stats.size });
 		}
 
-		const manifestData = `${JSON.stringify(manifest, null, 2)}\n`;
+		manifest.sort((left, right) => left.path.localeCompare(right.path));
+		const manifestJson = JSON.stringify(manifest, null, 2);
+		const manifestSha256 = createHash("sha256")
+			.update(manifestJson)
+			.digest("hex");
+		const manifestData = `${manifestJson}\n`;
 		await writeFile(path.join(tempDir, "manifest.json"), manifestData, "utf8");
 
 		const exists = async (target: string) => {
@@ -126,6 +132,7 @@ export const materializeSource = async (params: MaterializeParams) => {
 		return {
 			bytes,
 			fileCount: manifest.length,
+			manifestSha256,
 		};
 	} catch (error) {
 		await rm(tempDir, { recursive: true, force: true });

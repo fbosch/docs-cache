@@ -9,7 +9,7 @@
     "resolvedCommit": "0123456789abcdef0123456789abcdef01234567",
     "bytes": 123456,
     "fileCount": 512,
-    "manifestCommit": "abcd",
+    "manifestSha256": "abcd",
     "updatedAt": "2026-01-30T12:00:00+01:00"
     }
   }
