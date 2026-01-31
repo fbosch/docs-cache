@@ -96,60 +96,61 @@ const isEqualStringArray = (left?: string[], right?: string[]) => {
 	return left.every((value, index) => value === right[index]);
 };
 
+const isObject = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value);
+
+const pruneDefaults = (
+	value: Record<string, unknown>,
+	baseline: Record<string, unknown>,
+): Record<string, unknown> => {
+	const result: Record<string, unknown> = {};
+	for (const [key, entry] of Object.entries(value)) {
+		const base = baseline[key];
+		if (Array.isArray(entry) && Array.isArray(base)) {
+			if (!isEqualStringArray(entry, base)) {
+				result[key] = entry;
+			}
+			continue;
+		}
+		if (isObject(entry) && isObject(base)) {
+			const pruned = pruneDefaults(entry, base);
+			if (Object.keys(pruned).length > 0) {
+				result[key] = pruned;
+			}
+			continue;
+		}
+		if (entry !== base) {
+			result[key] = entry;
+		}
+	}
+	return result;
+};
+
 export const stripDefaultConfigValues = (
 	config: DocsCacheConfig,
 ): DocsCacheConfig => {
+	const baseline: DocsCacheConfig = {
+		...DEFAULT_CONFIG,
+		$schema: config.$schema,
+		defaults: {
+			...DEFAULT_CONFIG.defaults,
+			...(config.targetMode ? { targetMode: config.targetMode } : undefined),
+		},
+	};
+	const pruned = pruneDefaults(
+		config as unknown as Record<string, unknown>,
+		baseline as unknown as Record<string, unknown>,
+	);
 	const next: DocsCacheConfig = {
-		...config,
+		$schema: pruned.$schema as DocsCacheConfig["$schema"],
+		cacheDir: pruned.cacheDir as DocsCacheConfig["cacheDir"],
+		index: pruned.index as DocsCacheConfig["index"],
+		targetMode: pruned.targetMode as DocsCacheConfig["targetMode"],
+		defaults: pruned.defaults as DocsCacheConfig["defaults"],
 		sources: config.sources,
 	};
-	if (next.$schema === DEFAULT_CONFIG.$schema) {
-		delete next.$schema;
-	}
-	if (next.cacheDir === DEFAULT_CACHE_DIR) {
-		delete next.cacheDir;
-	}
-	if (next.index === false) {
-		delete next.index;
-	}
-	if (next.targetMode === DEFAULT_TARGET_MODE) {
-		delete next.targetMode;
-	}
-	if (next.defaults) {
-		const defaultValues = DEFAULT_CONFIG.defaults as DocsCacheDefaults;
-		const pruned: Partial<DocsCacheDefaults> = { ...next.defaults };
-		if (pruned.ref === defaultValues.ref) {
-			delete pruned.ref;
-		}
-		if (pruned.mode === defaultValues.mode) {
-			delete pruned.mode;
-		}
-		if (isEqualStringArray(pruned.include, defaultValues.include)) {
-			delete pruned.include;
-		}
-		if (pruned.targetMode === defaultValues.targetMode) {
-			delete pruned.targetMode;
-		}
-		if (pruned.depth === defaultValues.depth) {
-			delete pruned.depth;
-		}
-		if (pruned.required === defaultValues.required) {
-			delete pruned.required;
-		}
-		if (pruned.maxBytes === defaultValues.maxBytes) {
-			delete pruned.maxBytes;
-		}
-		if (pruned.maxFiles === defaultValues.maxFiles) {
-			delete pruned.maxFiles;
-		}
-		if (isEqualStringArray(pruned.allowHosts, defaultValues.allowHosts)) {
-			delete pruned.allowHosts;
-		}
-		if (Object.keys(pruned).length === 0) {
-			delete next.defaults;
-		} else {
-			next.defaults = pruned;
-		}
+	if (!next.defaults || Object.keys(next.defaults).length === 0) {
+		delete next.defaults;
 	}
 	return next;
 };
