@@ -14,7 +14,26 @@ type ResolveRemoteParams = {
 	timeoutMs?: number;
 };
 
+const BLOCKED_PROTOCOLS = new Set(["file:", "ftp:", "data:", "javascript:"]);
+
+const assertAllowedProtocol = (repo: string) => {
+	try {
+		const url = new URL(repo);
+		if (BLOCKED_PROTOCOLS.has(url.protocol)) {
+			throw new Error(
+				`Blocked protocol '${url.protocol}' in repo URL '${redactRepoUrl(repo)}'.`,
+			);
+		}
+	} catch (error) {
+		if (error instanceof TypeError) {
+			return;
+		}
+		throw error;
+	}
+};
+
 const parseRepoHost = (repo: string) => {
+	assertAllowedProtocol(repo);
 	if (repo.startsWith("git@")) {
 		const atIndex = repo.indexOf("@");
 		const colonIndex = repo.indexOf(":", atIndex + 1);

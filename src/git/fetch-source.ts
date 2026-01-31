@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { assertSafeSourceId } from "../source-id";
+
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
@@ -19,6 +21,10 @@ const git = async (
 			"core.hooksPath=/dev/null",
 			"-c",
 			"submodule.recurse=false",
+			"-c",
+			"protocol.file.allow=never",
+			"-c",
+			"protocol.ext.allow=never",
 			...args,
 		],
 		{
@@ -26,8 +32,24 @@ const git = async (
 			timeout: options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
 			maxBuffer: 1024 * 1024,
 			env: {
-				...process.env,
+				PATH: process.env.PATH,
+				HOME: process.env.HOME,
+				USER: process.env.USER,
+				USERPROFILE: process.env.USERPROFILE,
+				TMPDIR: process.env.TMPDIR,
+				TMP: process.env.TMP,
+				TEMP: process.env.TEMP,
+				SYSTEMROOT: process.env.SYSTEMROOT,
+				WINDIR: process.env.WINDIR,
+				SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK,
+				SSH_AGENT_PID: process.env.SSH_AGENT_PID,
+				HTTP_PROXY: process.env.HTTP_PROXY,
+				HTTPS_PROXY: process.env.HTTPS_PROXY,
+				NO_PROXY: process.env.NO_PROXY,
 				GIT_TERMINAL_PROMPT: "0",
+				GIT_CONFIG_NOSYSTEM: "1",
+				GIT_CONFIG_NOGLOBAL: "1",
+				...(process.platform === "win32" ? {} : { GIT_ASKPASS: "/bin/false" }),
 			},
 		},
 	);
@@ -70,19 +92,24 @@ const runGitArchive = async (
 };
 
 const cloneRepo = async (params: FetchParams, outDir: string) => {
-	await git(
-		[
-			"clone",
-			"--no-checkout",
-			"--filter=blob:none",
-			"--depth",
-			String(params.depth),
-			"--recurse-submodules=no",
-			params.repo,
-			outDir,
-		],
-		{ timeoutMs: params.timeoutMs },
-	);
+	const isCommitRef = /^[0-9a-f]{7,40}$/i.test(params.ref);
+	const cloneArgs = [
+		"clone",
+		"--no-checkout",
+		"--filter=blob:none",
+		"--depth",
+		String(params.depth),
+		"--recurse-submodules=no",
+		"--no-tags",
+	];
+	if (!isCommitRef) {
+		cloneArgs.push("--single-branch");
+		if (params.ref !== "HEAD") {
+			cloneArgs.push("--branch", params.ref);
+		}
+	}
+	cloneArgs.push(params.repo, outDir);
+	await git(cloneArgs, { timeoutMs: params.timeoutMs });
 	await git(["-C", outDir, "checkout", "--detach", params.resolvedCommit], {
 		timeoutMs: params.timeoutMs,
 	});
@@ -107,6 +134,7 @@ const archiveRepo = async (params: FetchParams) => {
 };
 
 export const fetchSource = async (params: FetchParams) => {
+	assertSafeSourceId(params.sourceId, "sourceId");
 	try {
 		const archiveDir = await archiveRepo(params);
 		return {

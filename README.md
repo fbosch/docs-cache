@@ -49,7 +49,7 @@ npx docs-cache remove framework/other-repo --prune
 npx docs-cache clean
 ```
 
-> npx docs-cache --help for details
+> for more options: `npx docs-cache --help`
 
 ## Configuration
 

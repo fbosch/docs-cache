@@ -8,7 +8,9 @@ import {
 	validateConfig,
 	writeConfig,
 } from "./config";
+import { resolveTargetDir } from "./paths";
 import { resolveRepoInput } from "./resolve-repo";
+import { assertSafeSourceId } from "./source-id";
 
 const exists = async (target: string) => {
 	try {
@@ -89,13 +91,17 @@ export const addSources = async (params: {
 			if (!sourceId) {
 				throw new Error("Unable to infer id. Provide an explicit id.");
 			}
-			if (existingIds.has(sourceId)) {
-				skipped.push(sourceId);
+			const safeId = assertSafeSourceId(sourceId, "source id");
+			if (existingIds.has(safeId)) {
+				skipped.push(safeId);
 				return null;
 			}
-			existingIds.add(sourceId);
+			existingIds.add(safeId);
+			if (entry.targetDir) {
+				resolveTargetDir(resolvedPath, entry.targetDir);
+			}
 			return {
-				id: sourceId,
+				id: safeId,
 				repo: resolved.repoUrl,
 				...(entry.targetDir ? { targetDir: entry.targetDir } : {}),
 				...(resolved.ref ? { ref: resolved.ref } : {}),

@@ -8,6 +8,7 @@ import {
 	validateConfig,
 	writeConfig,
 } from "./config";
+import { resolveTargetDir } from "./paths";
 import { resolveRepoInput } from "./resolve-repo";
 
 const exists = async (target: string) => {
@@ -156,10 +157,7 @@ export const removeSources = async (params: {
 		if (!source.targetDir) {
 			continue;
 		}
-		const targetDir = path.resolve(
-			path.dirname(resolvedPath),
-			source.targetDir,
-		);
+		const targetDir = resolveTargetDir(resolvedPath, source.targetDir);
 		await rm(targetDir, { recursive: true, force: true });
 		targetRemovals.push({ id: source.id, targetDir });
 	}

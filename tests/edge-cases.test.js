@@ -36,27 +36,27 @@ test("config rejects duplicate source IDs", async () => {
 	await assert.rejects(() => loadConfig(configPath), /Duplicate source IDs/i);
 });
 
-test("config allows source ID with path traversal characters (potential issue)", async () => {
+test("config rejects source ID with path traversal characters", async () => {
 	const configPath = await writeConfig({
 		sources: [{ id: "../evil", repo: "https://github.com/example/repo.git" }],
 	});
-	// Currently allowed - but will fail when creating cache directories
-	const { sources } = await loadConfig(configPath);
-	assert.equal(sources[0].id, "../evil");
-	// TODO: Should validate sourceId to prevent path traversal
+	await assert.rejects(
+		() => loadConfig(configPath),
+		/sources\[0\]\.id|alphanumeric/i,
+	);
 });
 
-test("config allows source ID with special characters (potential issue)", async () => {
-	// Test various special characters that could break shell or file systems
+test("config rejects source ID with special characters", async () => {
 	const specialChars = ["foo:bar", "foo|bar", "foo*bar", "foo?bar", "foo<bar"];
 
 	for (const id of specialChars) {
 		const configPath = await writeConfig({
 			sources: [{ id, repo: "https://github.com/example/repo.git" }],
 		});
-		const { sources } = await loadConfig(configPath);
-		assert.equal(sources[0].id, id);
-		// TODO: Should validate sourceId characters
+		await assert.rejects(
+			() => loadConfig(configPath),
+			/sources\[0\]\.id|alphanumeric/i,
+		);
 	}
 });
 
@@ -131,15 +131,14 @@ test("config rejects empty string fields", async () => {
 	await assert.rejects(() => loadConfig(configPath), /sources.*id|id.*>=1/i);
 });
 
-test("config allows whitespace-only ID (potential issue)", async () => {
+test("config rejects whitespace-only ID", async () => {
 	const configPath = await writeConfig({
 		sources: [{ id: "   ", repo: "https://github.com/example/repo.git" }],
 	});
-	// Currently this passes validation because we don't trim
-	// This could cause issues when creating directories
-	const { sources } = await loadConfig(configPath);
-	assert.equal(sources[0].id, "   ");
-	// TODO: Should trim and validate non-empty after trim
+	await assert.rejects(
+		() => loadConfig(configPath),
+		/sources\[0\]\.id|alphanumeric/i,
+	);
 });
 
 test("config rejects empty repo URL", async () => {
@@ -152,7 +151,7 @@ test("config rejects empty repo URL", async () => {
 	);
 });
 
-test("targetDir with path traversal is not validated in config", async () => {
+test("targetDir with path traversal is rejected in config", async () => {
 	const tmpRoot = path.join(
 		tmpdir(),
 		`docs-cache-traversal-${Date.now().toString(36)}`,
@@ -171,10 +170,10 @@ test("targetDir with path traversal is not validated in config", async () => {
 	};
 	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 
-	// Config loading doesn't validate targetDir paths
-	const { sources } = await loadConfig(configPath);
-	assert.equal(sources[0].targetDir, "../../etc/passwd");
-	// TODO: Should validate targetDir doesn't escape project root
+	await assert.rejects(
+		() => loadConfig(configPath),
+		/targetDir.*escapes project directory/i,
+	);
 });
 
 test("very large maxBytes value is accepted", async () => {

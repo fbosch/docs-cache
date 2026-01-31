@@ -384,7 +384,7 @@ test("materialize with no matching files creates empty cache", async () => {
 	assert.equal(result.results[0].bytes, 0);
 });
 
-test("source ID with null bytes is allowed but potentially problematic", async () => {
+test("source ID with null bytes is rejected", async () => {
 	const tmpRoot = path.join(
 		tmpdir(),
 		`docs-cache-null-${Date.now().toString(36)}`,
@@ -401,16 +401,13 @@ test("source ID with null bytes is allowed but potentially problematic", async (
 		],
 	};
 
-	// Write the config with null byte
 	await writeFile(configPath, JSON.stringify(config, null, 2), "utf8");
 
-	// The null byte should be in the file
 	const { loadConfig } = await import("../dist/api.mjs");
-	// Load and verify - null bytes in JSON strings are preserved
-	const { sources } = await loadConfig(configPath);
-	assert.ok(sources[0].id.includes("\x00"));
-	// This could cause filesystem issues but is technically valid JSON
-	// TODO: Consider sanitizing source IDs to prevent null bytes
+	await assert.rejects(
+		() => loadConfig(configPath),
+		/sources\[0\]\.id|alphanumeric/i,
+	);
 });
 
 test("maxBytes exactly equal to total size", async () => {

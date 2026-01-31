@@ -1,6 +1,8 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ConfigSchema } from "./config-schema";
+import { resolveTargetDir } from "./paths";
+import { assertSafeSourceId } from "./source-id";
 
 export type CacheMode = "materialize";
 
@@ -246,7 +248,7 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 			throw new Error(`sources[${index}] must be an object.`);
 		}
 		const source: DocsCacheSource = {
-			id: assertString(entry.id, `sources[${index}].id`),
+			id: assertSafeSourceId(entry.id, `sources[${index}].id`),
 			repo: assertString(entry.repo, `sources[${index}].repo`),
 		};
 		if (entry.targetDir !== undefined) {
@@ -407,6 +409,11 @@ const loadConfigFromFile = async (
 		throw new Error(`Missing docs-cache config in ${filePath}.`);
 	}
 	const config = validateConfig(configInput);
+	for (const source of config.sources) {
+		if (source.targetDir) {
+			resolveTargetDir(filePath, source.targetDir);
+		}
+	}
 	return {
 		config,
 		resolvedPath: filePath,

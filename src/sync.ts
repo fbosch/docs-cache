@@ -14,7 +14,7 @@ import { writeIndex } from "./index";
 import { readLock, resolveLockPath, writeLock } from "./lock";
 import { readManifest } from "./manifest";
 import { materializeSource } from "./materialize";
-import { resolveCacheDir } from "./paths";
+import { resolveCacheDir, resolveTargetDir } from "./paths";
 import { applyTargetDir } from "./targets";
 import { verifyCache } from "./verify";
 
@@ -264,8 +264,8 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					if (!source.targetDir) {
 						return;
 					}
-					const resolvedTarget = path.resolve(
-						path.dirname(plan.configPath),
+					const resolvedTarget = resolveTargetDir(
+						plan.configPath,
 						source.targetDir,
 					);
 					if (await exists(resolvedTarget)) {
@@ -318,8 +318,8 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						maxFiles: source.maxFiles ?? defaults.maxFiles,
 					});
 					if (source.targetDir) {
-						const resolvedTarget = path.resolve(
-							path.dirname(plan.configPath),
+						const resolvedTarget = resolveTargetDir(
+							plan.configPath,
 							source.targetDir,
 						);
 						await applyTargetDir({

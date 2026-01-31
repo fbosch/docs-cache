@@ -29,40 +29,39 @@ test("config rejects duplicate source IDs", async () => {
 	await assert.rejects(() => loadConfig(configPath), /Duplicate source IDs/i);
 });
 
-test("sourceId with forward slash is allowed but may cause issues", async () => {
+test("sourceId with forward slash is rejected", async () => {
 	const configPath = await writeConfig({
 		sources: [{ id: "org/repo", repo: "https://github.com/example/repo.git" }],
 	});
 
-	// This creates nested directories which might be intentional or accidental
-	const { sources } = await loadConfig(configPath);
-	assert.equal(sources[0].id, "org/repo");
+	await assert.rejects(
+		() => loadConfig(configPath),
+		/sources\[0\]\.id|alphanumeric/i,
+	);
 });
 
-test("sourceId with backslash is allowed but may cause issues on Windows", async () => {
+test("sourceId with backslash is rejected", async () => {
 	const configPath = await writeConfig({
 		sources: [{ id: "org\\repo", repo: "https://github.com/example/repo.git" }],
 	});
 
-	// Backslash in ID could be problematic on Windows
-	const { sources } = await loadConfig(configPath);
-	assert.equal(sources[0].id, "org\\repo");
+	await assert.rejects(
+		() => loadConfig(configPath),
+		/sources\[0\]\.id|alphanumeric/i,
+	);
 });
 
-test("very long source ID is allowed", async () => {
+test("very long source ID is rejected", async () => {
 	const longId = "a".repeat(300);
 	const configPath = await writeConfig({
 		sources: [{ id: longId, repo: "https://github.com/example/repo.git" }],
 	});
 
-	const { sources } = await loadConfig(configPath);
-	assert.equal(sources[0].id, longId);
-	// File systems have path length limits (255 chars on most systems)
+	await assert.rejects(() => loadConfig(configPath), /exceeds maximum length/i);
 });
 
-test("source ID with special characters that are filesystem-safe", async () => {
-	// Test various characters that are typically safe
-	const ids = ["test-repo", "test_repo", "test.repo", "test@v1.0"];
+test("source ID allows hyphen and underscore", async () => {
+	const ids = ["test-repo", "test_repo", "test123", "TEST_ok"];
 
 	for (const id of ids) {
 		const configPath = await writeConfig({
@@ -73,7 +72,21 @@ test("source ID with special characters that are filesystem-safe", async () => {
 	}
 });
 
-test("targetDir with absolute path is allowed", async () => {
+test("source ID rejects dots and at-signs", async () => {
+	const ids = ["test.repo", "test@v1.0", "a.b", "a@b"];
+
+	for (const id of ids) {
+		const configPath = await writeConfig({
+			sources: [{ id, repo: "https://github.com/example/repo.git" }],
+		});
+		await assert.rejects(
+			() => loadConfig(configPath),
+			/sources\[0\]\.id|alphanumeric/i,
+		);
+	}
+});
+
+test("targetDir with absolute path is rejected", async () => {
 	const configPath = await writeConfig({
 		sources: [
 			{
@@ -84,9 +97,10 @@ test("targetDir with absolute path is allowed", async () => {
 		],
 	});
 
-	// Absolute paths are allowed - user might want to link anywhere
-	const { sources } = await loadConfig(configPath);
-	assert.equal(sources[0].targetDir, "/absolute/path");
+	await assert.rejects(
+		() => loadConfig(configPath),
+		/targetDir.*escapes project directory/i,
+	);
 });
 
 test("targetDir with Windows-style path is allowed", async () => {

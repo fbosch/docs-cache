@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { DocsCacheResolvedSource } from "./config";
 import type { DocsCacheLock } from "./lock";
-import { DEFAULT_INDEX_FILENAME, toPosixPath } from "./paths";
+import { DEFAULT_INDEX_FILENAME, resolveTargetDir, toPosixPath } from "./paths";
 
 type IndexSource = {
 	repo: string;
@@ -35,9 +35,7 @@ export const writeIndex = async (params: {
 	for (const [id, entry] of Object.entries(params.lock.sources)) {
 		const source = sourcesById.get(id);
 		const targetDir = source?.targetDir
-			? toPosixPath(
-					path.resolve(path.dirname(params.configPath), source.targetDir),
-				)
+			? toPosixPath(resolveTargetDir(params.configPath, source.targetDir))
 			: undefined;
 		sourceEntries[id] = {
 			repo: entry.repo,

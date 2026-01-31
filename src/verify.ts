@@ -3,7 +3,7 @@ import path from "node:path";
 import { symbols, ui } from "./cli/ui";
 import { DEFAULT_CACHE_DIR, loadConfig } from "./config";
 import { readManifest } from "./manifest";
-import { resolveCacheDir } from "./paths";
+import { resolveCacheDir, resolveTargetDir } from "./paths";
 
 type VerifyOptions = {
 	configPath?: string;
@@ -91,10 +91,7 @@ export const verifyCache = async (options: VerifyOptions) => {
 			const sourceReport = await verifyDir(sourceDir, "source");
 			const issues = [...sourceReport.issues];
 			if (source.targetDir && source.targetMode === "copy") {
-				const targetDir = path.resolve(
-					path.dirname(resolvedPath),
-					source.targetDir,
-				);
+				const targetDir = resolveTargetDir(resolvedPath, source.targetDir);
 				const targetReport = await verifyDir(targetDir, "target");
 				issues.push(...targetReport.issues);
 			}

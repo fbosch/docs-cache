@@ -5,6 +5,26 @@ export const DEFAULT_INDEX_FILENAME = "index.json";
 
 export const toPosixPath = (value: string) => value.replace(/\\/g, "/");
 
+export const resolveTargetDir = (configPath: string, targetDir: string) => {
+	const configDir = path.dirname(path.resolve(configPath));
+	const resolved = path.resolve(configDir, targetDir);
+	const relative = path.relative(configDir, resolved);
+	const isOutside =
+		relative === ".." ||
+		relative.startsWith(`..${path.sep}`) ||
+		path.isAbsolute(relative);
+	if (isOutside) {
+		throw new Error(
+			`targetDir '${targetDir}' escapes project directory. Must be within ${configDir}.`,
+		);
+	}
+	const segments = toPosixPath(relative).split("/").filter(Boolean);
+	if (segments.includes(".git")) {
+		throw new Error("targetDir cannot be within .git directory.");
+	}
+	return resolved;
+};
+
 export const resolveCacheDir = (
 	configPath: string,
 	cacheDir: string,
