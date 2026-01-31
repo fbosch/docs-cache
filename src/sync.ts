@@ -12,8 +12,8 @@ import { fetchSource } from "./git/fetch-source";
 import { resolveRemoteCommit } from "./git/resolve-remote";
 import { writeIndex } from "./index";
 import { readLock, resolveLockPath, writeLock } from "./lock";
-import { readManifest } from "./manifest";
-import { materializeSource } from "./materialize";
+import { MANIFEST_FILENAME } from "./manifest";
+import { computeManifestHash, materializeSource } from "./materialize";
 import { resolveCacheDir, resolveTargetDir } from "./paths";
 import { applyTargetDir } from "./targets";
 import { verifyCache } from "./verify";
@@ -76,12 +76,7 @@ const hasDocs = async (cacheDir: string, sourceId: string) => {
 	if (!(await exists(sourceDir))) {
 		return false;
 	}
-	try {
-		const manifest = await readManifest(sourceDir);
-		return manifest.entries.length > 0;
-	} catch {
-		return false;
-	}
+	return await exists(path.join(sourceDir, MANIFEST_FILENAME));
 };
 
 export const getSyncPlan = async (
@@ -293,6 +288,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 				}
 				index += 1;
 				const { result, source } = job;
+				const lockEntry = plan.lockData?.sources?.[source.id];
 				if (!options.json) {
 					ui.step("Fetching", source.id);
 				}
@@ -307,6 +303,37 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					timeoutMs: options.timeoutMs,
 				});
 				try {
+					const manifestPath = path.join(
+						plan.cacheDir,
+						source.id,
+						MANIFEST_FILENAME,
+					);
+					if (
+						result.status !== "up-to-date" &&
+						lockEntry?.manifestSha256 &&
+						(await exists(manifestPath))
+					) {
+						const computed = await computeManifestHash({
+							sourceId: source.id,
+							repoDir: fetch.repoDir,
+							cacheDir: plan.cacheDir,
+							include: source.include ?? defaults.include,
+							exclude: source.exclude,
+							maxBytes: source.maxBytes ?? defaults.maxBytes,
+							maxFiles: source.maxFiles ?? defaults.maxFiles,
+						});
+						if (computed.manifestSha256 === lockEntry.manifestSha256) {
+							result.bytes = computed.bytes;
+							result.fileCount = computed.fileCount;
+							result.manifestSha256 = computed.manifestSha256;
+							result.status = "up-to-date";
+							if (!options.json) {
+								ui.item(symbols.success, source.id, "no content changes");
+							}
+							await runNext();
+							return;
+						}
+					}
 					const stats = await runMaterialize({
 						sourceId: source.id,
 						repoDir: fetch.repoDir,

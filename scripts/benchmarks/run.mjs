@@ -37,6 +37,8 @@ const BENCH_GIT_INCLUDE = (process.env.BENCH_GIT_INCLUDE ?? "README.md")
 	.split(",")
 	.map((entry) => entry.trim())
 	.filter((entry) => entry.length > 0);
+const LARGE_FILES_MB = Number(process.env.BENCH_LARGE_FILES_MB ?? 0);
+const LARGE_FILES_COUNT = Number(process.env.BENCH_LARGE_FILES_COUNT ?? 0);
 
 const execFileAsync = promisify(execFile);
 
@@ -64,6 +66,17 @@ const createRepo = async (root, fileCount) => {
 		await mkdir(targetDir, { recursive: true });
 		const targetFile = path.join(targetDir, `file-${i}.md`);
 		await writeFile(targetFile, `content ${i}\n`, "utf8");
+	}
+	if (LARGE_FILES_MB > 0 && LARGE_FILES_COUNT > 0) {
+		const largeDir = path.join(repoDir, "large");
+		await mkdir(largeDir, { recursive: true });
+		const chunk = Buffer.alloc(1024 * 1024, "a");
+		for (let i = 0; i < LARGE_FILES_COUNT; i += 1) {
+			const filePath = path.join(largeDir, `blob-${i}.bin`);
+			for (let mb = 0; mb < LARGE_FILES_MB; mb += 1) {
+				await writeFile(filePath, chunk, { flag: mb === 0 ? "w" : "a" });
+			}
+		}
 	}
 	return repoDir;
 };
@@ -178,10 +191,14 @@ const main = async () => {
 	const benchRoot = root;
 	try {
 		const repoDir = await createRepo(benchRoot, FILE_COUNT);
+		const localInclude = ["docs/**/*.md"];
+		if (LARGE_FILES_MB > 0 && LARGE_FILES_COUNT > 0) {
+			localInclude.push("large/**/*.bin");
+		}
 		const configPath = await createConfigFile(
 			benchRoot,
 			"https://example.com/repo.git",
-			["docs/**/*.md"],
+			localInclude,
 		);
 		const cacheDir = path.join(benchRoot, ".docs");
 

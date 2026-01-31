@@ -93,8 +93,8 @@ test("sync offline uses lock entries without resolving remotes", async () => {
 	const cacheSourceDir = path.join(cacheDir, "local");
 	await mkdir(cacheSourceDir, { recursive: true });
 	await writeFile(
-		path.join(cacheSourceDir, "manifest.json"),
-		JSON.stringify([{ path: "README.md", size: 5 }], null, 2),
+		path.join(cacheSourceDir, ".manifest.ndjson"),
+		`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
 	);
 	await writeFile(path.join(cacheSourceDir, "README.md"), "hello", "utf8");
 

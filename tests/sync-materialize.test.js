@@ -63,8 +63,8 @@ test("sync materializes via mocked fetch", async () => {
 				const outDir = path.join(cacheRoot, sourceId);
 				await mkdir(outDir, { recursive: true });
 				await writeFile(
-					path.join(outDir, "manifest.json"),
-					JSON.stringify([{ path: "README.md", size: 5 }], null, 2),
+					path.join(outDir, ".manifest.ndjson"),
+					`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
 				);
 				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
 				return { bytes: 5, fileCount: 1 };
@@ -126,7 +126,7 @@ test("sync re-materializes when docs missing even if commit unchanged", async ()
 
 	let materialized = false;
 	let attempt = 0;
-	const manifestPath = path.join(cacheDir, "local", "manifest.json");
+	const manifestPath = path.join(cacheDir, "local", ".manifest.ndjson");
 	await runSync(
 		{
 			configPath,
@@ -152,7 +152,10 @@ test("sync re-materializes when docs missing even if commit unchanged", async ()
 				const outDir = path.join(cacheRoot, sourceId);
 				await mkdir(outDir, { recursive: true });
 				const entries = attempt === 1 ? [] : [{ path: "README.md", size: 5 }];
-				await writeFile(manifestPath, JSON.stringify(entries, null, 2));
+				const manifestData = entries.length
+					? `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`
+					: "";
+				await writeFile(manifestPath, manifestData);
 				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
 				return { bytes: 5, fileCount: 1 };
 			},
@@ -280,8 +283,8 @@ test("sync rebuilds corrupt cache when verify fails", async () => {
 		const outDir = path.join(cacheRoot, sourceId);
 		await mkdir(outDir, { recursive: true });
 		await writeFile(
-			path.join(outDir, "manifest.json"),
-			JSON.stringify([{ path: "README.md", size: 5 }], null, 2),
+			path.join(outDir, ".manifest.ndjson"),
+			`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
 		);
 		await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
 		return { bytes: 5, fileCount: 1 };

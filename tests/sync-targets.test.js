@@ -57,8 +57,8 @@ test("sync applies targetDir with copy mode", async () => {
 				const outDir = path.join(cacheRoot, sourceId);
 				await mkdir(outDir, { recursive: true });
 				await writeFile(
-					path.join(outDir, "manifest.json"),
-					JSON.stringify([{ path: "README.md", size: 5 }], null, 2),
+					path.join(outDir, ".manifest.ndjson"),
+					`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
 				);
 				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
 				return { bytes: 5, fileCount: 1 };
@@ -121,8 +121,8 @@ test("sync applies targetDir with symlink mode", async () => {
 				const outDir = path.join(cacheRoot, sourceId);
 				await mkdir(outDir, { recursive: true });
 				await writeFile(
-					path.join(outDir, "manifest.json"),
-					JSON.stringify([{ path: "README.md", size: 5 }], null, 2),
+					path.join(outDir, ".manifest.ndjson"),
+					`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
 				);
 				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
 				return { bytes: 5, fileCount: 1 };

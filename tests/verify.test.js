@@ -17,8 +17,8 @@ test("verify reports missing files", async () => {
 
 	await mkdir(sourceDir, { recursive: true });
 	await writeFile(
-		path.join(sourceDir, "manifest.json"),
-		JSON.stringify([{ path: "README.md", size: 5 }], null, 2),
+		path.join(sourceDir, ".manifest.ndjson"),
+		`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
 	);
 	await writeFile(
 		configPath,
@@ -48,13 +48,13 @@ test("verify checks target manifest for copy mode", async () => {
 	await mkdir(sourceDir, { recursive: true });
 	await mkdir(targetDir, { recursive: true });
 	await writeFile(
-		path.join(sourceDir, "manifest.json"),
-		JSON.stringify([{ path: "README.md", size: 5 }], null, 2),
+		path.join(sourceDir, ".manifest.ndjson"),
+		`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
 	);
 	await writeFile(path.join(sourceDir, "README.md"), "hello", "utf8");
 	await writeFile(
-		path.join(targetDir, "manifest.json"),
-		JSON.stringify([{ path: "README.md", size: 5 }], null, 2),
+		path.join(targetDir, ".manifest.ndjson"),
+		`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
 	);
 	await writeFile(path.join(targetDir, "README.md"), "nope", "utf8");
 	await writeFile(

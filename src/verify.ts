@@ -2,7 +2,7 @@ import { access, stat } from "node:fs/promises";
 import path from "node:path";
 import { symbols, ui } from "./cli/ui";
 import { DEFAULT_CACHE_DIR, loadConfig } from "./config";
-import { readManifest } from "./manifest";
+import { streamManifestEntries } from "./manifest";
 import { resolveCacheDir, resolveTargetDir } from "./paths";
 
 type VerifyOptions = {
@@ -42,33 +42,32 @@ export const verifyCache = async (options: VerifyOptions) => {
 			};
 		}
 		try {
-			const manifest = await readManifest(directory);
-			const missing: string[] = [];
-			const sizeMismatch: string[] = [];
-			for (const entry of manifest.entries) {
+			let missingCount = 0;
+			let sizeMismatchCount = 0;
+			for await (const entry of streamManifestEntries(directory)) {
 				const filePath = path.join(directory, entry.path);
 				if (!(await exists(filePath))) {
-					missing.push(entry.path);
+					missingCount += 1;
 					continue;
 				}
 				const info = await stat(filePath);
 				if (info.size !== entry.size) {
-					sizeMismatch.push(entry.path);
+					sizeMismatchCount += 1;
 				}
 			}
 			const issues: string[] = [];
-			if (missing.length > 0) {
+			if (missingCount > 0) {
 				issues.push(
 					label === "source"
-						? `missing files: ${missing.length}`
-						: `target missing files: ${missing.length}`,
+						? `missing files: ${missingCount}`
+						: `target missing files: ${missingCount}`,
 				);
 			}
-			if (sizeMismatch.length > 0) {
+			if (sizeMismatchCount > 0) {
 				issues.push(
 					label === "source"
-						? `size mismatch: ${sizeMismatch.length}`
-						: `target size mismatch: ${sizeMismatch.length}`,
+						? `size mismatch: ${sizeMismatchCount}`
+						: `target size mismatch: ${sizeMismatchCount}`,
 				);
 			}
 			return {
