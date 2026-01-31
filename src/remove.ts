@@ -8,6 +8,7 @@ import {
 	validateConfig,
 	writeConfig,
 } from "./config";
+import { resolveRepoInput } from "./resolve-repo";
 
 const exists = async (target: string) => {
 	try {
@@ -85,7 +86,30 @@ export const removeSources = async (params: {
 		throw new Error(`Config not found at ${resolvedPath}.`);
 	}
 
-	const idsToRemove = new Set(params.ids);
+	const sourcesById = new Map(
+		config.sources.map((source) => [source.id, source]),
+	);
+	const sourcesByRepo = new Map(
+		config.sources.map((source) => [source.repo, source]),
+	);
+	const idsToRemove = new Set<string>();
+	const missing: string[] = [];
+	for (const token of params.ids) {
+		if (sourcesById.has(token)) {
+			idsToRemove.add(token);
+			continue;
+		}
+		const resolved = resolveRepoInput(token);
+		if (resolved.repoUrl && sourcesByRepo.has(resolved.repoUrl)) {
+			idsToRemove.add(sourcesByRepo.get(resolved.repoUrl)!.id);
+			continue;
+		}
+		if (resolved.inferredId && sourcesById.has(resolved.inferredId)) {
+			idsToRemove.add(resolved.inferredId);
+			continue;
+		}
+		missing.push(token);
+	}
 	const remaining = config.sources.filter(
 		(source) => !idsToRemove.has(source.id),
 	);
@@ -95,7 +119,6 @@ export const removeSources = async (params: {
 	const removedSources = config.sources.filter((source) =>
 		idsToRemove.has(source.id),
 	);
-	const missing = params.ids.filter((id) => !removed.includes(id));
 
 	if (removed.length === 0) {
 		throw new Error("No matching sources found to remove.");

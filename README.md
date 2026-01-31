@@ -7,36 +7,44 @@ Deterministic local caching of documentation repositories.
 
 ## Purpose
 
-Enables agents and tooling to access Git-based documentation with versioning.
+Allows agents and tooling to access documentation without having to make network requests.
+
 It downloads documentation from repositories into a local cache and pins exact commits in a lockfile.
 
 ## Features
 
+- **Gitignored**: Cache lives in `.docs/` or a configured dir and _should_ be gitignored.
 - **Deterministic**: `docs.lock` pins commits and file metadata.
 - **Fast**: Local cache avoids network roundtrips after sync.
 - **Flexible**: Cache full repos or just the subfolders you need.
-- **Gitignored**: Cache lives in `.docs/` or a configured dir and should be gitignored.
 
 ## Usage
 
 ```bash
-# 0. Initialize (optional)
+# Initialize (optional)
 npx docs-cache init
 
-# 1. Add Sources
+# Add Sources
 npx docs-cache add github:owner/repo#main
 npx docs-cache add gitlab:framework/core
 npx docs-cache add https://github.com/framework/core.git // full urls
 npx docs-cache add framework/core framework/other-repe // add multiple at a time
 
-# 2. Sync
+# Sync
 npx docs-cache sync
 
-# 3. Verify Integrity
+# Verify Integrity
 npx docs-cache verify
 
-# 4. Check Status
+# Check Status
 npx docs-cache status
+
+# Removal
+npx docs-cache remove core
+npx docs-cache remove framework/other-repo --prune
+
+# Clean
+npx docs-cache clean
 ```
 
 ## Configuration
