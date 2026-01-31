@@ -397,9 +397,9 @@ test("source with unknown fields is currently allowed", async () => {
 			},
 		],
 	});
-	// Zod's strict() mode on SourceSchema should reject this,
-	// but it appears to be passing validation. This is a potential bug.
-	// For now, documenting this as allowed behavior
+	// SourceSchema has .strict() mode added, but Zod appears to strip
+	// unknown fields instead of rejecting them in this version.
+	// This documents the current behavior.
 	const { sources } = await loadConfig(configPath);
 	assert.equal(sources[0].id, "test");
 	// The unknown field is not included in the resolved source

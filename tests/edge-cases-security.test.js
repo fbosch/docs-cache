@@ -384,7 +384,7 @@ test("materialize with no matching files creates empty cache", async () => {
 	assert.equal(result.results[0].bytes, 0);
 });
 
-test("source ID with null bytes is rejected by schema", async () => {
+test("source ID with null bytes is allowed but potentially problematic", async () => {
 	const tmpRoot = path.join(
 		tmpdir(),
 		`docs-cache-null-${Date.now().toString(36)}`,
@@ -410,6 +410,7 @@ test("source ID with null bytes is rejected by schema", async () => {
 	const { sources } = await loadConfig(configPath);
 	assert.ok(sources[0].id.includes("\x00"));
 	// This could cause filesystem issues but is technically valid JSON
+	// TODO: Consider sanitizing source IDs to prevent null bytes
 });
 
 test("maxBytes exactly equal to total size", async () => {
