@@ -11,9 +11,6 @@ const stubPrompts = (answers) => ({
 	isCancel: () => false,
 	select: async () => answers.location,
 	text: async (options) => {
-		if (options.message === "Config path") {
-			return answers.configPath;
-		}
 		if (options.message === "Cache directory") {
 			return answers.cacheDir;
 		}
@@ -71,7 +68,6 @@ test("init writes docs.config.json when selected", async () => {
 		{ json: false, cwd: tmpRoot },
 		stubPrompts({
 			location: "config",
-			configPath,
 			cacheDir: ".docs",
 			index: true,
 		}),
@@ -97,7 +93,6 @@ test("init writes package.json docs-cache when selected", async () => {
 		{ json: false, cwd: tmpRoot },
 		stubPrompts({
 			location: "package",
-			configPath: packagePath,
 			cacheDir: ".docs",
 			index: false,
 		}),

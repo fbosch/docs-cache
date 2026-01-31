@@ -25,9 +25,9 @@ npx docs-cache init
 
 # 1. Add Sources
 npx docs-cache add github:owner/repo#main
-npx docs-cache add https://github.com/framework/core.git
-npx docs-cache add framework/core
 npx docs-cache add gitlab:framework/core
+npx docs-cache add https://github.com/framework/core.git // full urls
+npx docs-cache add framework/core framework/other-repe // add multiple at a time
 
 # 2. Sync
 npx docs-cache sync
@@ -89,7 +89,6 @@ Use `postinstall` to ensure docs are ready for local agents immediately after in
   }
 }
 ```
-
 
 ## License
 

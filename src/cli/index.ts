@@ -6,6 +6,7 @@ import { cleanCache } from "../clean";
 import { redactRepoUrl } from "../git/redact";
 import { initConfig } from "../init";
 import { pruneCache } from "../prune";
+import { removeSources } from "../remove";
 import { getStatus, printStatus } from "../status";
 import { printSyncPlan, runSync } from "../sync";
 import { printVerify, verifyCache } from "../verify";
@@ -21,6 +22,7 @@ Usage: ${CLI_NAME} <command> [options]
 
 Commands:
   add     Add sources to the config (supports github:org/repo#ref)
+  remove  Remove sources from the config and targets
   sync    Synchronize cache with config
   status  Show cache status
   clean   Remove cache
@@ -101,7 +103,7 @@ const parseAddEntries = (rawArgs: string[]) => {
 const runCommand = async (
 	command: string,
 	options: CliOptions,
-	_positionals: string[],
+	positionals: string[],
 	rawArgs: string[],
 ) => {
 	if (command === "add") {
@@ -153,6 +155,48 @@ const runCommand = async (
 			ui.line(
 				`${symbols.info} Updated ${pc.gray(path.relative(process.cwd(), result.configPath) || "docs.config.json")}`,
 			);
+		}
+		return;
+	}
+	if (command === "remove") {
+		if (positionals.length === 0) {
+			throw new Error("Usage: docs-cache remove <id...>");
+		}
+		const result = await removeSources({
+			configPath: options.config,
+			ids: positionals,
+		});
+		if (options.json) {
+			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+		} else {
+			if (result.removed.length > 0) {
+				ui.line(
+					`${symbols.success} Removed ${result.removed.length} source${result.removed.length === 1 ? "" : "s"}: ${result.removed.join(", ")}`,
+				);
+			}
+			if (result.missing.length > 0) {
+				ui.line(
+					`${symbols.warn} Missing ${result.missing.length} source${result.missing.length === 1 ? "" : "s"}: ${result.missing.join(", ")}`,
+				);
+			}
+			if (result.targetsRemoved.length > 0) {
+				const targetLabels = result.targetsRemoved
+					.map((entry) => `${entry.id} -> ${ui.path(entry.targetDir)}`)
+					.join(", ");
+				ui.line(
+					`${symbols.success} Removed ${result.targetsRemoved.length} target${result.targetsRemoved.length === 1 ? "" : "s"}: ${targetLabels}`,
+				);
+			}
+			ui.line(
+				`${symbols.info} Updated ${pc.gray(path.relative(process.cwd(), result.configPath) || "docs.config.json")}`,
+			);
+		}
+		if (options.prune) {
+			await pruneCache({
+				configPath: options.config,
+				cacheDirOverride: options.cacheDir,
+				json: options.json,
+			});
 		}
 		return;
 	}
@@ -239,8 +283,10 @@ const runCommand = async (
 		return;
 	}
 	if (command === "init") {
+		if (options.config) {
+			throw new Error("Init does not accept --config. Use the project root.");
+		}
 		const result = await initConfig({
-			configPath: options.config,
 			cacheDirOverride: options.cacheDir,
 			json: options.json,
 		});
@@ -277,7 +323,11 @@ export async function main(): Promise<void> {
 			process.exit(ExitCode.InvalidArgument);
 		}
 
-		if (parsed.command !== "add" && parsed.positionals.length > 0) {
+		if (
+			parsed.command !== "add" &&
+			parsed.command !== "remove" &&
+			parsed.positionals.length > 0
+		) {
 			printError(`${CLI_NAME}: unexpected arguments.`);
 			printHelp();
 			process.exit(ExitCode.InvalidArgument);
@@ -307,6 +357,7 @@ export { loadConfig } from "../config";
 export { enforceHostAllowlist, parseLsRemote } from "../git/resolve-remote";
 export { initConfig } from "../init";
 export { pruneCache } from "../prune";
+export { removeSources } from "../remove";
 export { printSyncPlan, runSync } from "../sync";
 export { verifyCache } from "../verify";
 

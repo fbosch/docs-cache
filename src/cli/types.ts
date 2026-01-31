@@ -4,6 +4,7 @@ export type CliOptions = {
 	offline: boolean;
 	failOnMiss: boolean;
 	lockOnly: boolean;
+	prune: boolean;
 	targetDir?: string;
 	concurrency?: number;
 	json: boolean;

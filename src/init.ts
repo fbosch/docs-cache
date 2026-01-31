@@ -16,7 +16,6 @@ import {
 } from "./config";
 
 type InitOptions = {
-	configPath?: string;
 	cacheDirOverride?: string;
 	json: boolean;
 	cwd?: string;
@@ -76,7 +75,7 @@ export const initConfig = async (
 		);
 	}
 	let usePackageConfig = false;
-	if (!options.configPath && (await exists(packagePath))) {
+	if (await exists(packagePath)) {
 		const raw = await readFile(packagePath, "utf8");
 		const parsed = JSON.parse(raw) as Record<string, unknown>;
 		if (!parsed["docs-cache"]) {
@@ -94,22 +93,8 @@ export const initConfig = async (
 			usePackageConfig = locationAnswer === "package";
 		}
 	}
-	const configPath = options.configPath
-		? path.resolve(cwd, options.configPath)
-		: usePackageConfig
-			? packagePath
-			: defaultConfigPath;
+	const configPath = usePackageConfig ? packagePath : defaultConfigPath;
 	const cacheDir = options.cacheDirOverride ?? DEFAULT_CACHE_DIR;
-
-	const configPathAnswer = usePackageConfig
-		? configPath
-		: await text({
-				message: "Config path",
-				initialValue: configPath,
-			});
-	if (!usePackageConfig && isCancel(configPathAnswer)) {
-		throw new Error("Init cancelled.");
-	}
 	const cacheDirAnswer = await text({
 		message: "Cache directory",
 		initialValue: cacheDir,
@@ -127,7 +112,7 @@ export const initConfig = async (
 	}
 
 	const answers = {
-		configPath: configPathAnswer,
+		configPath,
 		cacheDir: cacheDirAnswer,
 		index: indexAnswer,
 	} as {

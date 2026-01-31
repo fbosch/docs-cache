@@ -6,6 +6,7 @@ import type { CliOptions } from "./types";
 
 const COMMANDS = [
 	"add",
+	"remove",
 	"sync",
 	"status",
 	"clean",
@@ -35,6 +36,7 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 			.option("--offline", "Disable network access")
 			.option("--fail-on-miss", "Fail when required sources are missing")
 			.option("--lock-only", "Update lock without materializing files")
+			.option("--prune", "Prune cache on remove")
 			.option("--target-dir <path>", "Target directory for add")
 			.option("--concurrency <n>", "Concurrency limit")
 			.option("--json", "Output JSON")
@@ -53,6 +55,7 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 			offline: Boolean(result.options.offline),
 			failOnMiss: Boolean(result.options.failOnMiss),
 			lockOnly: Boolean(result.options.lockOnly),
+			prune: Boolean(result.options.prune),
 			targetDir: result.options.targetDir,
 			concurrency: result.options.concurrency
 				? Number(result.options.concurrency)
