@@ -10,6 +10,7 @@ import {
 } from "./config";
 import { fetchSource } from "./git/fetch-source";
 import { resolveRemoteCommit } from "./git/resolve-remote";
+import { writeIndex } from "./index";
 import { readLock, resolveLockPath, writeLock } from "./lock";
 import { readManifest } from "./manifest";
 import { materializeSource } from "./materialize";
@@ -56,6 +57,19 @@ const exists = async (target: string) => {
 	}
 };
 
+const hasDocs = async (cacheDir: string, sourceId: string) => {
+	const sourceDir = path.join(cacheDir, sourceId);
+	if (!(await exists(sourceDir))) {
+		return false;
+	}
+	try {
+		const manifest = await readManifest(sourceDir);
+		return manifest.entries.length > 0;
+	} catch {
+		return false;
+	}
+};
+
 export const getSyncPlan = async (
 	options: SyncOptions,
 	deps: SyncDeps = {},
@@ -86,13 +100,14 @@ export const getSyncPlan = async (
 		filteredSources.map(async (source) => {
 			const lockEntry = lockData?.sources?.[source.id];
 			if (options.offline) {
+				const docsPresent = await hasDocs(resolvedCacheDir, source.id);
 				return {
 					id: source.id,
 					repo: lockEntry?.repo ?? source.repo,
 					ref: lockEntry?.ref ?? source.ref ?? defaults.ref,
 					resolvedCommit: lockEntry?.resolvedCommit ?? "offline",
 					lockCommit: lockEntry?.resolvedCommit ?? null,
-					status: lockEntry ? "up-to-date" : "missing",
+					status: lockEntry && docsPresent ? "up-to-date" : "missing",
 					bytes: lockEntry?.bytes,
 					fileCount: lockEntry?.fileCount,
 					manifestSha256: lockEntry?.manifestSha256,
@@ -125,6 +140,7 @@ export const getSyncPlan = async (
 	);
 
 	return {
+		config,
 		configPath: resolvedPath,
 		cacheDir: resolvedCacheDir,
 		lockPath,
@@ -192,18 +208,6 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		const defaults = plan.defaults;
 		const runFetch = deps.fetchSource ?? fetchSource;
 		const runMaterialize = deps.materializeSource ?? materializeSource;
-		const hasDocs = async (id: string) => {
-			const sourceDir = path.join(plan.cacheDir, id);
-			if (!(await exists(sourceDir))) {
-				return false;
-			}
-			try {
-				const manifest = await readManifest(sourceDir);
-				return manifest.entries.length > 0;
-			} catch {
-				return false;
-			}
-		};
 		const buildJobs = async (ids?: string[], force?: boolean) => {
 			const pick = ids?.length
 				? plan.results.filter((result) => ids.includes(result.id))
@@ -214,7 +218,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					if (!source) {
 						return null;
 					}
-					const docsPresent = await hasDocs(result.id);
+					const docsPresent = await hasDocs(plan.cacheDir, result.id);
 					const needsMaterialize =
 						force || result.status !== "up-to-date" || !docsPresent;
 					return needsMaterialize ? { result, source } : null;
@@ -361,6 +365,14 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 	}
 	const lock = await buildLock(plan, previous);
 	await writeLock(plan.lockPath, lock);
+	if (plan.config.index) {
+		await writeIndex({
+			cacheDir: plan.cacheDir,
+			configPath: plan.configPath,
+			lock,
+			sources: plan.sources,
+		});
+	}
 	plan.lockExists = true;
 	return plan;
 };

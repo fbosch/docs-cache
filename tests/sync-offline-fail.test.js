@@ -90,6 +90,13 @@ test("sync offline uses lock entries without resolving remotes", async () => {
 			},
 		}),
 	);
+	const cacheSourceDir = path.join(cacheDir, "local");
+	await mkdir(cacheSourceDir, { recursive: true });
+	await writeFile(
+		path.join(cacheSourceDir, "manifest.json"),
+		JSON.stringify([{ path: "README.md", size: 5 }], null, 2),
+	);
+	await writeFile(path.join(cacheSourceDir, "README.md"), "hello", "utf8");
 
 	await runSync(
 		{
@@ -111,4 +118,59 @@ test("sync offline uses lock entries without resolving remotes", async () => {
 	const updatedLock = JSON.parse(updatedLockRaw);
 	assert.equal(updatedLock.sources.local.resolvedCommit, "abc123");
 	assert.equal(updatedLock.sources.local.fileCount, 1);
+});
+
+test("sync offline fails when lock exists but cache missing", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-offline-missing-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+	const lockPath = path.join(tmpRoot, "docs.lock");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+	await writeFile(
+		lockPath,
+		JSON.stringify({
+			version: 1,
+			generatedAt: new Date().toISOString(),
+			toolVersion: "0.1.0",
+			sources: {
+				local: {
+					repo: "https://example.com/repo.git",
+					ref: "HEAD",
+					resolvedCommit: "abc123",
+					bytes: 4,
+					fileCount: 1,
+					manifestSha256: "abc123",
+					updatedAt: new Date().toISOString(),
+				},
+			},
+		}),
+	);
+
+	await assert.rejects(
+		() =>
+			runSync({
+				configPath,
+				cacheDirOverride: cacheDir,
+				json: false,
+				lockOnly: true,
+				offline: true,
+				failOnMiss: true,
+			}),
+		/Missing required source/i,
+	);
 });

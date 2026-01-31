@@ -40,6 +40,7 @@ export const ConfigSchema = z
 		$schema: z.string().min(1).optional(),
 		cacheDir: z.string().min(1).optional(),
 		targetMode: TargetModeSchema.optional(),
+		index: z.boolean().optional(),
 		defaults: DefaultsSchema.partial().optional(),
 		sources: z.array(SourceSchema),
 	})

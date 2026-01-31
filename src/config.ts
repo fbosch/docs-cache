@@ -43,6 +43,7 @@ export interface DocsCacheConfig {
 	$schema?: string;
 	cacheDir?: string;
 	targetMode?: "symlink" | "copy";
+	index?: boolean;
 	defaults?: Partial<DocsCacheDefaults>;
 	sources: DocsCacheSource[];
 }
@@ -68,6 +69,7 @@ export const DEFAULT_CACHE_DIR = ".docs";
 const DEFAULT_TARGET_MODE = process.platform === "win32" ? "copy" : "symlink";
 export const DEFAULT_CONFIG: DocsCacheConfig = {
 	cacheDir: DEFAULT_CACHE_DIR,
+	index: false,
 	defaults: {
 		ref: "HEAD",
 		mode: "materialize",
@@ -173,6 +175,10 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 	const cacheDir = input.cacheDir
 		? assertString(input.cacheDir, "cacheDir")
 		: DEFAULT_CACHE_DIR;
+	const index =
+		input.index !== undefined
+			? assertBoolean(input.index, "index")
+			: (DEFAULT_CONFIG.index ?? false);
 
 	const defaultsInput = input.defaults;
 	const targetModeOverride =
@@ -314,6 +320,7 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 	return {
 		cacheDir,
 		targetMode: targetModeOverride,
+		index,
 		defaults,
 		sources,
 	};

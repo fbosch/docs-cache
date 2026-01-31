@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -237,4 +237,89 @@ test("sync offline allows missing optional sources", async () => {
 			},
 		},
 	);
+});
+
+test("sync rebuilds corrupt cache when verify fails", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-corrupt-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const repoDir = path.join(tmpRoot, "repo");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	await mkdir(repoDir, { recursive: true });
+	await writeFile(path.join(repoDir, "README.md"), "hello", "utf8");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+				include: ["README.md"],
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+
+	let materializeCalls = 0;
+	const resolveRemoteCommit = async () => ({
+		repo: "https://example.com/repo.git",
+		ref: "HEAD",
+		resolvedCommit: "abc123",
+	});
+	const fetchSource = async () => ({
+		repoDir,
+		cleanup: async () => undefined,
+	});
+	const materializeSource = async ({ cacheDir: cacheRoot, sourceId }) => {
+		materializeCalls += 1;
+		const outDir = path.join(cacheRoot, sourceId);
+		await mkdir(outDir, { recursive: true });
+		await writeFile(
+			path.join(outDir, "manifest.json"),
+			JSON.stringify([{ path: "README.md", size: 5 }], null, 2),
+		);
+		await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
+		return { bytes: 5, fileCount: 1 };
+	};
+
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
+		},
+		{
+			resolveRemoteCommit,
+			fetchSource,
+			materializeSource,
+		},
+	);
+
+	await rm(path.join(cacheDir, "local", "README.md"));
+
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
+		},
+		{
+			resolveRemoteCommit,
+			fetchSource,
+			materializeSource,
+		},
+	);
+
+	assert.equal(materializeCalls, 2);
 });
