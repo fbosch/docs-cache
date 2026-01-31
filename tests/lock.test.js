@@ -27,6 +27,7 @@ test("lock fixture is valid", async (t) => {
 	const lock = module.validateLock(parsed);
 	assert.equal(lock.version, 1);
 	assert.ok(lock.sources.vitest);
+	assert.equal(lock.sources.vitest.rulesSha256, "efgh");
 });
 
 test("writeLock produces readable JSON", async (t) => {

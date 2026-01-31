@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import pc from "picocolors";
@@ -42,10 +43,12 @@ type SyncResult = {
 	ref: string;
 	resolvedCommit: string;
 	lockCommit: string | null;
+	lockRulesSha256?: string;
 	status: "up-to-date" | "changed" | "missing";
 	bytes?: number;
 	fileCount?: number;
 	manifestSha256?: string;
+	rulesSha256?: string;
 };
 
 const formatBytes = (value: number) => {
@@ -79,6 +82,29 @@ const hasDocs = async (cacheDir: string, sourceId: string) => {
 	return await exists(path.join(sourceDir, MANIFEST_FILENAME));
 };
 
+const normalizePatterns = (patterns?: string[]) => {
+	if (!patterns || patterns.length === 0) {
+		return [];
+	}
+	const normalized = patterns
+		.map((pattern) => pattern.trim())
+		.filter((pattern) => pattern.length > 0);
+	return Array.from(new Set(normalized)).sort();
+};
+
+const computeRulesHash = (params: {
+	include: string[];
+	exclude?: string[];
+}) => {
+	const payload = {
+		include: normalizePatterns(params.include),
+		exclude: normalizePatterns(params.exclude),
+	};
+	const hash = createHash("sha256");
+	hash.update(JSON.stringify(payload));
+	return hash.digest("hex");
+};
+
 export const getSyncPlan = async (
 	options: SyncOptions,
 	deps: SyncDeps = {},
@@ -108,6 +134,9 @@ export const getSyncPlan = async (
 	const results: SyncResult[] = await Promise.all(
 		filteredSources.map(async (source) => {
 			const lockEntry = lockData?.sources?.[source.id];
+			const include = source.include ?? defaults.include;
+			const exclude = source.exclude;
+			const rulesSha256 = computeRulesHash({ include, exclude });
 			if (options.offline) {
 				const docsPresent = await hasDocs(resolvedCacheDir, source.id);
 				return {
@@ -116,10 +145,12 @@ export const getSyncPlan = async (
 					ref: lockEntry?.ref ?? source.ref ?? defaults.ref,
 					resolvedCommit: lockEntry?.resolvedCommit ?? "offline",
 					lockCommit: lockEntry?.resolvedCommit ?? null,
+					lockRulesSha256: lockEntry?.rulesSha256,
 					status: lockEntry && docsPresent ? "up-to-date" : "missing",
 					bytes: lockEntry?.bytes,
 					fileCount: lockEntry?.fileCount,
 					manifestSha256: lockEntry?.manifestSha256,
+					rulesSha256,
 				};
 			}
 			const resolved = await resolveCommit({
@@ -128,7 +159,9 @@ export const getSyncPlan = async (
 				allowHosts: defaults.allowHosts,
 				timeoutMs: options.timeoutMs,
 			});
-			const upToDate = lockEntry?.resolvedCommit === resolved.resolvedCommit;
+			const upToDate =
+				lockEntry?.resolvedCommit === resolved.resolvedCommit &&
+				lockEntry?.rulesSha256 === rulesSha256;
 			const status = lockEntry
 				? upToDate
 					? "up-to-date"
@@ -140,10 +173,12 @@ export const getSyncPlan = async (
 				ref: resolved.ref,
 				resolvedCommit: resolved.resolvedCommit,
 				lockCommit: lockEntry?.resolvedCommit ?? null,
+				lockRulesSha256: lockEntry?.rulesSha256,
 				status,
 				bytes: lockEntry?.bytes,
 				fileCount: lockEntry?.fileCount,
 				manifestSha256: lockEntry?.manifestSha256,
+				rulesSha256,
 			};
 		}),
 	);
@@ -199,6 +234,7 @@ const buildLock = async (
 			fileCount: result.fileCount ?? prior?.fileCount ?? 0,
 			manifestSha256:
 				result.manifestSha256 ?? prior?.manifestSha256 ?? result.resolvedCommit,
+			rulesSha256: result.rulesSha256 ?? prior?.rulesSha256,
 			updatedAt: now,
 		};
 	}
@@ -467,6 +503,10 @@ export const printSyncPlan = (
 	for (const result of plan.results) {
 		const shortResolved = ui.hash(result.resolvedCommit);
 		const shortLock = ui.hash(result.lockCommit);
+		const rulesChanged =
+			Boolean(result.lockRulesSha256) &&
+			Boolean(result.rulesSha256) &&
+			result.lockRulesSha256 !== result.rulesSha256;
 
 		if (result.status === "up-to-date") {
 			ui.item(
@@ -477,6 +517,14 @@ export const printSyncPlan = (
 			continue;
 		}
 		if (result.status === "changed") {
+			if (result.lockCommit === result.resolvedCommit && rulesChanged) {
+				ui.item(
+					symbols.warn,
+					result.id,
+					`${pc.dim("rules changed")} ${pc.gray(shortResolved)}`,
+				);
+				continue;
+			}
 			ui.item(
 				symbols.warn,
 				result.id,
