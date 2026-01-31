@@ -10,7 +10,7 @@ type IndexSource = {
 	resolvedCommit: string;
 	bytes: number;
 	fileCount: number;
-	manifestSha256: string;
+	manifestCommit: string;
 	updatedAt: string;
 	cachePath: string;
 	targetDir?: string;
@@ -45,7 +45,7 @@ export const writeIndex = async (params: {
 			resolvedCommit: entry.resolvedCommit,
 			bytes: entry.bytes,
 			fileCount: entry.fileCount,
-			manifestSha256: entry.manifestSha256,
+			manifestCommit: entry.manifestCommit,
 			updatedAt: entry.updatedAt,
 			cachePath: toPosixPath(path.join(params.cacheDir, id)),
 			...(targetDir ? { targetDir } : {}),

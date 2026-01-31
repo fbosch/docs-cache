@@ -1,4 +1,4 @@
-# docs-cache
+# 🗃️docs-cache
 
 Deterministic local caching of documentation repositories.
 

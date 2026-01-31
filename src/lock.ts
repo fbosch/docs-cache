@@ -7,7 +7,7 @@ export interface DocsCacheLockSource {
 	resolvedCommit: string;
 	bytes: number;
 	fileCount: number;
-	manifestSha256: string;
+	manifestCommit: string;
 	updatedAt: string;
 }
 
@@ -63,6 +63,10 @@ export const validateLock = (input: unknown): DocsCacheLock => {
 		if (!isRecord(value)) {
 			throw new Error(`sources.${key} must be an object.`);
 		}
+		const manifestCommit = assertString(
+			value.manifestCommit,
+			`sources.${key}.manifestCommit`,
+		);
 		sources[key] = {
 			repo: assertString(value.repo, `sources.${key}.repo`),
 			ref: assertString(value.ref, `sources.${key}.ref`),
@@ -75,10 +79,7 @@ export const validateLock = (input: unknown): DocsCacheLock => {
 				value.fileCount,
 				`sources.${key}.fileCount`,
 			),
-			manifestSha256: assertString(
-				value.manifestSha256,
-				`sources.${key}.manifestSha256`,
-			),
+			manifestCommit,
 			updatedAt: assertString(value.updatedAt, `sources.${key}.updatedAt`),
 		};
 	}

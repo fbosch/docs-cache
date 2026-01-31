@@ -117,7 +117,7 @@ test("sync re-materializes when docs missing even if commit unchanged", async ()
 					resolvedCommit: "abc123",
 					bytes: 0,
 					fileCount: 0,
-					manifestSha256: "abc123",
+					manifestCommit: "abc123",
 					updatedAt: new Date().toISOString(),
 				},
 			},

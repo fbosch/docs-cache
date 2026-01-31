@@ -45,7 +45,7 @@ type SyncResult = {
 	status: "up-to-date" | "changed" | "missing";
 	bytes?: number;
 	fileCount?: number;
-	manifestSha256?: string;
+	manifestCommit?: string;
 };
 
 const formatBytes = (value: number) => {
@@ -124,7 +124,7 @@ export const getSyncPlan = async (
 					status: lockEntry && docsPresent ? "up-to-date" : "missing",
 					bytes: lockEntry?.bytes,
 					fileCount: lockEntry?.fileCount,
-					manifestSha256: lockEntry?.manifestSha256,
+					manifestCommit: lockEntry?.manifestCommit,
 				};
 			}
 			const resolved = await resolveCommit({
@@ -148,7 +148,7 @@ export const getSyncPlan = async (
 				status,
 				bytes: lockEntry?.bytes,
 				fileCount: lockEntry?.fileCount,
-				manifestSha256: lockEntry?.manifestSha256,
+				manifestCommit: lockEntry?.manifestCommit,
 			};
 		}),
 	);
@@ -201,8 +201,8 @@ const buildLock = async (
 			resolvedCommit: result.resolvedCommit,
 			bytes: result.bytes ?? prior?.bytes ?? 0,
 			fileCount: result.fileCount ?? prior?.fileCount ?? 0,
-			manifestSha256:
-				result.manifestSha256 ?? prior?.manifestSha256 ?? result.resolvedCommit,
+			manifestCommit:
+				result.manifestCommit ?? prior?.manifestCommit ?? result.resolvedCommit,
 			updatedAt: now,
 		};
 	}
@@ -330,7 +330,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					}
 					result.bytes = stats.bytes;
 					result.fileCount = stats.fileCount;
-					result.manifestSha256 = result.resolvedCommit;
+					result.manifestCommit = result.resolvedCommit;
 					if (!options.json) {
 						ui.item(
 							symbols.success,
