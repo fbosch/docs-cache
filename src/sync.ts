@@ -150,7 +150,7 @@ export const getSyncPlan = async (
 					bytes: lockEntry?.bytes,
 					fileCount: lockEntry?.fileCount,
 					manifestSha256: lockEntry?.manifestSha256,
-					rulesSha256: lockEntry?.rulesSha256,
+					rulesSha256,
 				};
 			}
 			const resolved = await resolveCommit({
