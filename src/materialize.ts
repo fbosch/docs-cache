@@ -96,7 +96,6 @@ export const materializeSource = async (params: MaterializeParams) => {
 			const results: Array<{ path: string; size: number }> = [];
 			while (index < fileInfos.length) {
 				const current = index++;
-				if (current >= fileInfos.length) break;
 				const fileInfo = fileInfos[current];
 				const filePath = path.join(params.repoDir, fileInfo.relativePath);
 				const targetPath = path.join(tempDir, fileInfo.relativePath);
