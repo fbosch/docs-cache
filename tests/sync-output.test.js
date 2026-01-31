@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
 
-import { printSyncPlan } from "../dist/cli.mjs";
+import { printSyncPlan } from "../dist/api.mjs";
 
 test("printSyncPlan outputs summary and short hashes", () => {
 	const cwd = process.cwd();

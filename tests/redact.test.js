@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { redactRepoUrl } from "../dist/cli.mjs";
+import { redactRepoUrl } from "../dist/api.mjs";
 
 test("redacts credentials in https URLs", () => {
 	const input = "https://user:token@github.com/org/repo.git";

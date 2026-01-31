@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { loadConfig } from "../dist/cli.mjs";
+import { loadConfig } from "../dist/api.mjs";
 
 const writeConfig = async (data) => {
 	const tmpRoot = path.join(

@@ -166,12 +166,24 @@ export const getSyncPlan = async (
 };
 
 const loadToolVersion = async () => {
-	const raw = await readFile(
-		new URL("../package.json", import.meta.url),
-		"utf8",
-	);
-	const pkg = JSON.parse(raw.toString());
-	return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+	const cwdPath = path.resolve(process.cwd(), "package.json");
+	try {
+		const raw = await readFile(cwdPath, "utf8");
+		const pkg = JSON.parse(raw.toString());
+		return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+	} catch {
+		// fallback to bundle-relative location
+	}
+	try {
+		const raw = await readFile(
+			new URL("../package.json", import.meta.url),
+			"utf8",
+		);
+		const pkg = JSON.parse(raw.toString());
+		return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+	} catch {
+		return "0.0.0";
+	}
 };
 
 const buildLock = async (

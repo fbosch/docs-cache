@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { initConfig } from "../dist/cli.mjs";
+import { initConfig } from "../dist/api.mjs";
 
 const stubPrompts = (answers) => ({
 	confirm: async () => answers.index,

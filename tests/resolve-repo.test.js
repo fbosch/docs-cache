@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { resolveRepoInput } from "../dist/cli.mjs";
+import { resolveRepoInput } from "../dist/api.mjs";
 
 test("resolveRepoInput handles github shorthand", () => {
 	const result = resolveRepoInput("fbosch/docs-cache");

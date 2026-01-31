@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { runSync } from "../dist/cli.mjs";
+import { runSync } from "../dist/api.mjs";
 
 const toPosix = (value) => value.split(path.sep).join("/");
 

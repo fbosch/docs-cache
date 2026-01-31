@@ -1,0 +1,11 @@
+export { cleanCache } from "./clean";
+export { parseArgs } from "./cli/parse-args";
+export { loadConfig } from "./config";
+export { redactRepoUrl } from "./git/redact";
+export { enforceHostAllowlist, parseLsRemote } from "./git/resolve-remote";
+export { initConfig } from "./init";
+export { pruneCache } from "./prune";
+export { removeSources } from "./remove";
+export { resolveRepoInput } from "./resolve-repo";
+export { printSyncPlan, runSync } from "./sync";
+export { verifyCache } from "./verify";

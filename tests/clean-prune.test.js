@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { cleanCache, pruneCache } from "../dist/cli.mjs";
+import { cleanCache, pruneCache } from "../dist/api.mjs";
 
 const exists = async (target) => {
 	try {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { enforceHostAllowlist, parseLsRemote } from "../dist/cli.mjs";
+import { enforceHostAllowlist, parseLsRemote } from "../dist/api.mjs";
 
 test("parseLsRemote returns first hash", () => {
 	const hash = parseLsRemote("abc123\trefs/heads/main\n");

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { verifyCache } from "../dist/cli.mjs";
+import { verifyCache } from "../dist/api.mjs";
 
 test("verify reports missing files", async () => {
 	const tmpRoot = path.join(

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { runSync } from "../dist/cli.mjs";
+import { runSync } from "../dist/api.mjs";
 
 test("sync fails on missing required sources when failOnMiss true", async () => {
 	const tmpRoot = path.join(

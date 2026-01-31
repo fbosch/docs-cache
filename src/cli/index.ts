@@ -350,18 +350,6 @@ export async function main(): Promise<void> {
 	}
 }
 
-export { parseArgs } from "./parse-args";
-export { redactRepoUrl };
-export { cleanCache } from "../clean";
-export { loadConfig } from "../config";
-export { enforceHostAllowlist, parseLsRemote } from "../git/resolve-remote";
-export { initConfig } from "../init";
-export { pruneCache } from "../prune";
-export { removeSources } from "../remove";
-export { resolveRepoInput } from "../resolve-repo";
-export { printSyncPlan, runSync } from "../sync";
-export { verifyCache } from "../verify";
-
 function errorHandler(error: Error): void {
 	const message = error.message || String(error);
 	printError(message);

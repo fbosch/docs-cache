@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import { test } from "node:test";
 
-const distPath = new URL("../dist/cli.mjs", import.meta.url);
+const distPath = new URL("../dist/api.mjs", import.meta.url);
 
 const loadCliModule = async () => {
 	try {
