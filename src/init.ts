@@ -8,10 +8,8 @@ import {
 } from "@clack/prompts";
 import {
 	DEFAULT_CACHE_DIR,
-	DEFAULT_CONFIG,
 	DEFAULT_CONFIG_FILENAME,
 	type DocsCacheConfig,
-	resolveConfigPath,
 	writeConfig,
 } from "./config";
 
@@ -46,16 +44,6 @@ export const initConfig = async (
 	const select = deps.select ?? clackSelect;
 	const text = deps.text ?? clackText;
 	const cwd = options.cwd ?? process.cwd();
-	const defaults = {
-		ref: DEFAULT_CONFIG.defaults?.ref ?? "HEAD",
-		targetMode:
-			DEFAULT_CONFIG.defaults?.targetMode ??
-			(process.platform === "win32" ? "copy" : "symlink"),
-		allowHosts: DEFAULT_CONFIG.defaults?.allowHosts ?? [
-			"github.com",
-			"gitlab.com",
-		],
-	};
 	const defaultConfigPath = path.resolve(cwd, DEFAULT_CONFIG_FILENAME);
 	const packagePath = path.resolve(cwd, "package.json");
 	const existingConfigPaths: string[] = [];

@@ -4,16 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { loadConfig, runSync } from "../dist/api.mjs";
-
-const exists = async (target) => {
-	try {
-		await import("node:fs/promises").then(({ access }) => access(target));
-		return true;
-	} catch {
-		return false;
-	}
-};
+import { loadConfig } from "../dist/api.mjs";
 
 const writeConfig = async (data) => {
 	const tmpRoot = path.join(
@@ -216,7 +207,7 @@ test("config rejects BOM (Byte Order Mark)", async () => {
 	// UTF-8 BOM - this is a real edge case that can happen with Windows editors
 	await writeFile(
 		configPath,
-		"\uFEFF" + JSON.stringify(config, null, 2),
+		`\uFEFF${JSON.stringify(config, null, 2)}`,
 		"utf8",
 	);
 
