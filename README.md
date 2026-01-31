@@ -7,16 +7,16 @@ Deterministic local caching of documentation repositories.
 
 ## Purpose
 
-Allows agents and tooling to access Git-hosted documentation without having to make network requests.
+Allows agents and tooling to access Git-hosted documentation with a local cache and lockfile.
 
-It downloads documentation from repositories into a local cache and pins the commit in a lock file.
+It downloads documentation into a cache and pins resolved commits in a lock file for repeatable access.
 
 ## Features
 
-- **Gitignored**: Cache lives in `.docs/` or a configured dir and _should_ be gitignored.
+- **Local only**: Cache lives in `.docs/` or a configured dir and _should_ be gitignored.
 - **Deterministic**: `docs.lock` pins commits and file metadata.
 - **Fast**: Local cache avoids network roundtrips after sync.
-- **Flexible**: Cache full repos or just the subfolders you need.
+- **Flexible**: Cache full repos or just the subdirectories you need.
 
 ## Usage
 
@@ -27,8 +27,8 @@ npx docs-cache init
 # Add Sources
 npx docs-cache add github:owner/repo#main
 npx docs-cache add gitlab:framework/core
-npx docs-cache add https://github.com/framework/core.git // full urls
-npx docs-cache add framework/core framework/other-repe // add multiple at a time
+npx docs-cache add https://github.com/framework/core.git
+npx docs-cache add framework/core framework/other-repo
 
 # Sync
 npx docs-cache sync
@@ -59,7 +59,7 @@ npx docs-cache clean
       "id": "framework",
       "repo": "https://github.com/framework/core.git",
       "ref": "main",
-      "targetDir": "./agents/skills/framework-skill/references" // Symlink/Copy
+      "targetDir": "./agents/skills/framework-skill/references",
       "include": ["guide/**"]
     }
   ]
@@ -68,11 +68,12 @@ npx docs-cache clean
 
 ### Options
 
-| Field      | Type   | Description                              |
-| ---------- | ------ | ---------------------------------------- |
-| `cacheDir` | string | Directory for cache, defaults to `.docs` |
-| `sources`  | array  | List of repositories to sync             |
-| `defaults` | object | Default settings for all sources         |
+| Field      | Type    | Description                              |
+| ---------- | ------- | ---------------------------------------- |
+| `cacheDir` | string  | Directory for cache, defaults to `.docs` |
+| `index`    | boolean | Write `index.json` summary file          |
+| `sources`  | array   | List of repositories to sync             |
+| `defaults` | object  | Default settings for all sources         |
 
 **Source Options:**
 
@@ -82,6 +83,9 @@ npx docs-cache clean
 - `exclude`: Glob patterns to skip
 - `targetDir`: Optional path where files should be symlinked/copied to, outside `.docs`
 - `targetMode`: Defaults to `symlink` on Unix and `copy` on Windows
+- `required`: Whether missing sources should fail in offline/strict runs
+- `maxBytes`: Maximum total bytes to materialize for the source
+- `maxFiles`: Maximum total files to materialize for the source
 
 > **Note**: Sources are always downloaded to `.docs/<id>/`. If you provide a `targetDir`, `docs-cache` will create a symlink or copy pointing from the cache to that target directory. The target should be outside `.docs`.
 
