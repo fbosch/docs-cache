@@ -6,15 +6,6 @@ import { test } from "node:test";
 
 import { loadConfig } from "../dist/api.mjs";
 
-const _exists = async (target) => {
-	try {
-		await import("node:fs/promises").then(({ access }) => access(target));
-		return true;
-	} catch {
-		return false;
-	}
-};
-
 const writeConfig = async (data) => {
 	const tmpRoot = path.join(
 		tmpdir(),

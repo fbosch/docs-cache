@@ -106,13 +106,6 @@ const runCli = async (args) => {
 	});
 };
 
-const _runGit = async (args, cwd) => {
-	await execFileAsync("git", args, {
-		cwd,
-		maxBuffer: 1024 * 1024,
-	});
-};
-
 const formatRow = (result) => {
 	const min = result.min ?? 0;
 	const max = result.max ?? 0;
