@@ -46,6 +46,8 @@ test("sync materializes via mocked fetch", async () => {
 			cacheDirOverride: cacheDir,
 			json: false,
 			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
 		},
 		{
 			resolveRemoteCommit: async () => ({
@@ -131,6 +133,8 @@ test("sync re-materializes when docs missing even if commit unchanged", async ()
 			cacheDirOverride: cacheDir,
 			json: false,
 			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
 		},
 		{
 			resolveRemoteCommit: async () => ({
@@ -156,4 +160,81 @@ test("sync re-materializes when docs missing even if commit unchanged", async ()
 	);
 
 	assert.equal(materialized, true);
+});
+
+test("sync offline fails when required source missing", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-offline-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "missing",
+				repo: "https://example.com/repo.git",
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+
+	await assert.rejects(
+		() =>
+			runSync({
+				configPath,
+				cacheDirOverride: cacheDir,
+				json: false,
+				lockOnly: false,
+				offline: true,
+				failOnMiss: true,
+			}),
+		/missing/i,
+	);
+});
+
+test("sync offline allows missing optional sources", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-offline-optional-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "optional",
+				repo: "https://example.com/repo.git",
+				required: false,
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: true,
+			failOnMiss: true,
+		},
+		{
+			resolveRemoteCommit: async () => {
+				throw new Error("Should not be called while offline");
+			},
+			fetchSource: async () => {
+				throw new Error("Should not be called while offline");
+			},
+		},
+	);
 });

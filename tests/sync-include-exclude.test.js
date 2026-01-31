@@ -54,6 +54,8 @@ test("materialize respects include/exclude patterns", async () => {
 			cacheDirOverride: cacheDir,
 			json: false,
 			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
 		},
 		{
 			resolveRemoteCommit: async () => ({
@@ -110,6 +112,8 @@ test("exclude overrides include on overlap", async () => {
 			cacheDirOverride: cacheDir,
 			json: false,
 			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
 		},
 		{
 			resolveRemoteCommit: async () => ({

@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { ConfigSchema } from "./config-schema";
 
 export type CacheMode = "materialize" | "sparse";
 
@@ -125,6 +126,17 @@ const assertStringArray = (value: unknown, label: string): string[] => {
 	return value as string[];
 };
 
+const assertTargetMode = (
+	value: unknown,
+	label: string,
+): "symlink" | "copy" => {
+	const mode = assertString(value, label) as "symlink" | "copy";
+	if (mode !== "symlink" && mode !== "copy") {
+		throw new Error(`${label} must be "symlink" or "copy".`);
+	}
+	return mode;
+};
+
 const assertMode = (value: unknown, label: string): CacheMode => {
 	if (value !== "materialize" && value !== "sparse") {
 		throw new Error(`${label} must be "materialize" or "sparse".`);
@@ -151,6 +163,13 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 	if (!isRecord(input)) {
 		throw new Error("Config must be a JSON object.");
 	}
+	const parsed = ConfigSchema.safeParse(input);
+	if (!parsed.success) {
+		const details = parsed.error.issues
+			.map((issue) => `${issue.path.join(".") || "config"} ${issue.message}`)
+			.join("; ");
+		throw new Error(`Config does not match schema: ${details}.`);
+	}
 
 	const cacheDir = input.cacheDir
 		? assertString(input.cacheDir, "cacheDir")
@@ -159,7 +178,7 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 	const defaultsInput = input.defaults;
 	const targetModeOverride =
 		input.targetMode !== undefined
-			? (assertString(input.targetMode, "targetMode") as "symlink" | "copy")
+			? assertTargetMode(input.targetMode, "targetMode")
 			: undefined;
 	const defaultValues = DEFAULT_CONFIG.defaults as DocsCacheDefaults;
 	let defaults: DocsCacheDefaults = defaultValues;
@@ -182,9 +201,7 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 					: defaultValues.include,
 			targetMode:
 				defaultsInput.targetMode !== undefined
-					? (assertString(defaultsInput.targetMode, "defaults.targetMode") as
-							| "symlink"
-							| "copy")
+					? assertTargetMode(defaultsInput.targetMode, "defaults.targetMode")
 					: (targetModeOverride ?? defaultValues.targetMode),
 			depth:
 				defaultsInput.depth !== undefined

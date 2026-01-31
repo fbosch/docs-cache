@@ -40,6 +40,8 @@ test("sync applies targetDir with copy mode", async () => {
 			cacheDirOverride: cacheDir,
 			json: false,
 			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
 		},
 		{
 			resolveRemoteCommit: async () => ({
@@ -102,6 +104,8 @@ test("sync applies targetDir with symlink mode", async () => {
 			cacheDirOverride: cacheDir,
 			json: false,
 			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
 		},
 		{
 			resolveRemoteCommit: async () => ({

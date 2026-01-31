@@ -117,6 +117,8 @@ const runCommand = async (
 				cacheDirOverride: options.cacheDir,
 				json: options.json,
 				lockOnly: options.lockOnly,
+				offline: options.offline,
+				failOnMiss: options.failOnMiss,
 				sourceFilter: result.sources.map((source) => source.id),
 				timeoutMs: options.timeoutMs,
 			});
@@ -167,6 +169,8 @@ const runCommand = async (
 			cacheDirOverride: options.cacheDir,
 			json: options.json,
 			lockOnly: options.lockOnly,
+			offline: options.offline,
+			failOnMiss: options.failOnMiss,
 			timeoutMs: options.timeoutMs,
 		});
 		if (options.json) {
@@ -241,6 +245,8 @@ export async function main(): Promise<void> {
 
 export { parseArgs } from "./parse-args";
 export { redactRepoUrl };
+export { loadConfig } from "../config";
+export { enforceHostAllowlist, parseLsRemote } from "../git/resolve-remote";
 export { printSyncPlan, runSync } from "../sync";
 export { verifyCache } from "../verify";
 

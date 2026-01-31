@@ -22,6 +22,8 @@ type SyncOptions = {
 	cacheDirOverride?: string;
 	json: boolean;
 	lockOnly: boolean;
+	offline: boolean;
+	failOnMiss: boolean;
 	concurrency?: number;
 	sourceFilter?: string[];
 	timeoutMs?: number;
@@ -82,13 +84,26 @@ export const getSyncPlan = async (
 		: sources;
 	const results: SyncResult[] = await Promise.all(
 		filteredSources.map(async (source) => {
+			const lockEntry = lockData?.sources?.[source.id];
+			if (options.offline) {
+				return {
+					id: source.id,
+					repo: lockEntry?.repo ?? source.repo,
+					ref: lockEntry?.ref ?? source.ref ?? defaults.ref,
+					resolvedCommit: lockEntry?.resolvedCommit ?? "offline",
+					lockCommit: lockEntry?.resolvedCommit ?? null,
+					status: lockEntry ? "up-to-date" : "missing",
+					bytes: lockEntry?.bytes,
+					fileCount: lockEntry?.fileCount,
+					manifestSha256: lockEntry?.manifestSha256,
+				};
+			}
 			const resolved = await resolveCommit({
 				repo: source.repo,
 				ref: source.ref,
 				allowHosts: defaults.allowHosts,
 				timeoutMs: options.timeoutMs,
 			});
-			const lockEntry = lockData?.sources?.[source.id];
 			const upToDate = lockEntry?.resolvedCommit === resolved.resolvedCommit;
 			const status = lockEntry
 				? upToDate
@@ -163,6 +178,15 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 	let previous: Awaited<ReturnType<typeof readLock>> | null = null;
 	if (plan.lockExists) {
 		previous = await readLock(plan.lockPath);
+	}
+	const requiredMissing = plan.results.filter((result) => {
+		const source = plan.sources.find((entry) => entry.id === result.id);
+		return result.status === "missing" && (source?.required ?? true);
+	});
+	if (options.failOnMiss && requiredMissing.length > 0) {
+		throw new Error(
+			`Missing required source(s): ${requiredMissing.map((result) => result.id).join(", ")}.`,
+		);
 	}
 	if (!options.lockOnly) {
 		const defaults = plan.defaults;
@@ -290,38 +314,44 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 			);
 		};
 
-		const initialJobs = await buildJobs();
-		await runJobs(initialJobs);
-		await ensureTargets();
-		const verifyReport = await verifyCache({
-			configPath: plan.configPath,
-			cacheDirOverride: plan.cacheDir,
-			json: true,
-		});
-		const failed = verifyReport.results.filter((result) => !result.ok);
-		if (failed.length > 0) {
-			const retryJobs = await buildJobs(
-				failed.map((result) => result.id),
-				true,
-			);
-			if (retryJobs.length > 0) {
-				await runJobs(retryJobs);
-				await ensureTargets();
-			}
-			const retryReport = await verifyCache({
+		if (options.offline) {
+			await ensureTargets();
+		} else {
+			const initialJobs = await buildJobs();
+			await runJobs(initialJobs);
+			await ensureTargets();
+		}
+		if (!options.offline) {
+			const verifyReport = await verifyCache({
 				configPath: plan.configPath,
 				cacheDirOverride: plan.cacheDir,
 				json: true,
 			});
-			const stillFailed = retryReport.results.filter((result) => !result.ok);
-			if (stillFailed.length > 0) {
-				if (!options.json) {
-					const details = stillFailed
-						.map((result) => `${result.id} (${result.issues.join("; ")})`)
-						.join(", ");
-					process.stdout.write(
-						`${symbols.warn} Verify failed for ${stillFailed.length} source(s): ${details}\n`,
-					);
+			const failed = verifyReport.results.filter((result) => !result.ok);
+			if (failed.length > 0) {
+				const retryJobs = await buildJobs(
+					failed.map((result) => result.id),
+					true,
+				);
+				if (retryJobs.length > 0) {
+					await runJobs(retryJobs);
+					await ensureTargets();
+				}
+				const retryReport = await verifyCache({
+					configPath: plan.configPath,
+					cacheDirOverride: plan.cacheDir,
+					json: true,
+				});
+				const stillFailed = retryReport.results.filter((result) => !result.ok);
+				if (stillFailed.length > 0) {
+					if (!options.json) {
+						const details = stillFailed
+							.map((result) => `${result.id} (${result.issues.join("; ")})`)
+							.join(", ");
+						process.stdout.write(
+							`${symbols.warn} Verify failed for ${stillFailed.length} source(s): ${details}\n`,
+						);
+					}
 				}
 			}
 		}

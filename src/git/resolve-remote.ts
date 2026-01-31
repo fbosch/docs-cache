@@ -34,7 +34,7 @@ const parseRepoHost = (repo: string) => {
 	}
 };
 
-const enforceHostAllowlist = (repo: string, allowHosts: string[]) => {
+export const enforceHostAllowlist = (repo: string, allowHosts: string[]) => {
 	const host = parseRepoHost(repo);
 	if (!host) {
 		throw new Error(
@@ -50,7 +50,7 @@ const enforceHostAllowlist = (repo: string, allowHosts: string[]) => {
 	}
 };
 
-const parseLsRemote = (stdout: string) => {
+export const parseLsRemote = (stdout: string) => {
 	const lines = stdout.trim().split("\n").filter(Boolean);
 	if (lines.length === 0) {
 		return null;
