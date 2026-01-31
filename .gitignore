@@ -2,6 +2,7 @@ node_modules
 dist
 .docs
 .DS_Store
+*.tgz
 *.log
 pnpm-debug.log*
 npm-debug.log*
