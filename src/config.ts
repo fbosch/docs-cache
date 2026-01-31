@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ConfigSchema } from "./config-schema";
 
-export type CacheMode = "materialize" | "sparse";
+export type CacheMode = "materialize";
 
 export type IntegrityType = "commit" | "manifest";
 
@@ -138,8 +138,8 @@ const assertTargetMode = (
 };
 
 const assertMode = (value: unknown, label: string): CacheMode => {
-	if (value !== "materialize" && value !== "sparse") {
-		throw new Error(`${label} must be "materialize" or "sparse".`);
+	if (value !== "materialize") {
+		throw new Error(`${label} must be "materialize".`);
 	}
 	return value;
 };

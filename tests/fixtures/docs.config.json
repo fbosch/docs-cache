@@ -15,7 +15,6 @@
 			"id": "node",
 			"repo": "https://github.com/nodejs/node.git",
 			"ref": "v20.11.1",
-			"mode": "sparse",
 			"depth": 1,
 			"include": ["doc/api/**"],
 			"required": false,

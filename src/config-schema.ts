@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const TargetModeSchema = z.enum(["symlink", "copy"]);
-export const CacheModeSchema = z.enum(["materialize", "sparse"]);
+export const CacheModeSchema = z.enum(["materialize"]);
 export const IntegritySchema = z.object({
 	type: z.enum(["commit", "manifest"]),
 	value: z.string().nullable(),

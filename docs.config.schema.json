@@ -23,7 +23,7 @@
 				},
 				"mode": {
 					"type": "string",
-					"enum": ["materialize", "sparse"]
+					"enum": ["materialize"]
 				},
 				"include": {
 					"minItems": 1,
@@ -86,7 +86,7 @@
 					},
 					"mode": {
 						"type": "string",
-						"enum": ["materialize", "sparse"]
+						"enum": ["materialize"]
 					},
 					"depth": {
 						"type": "number",
