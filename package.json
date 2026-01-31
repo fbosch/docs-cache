@@ -27,7 +27,7 @@
 		"dev": "unbuild --stub",
 		"lint": "biome check .",
 		"prepublishOnly": "pnpm audit --audit-level=high && pnpm build && pnpm size && pnpm schema:build",
-		"release": "bumpp && npm publish",
+		"release": "pnpm run lint && pnpm run typecheck && bumpp && pnpm publih --access public",
 		"test": "pnpm build && node --test",
 		"test:coverage": "pnpm build && c8 --include dist --exclude bin --reporter=text node --test",
 		"bench": "pnpm build && node scripts/benchmarks/run.mjs",
