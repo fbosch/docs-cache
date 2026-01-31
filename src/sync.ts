@@ -159,6 +159,7 @@ export const getSyncPlan = async (
 		cacheDir: resolvedCacheDir,
 		lockPath,
 		lockExists,
+		lockData,
 		results,
 		sources: filteredSources,
 		defaults,
@@ -219,10 +220,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 	let warningCount = 0;
 	const plan = await getSyncPlan(options, deps);
 	await mkdir(plan.cacheDir, { recursive: true });
-	let previous: Awaited<ReturnType<typeof readLock>> | null = null;
-	if (plan.lockExists) {
-		previous = await readLock(plan.lockPath);
-	}
+	const previous = plan.lockData;
 	const requiredMissing = plan.results.filter((result) => {
 		const source = plan.sources.find((entry) => entry.id === result.id);
 		return result.status === "missing" && (source?.required ?? true);
