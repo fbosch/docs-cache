@@ -35,6 +35,7 @@
 		"bin",
 		"dist/cli.mjs",
 		"dist/chunks/*.mjs",
+		"dist/lock.mjs",
 		"dist/shared/*.mjs",
 		"README.md",
 		"LICENSE"
