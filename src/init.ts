@@ -1,10 +1,16 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { confirm, isCancel, select, text } from "@clack/prompts";
+import {
+	confirm as clackConfirm,
+	isCancel as clackIsCancel,
+	select as clackSelect,
+	text as clackText,
+} from "@clack/prompts";
 import {
 	DEFAULT_CACHE_DIR,
 	DEFAULT_CONFIG,
 	DEFAULT_CONFIG_FILENAME,
+	type DocsCacheConfig,
 	resolveConfigPath,
 	writeConfig,
 } from "./config";
@@ -13,6 +19,14 @@ type InitOptions = {
 	configPath?: string;
 	cacheDirOverride?: string;
 	json: boolean;
+	cwd?: string;
+};
+
+type PromptDeps = {
+	confirm?: typeof clackConfirm;
+	isCancel?: typeof clackIsCancel;
+	select?: typeof clackSelect;
+	text?: typeof clackText;
 };
 
 const exists = async (target: string) => {
@@ -24,7 +38,15 @@ const exists = async (target: string) => {
 	}
 };
 
-export const initConfig = async (options: InitOptions) => {
+export const initConfig = async (
+	options: InitOptions,
+	deps: PromptDeps = {},
+) => {
+	const confirm = deps.confirm ?? clackConfirm;
+	const isCancel = deps.isCancel ?? clackIsCancel;
+	const select = deps.select ?? clackSelect;
+	const text = deps.text ?? clackText;
+	const cwd = options.cwd ?? process.cwd();
 	const defaults = {
 		ref: DEFAULT_CONFIG.defaults?.ref ?? "HEAD",
 		targetMode:
@@ -35,11 +57,8 @@ export const initConfig = async (options: InitOptions) => {
 			"gitlab.com",
 		],
 	};
-	const defaultConfigPath = path.resolve(
-		process.cwd(),
-		DEFAULT_CONFIG_FILENAME,
-	);
-	const packagePath = path.resolve(process.cwd(), "package.json");
+	const defaultConfigPath = path.resolve(cwd, DEFAULT_CONFIG_FILENAME);
+	const packagePath = path.resolve(cwd, "package.json");
 	const existingConfigPaths: string[] = [];
 	if (await exists(defaultConfigPath)) {
 		existingConfigPaths.push(defaultConfigPath);
@@ -76,7 +95,7 @@ export const initConfig = async (options: InitOptions) => {
 		}
 	}
 	const configPath = options.configPath
-		? resolveConfigPath(options.configPath)
+		? path.resolve(cwd, options.configPath)
 		: usePackageConfig
 			? packagePath
 			: defaultConfigPath;
@@ -117,7 +136,7 @@ export const initConfig = async (options: InitOptions) => {
 		index: boolean;
 	};
 
-	const resolvedConfigPath = resolveConfigPath(answers.configPath);
+	const resolvedConfigPath = path.resolve(cwd, answers.configPath);
 	if (path.basename(resolvedConfigPath) === "package.json") {
 		const raw = await readFile(resolvedConfigPath, "utf8");
 		const pkg = JSON.parse(raw) as Record<string, unknown>;
@@ -126,13 +145,19 @@ export const initConfig = async (options: InitOptions) => {
 				`docs-cache config already exists in ${resolvedConfigPath}.`,
 			);
 		}
-		pkg["docs-cache"] = {
+		const baseConfig: DocsCacheConfig = {
 			$schema:
 				"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
-			cacheDir: answers.cacheDir || DEFAULT_CACHE_DIR,
-			index: answers.index,
 			sources: [],
 		};
+		const cacheDirValue = answers.cacheDir || DEFAULT_CACHE_DIR;
+		if (cacheDirValue !== DEFAULT_CACHE_DIR) {
+			baseConfig.cacheDir = cacheDirValue;
+		}
+		if (answers.index) {
+			baseConfig.index = true;
+		}
+		pkg["docs-cache"] = baseConfig;
 		await writeFile(
 			resolvedConfigPath,
 			`${JSON.stringify(pkg, null, 2)}\n`,
@@ -146,13 +171,18 @@ export const initConfig = async (options: InitOptions) => {
 	if (await exists(resolvedConfigPath)) {
 		throw new Error(`Config already exists at ${resolvedConfigPath}.`);
 	}
-	const config = {
+	const config: DocsCacheConfig = {
 		$schema:
 			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
-		cacheDir: answers.cacheDir || DEFAULT_CACHE_DIR,
-		index: answers.index,
 		sources: [],
 	};
+	const cacheDirValue = answers.cacheDir || DEFAULT_CACHE_DIR;
+	if (cacheDirValue !== DEFAULT_CACHE_DIR) {
+		config.cacheDir = cacheDirValue;
+	}
+	if (answers.index) {
+		config.index = true;
+	}
 
 	await writeConfig(resolvedConfigPath, config);
 	return {
