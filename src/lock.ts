@@ -8,6 +8,7 @@ export interface DocsCacheLockSource {
 	bytes: number;
 	fileCount: number;
 	manifestSha256: string;
+	rulesSha256?: string;
 	updatedAt: string;
 }
 
@@ -79,6 +80,10 @@ export const validateLock = (input: unknown): DocsCacheLock => {
 				value.manifestSha256,
 				`sources.${key}.manifestSha256`,
 			),
+			rulesSha256:
+				value.rulesSha256 === undefined
+					? undefined
+					: assertString(value.rulesSha256, `sources.${key}.rulesSha256`),
 			updatedAt: assertString(value.updatedAt, `sources.${key}.updatedAt`),
 		};
 	}

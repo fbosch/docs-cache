@@ -28,6 +28,16 @@ test("printSyncPlan outputs summary and short hashes", () => {
 				lockCommit: "cccccccccccccccccccccccccccccccccccccccc",
 				status: "changed",
 			},
+			{
+				id: "gamma",
+				repo: "https://example.com/gamma.git",
+				ref: "main",
+				resolvedCommit: "dddddddddddddddddddddddddddddddddddddddd",
+				lockCommit: "dddddddddddddddddddddddddddddddddddddddd",
+				lockRulesSha256: "111111",
+				rulesSha256: "222222",
+				status: "changed",
+			},
 		],
 	};
 
@@ -44,9 +54,11 @@ test("printSyncPlan outputs summary and short hashes", () => {
 		process.stdout.write = originalWrite;
 	}
 
-	assert.ok(output.includes("2 sources"));
+	assert.ok(output.includes("3 sources"));
 	assert.ok(output.includes("alpha"));
 	assert.ok(output.includes("beta"));
+	assert.ok(output.includes("gamma"));
 	assert.ok(output.includes("aaaaaaa"));
 	assert.ok(output.includes("bbbbbbb"));
+	assert.ok(output.includes("rules changed"));
 });

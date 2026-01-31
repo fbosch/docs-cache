@@ -6,11 +6,12 @@
     "vitest": {
       "repo": "https://github.com/vitest-dev/vitest.git",
       "ref": "main",
-    "resolvedCommit": "0123456789abcdef0123456789abcdef01234567",
-    "bytes": 123456,
-    "fileCount": 512,
-    "manifestSha256": "abcd",
-    "updatedAt": "2026-01-30T12:00:00+01:00"
+      "resolvedCommit": "0123456789abcdef0123456789abcdef01234567",
+      "bytes": 123456,
+      "fileCount": 512,
+      "manifestSha256": "abcd",
+      "rulesSha256": "efgh",
+      "updatedAt": "2026-01-30T12:00:00+01:00"
     }
   }
 }
