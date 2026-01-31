@@ -106,7 +106,7 @@ const runCli = async (args) => {
 	});
 };
 
-const runGit = async (args, cwd) => {
+const _runGit = async (args, cwd) => {
 	await execFileAsync("git", args, {
 		cwd,
 		maxBuffer: 1024 * 1024,
