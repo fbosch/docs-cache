@@ -105,8 +105,8 @@ Use `postinstall` to ensure documentation is available locally immediately after
     "postinstall": "docs-cache sync"
   }
 }
+```
 
 ## License
 
 MIT
-```
