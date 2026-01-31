@@ -72,6 +72,10 @@ test("sync applies targetDir with copy mode", async () => {
 });
 
 test("sync applies targetDir with symlink mode", async () => {
+	if (process.platform === "win32") {
+		return;
+	}
+
 	const tmpRoot = path.join(
 		tmpdir(),
 		`docs-cache-target-link-${Date.now().toString(36)}`,

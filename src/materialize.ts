@@ -101,6 +101,29 @@ export const materializeSource = async (params: MaterializeParams) => {
 	const tempDir = await mkdtemp(
 		path.join(params.cacheDir, `.tmp-${params.sourceId}-`),
 	);
+	let manifestStreamRef: ReturnType<typeof createWriteStream> | null = null;
+	const closeManifestStream = async () => {
+		const stream = manifestStreamRef;
+		if (!stream || stream.closed || stream.destroyed) {
+			return;
+		}
+		await new Promise<void>((resolve) => {
+			const cleanup = () => {
+				stream.off("close", onClose);
+				stream.off("error", onError);
+				resolve();
+			};
+			const onClose = () => cleanup();
+			const onError = () => cleanup();
+			stream.once("close", onClose);
+			stream.once("error", onError);
+			try {
+				stream.end();
+			} catch {
+				cleanup();
+			}
+		});
+	};
 
 	try {
 		const files = await fg(params.include, {
@@ -132,6 +155,7 @@ export const materializeSource = async (params: MaterializeParams) => {
 		const manifestStream = createWriteStream(manifestPath, {
 			encoding: "utf8",
 		});
+		manifestStreamRef = manifestStream;
 		const manifestHash = createHash("sha256");
 		const writeManifestLine = async (line: string) => {
 			return new Promise<void>((resolve, reject) => {
@@ -267,6 +291,11 @@ export const materializeSource = async (params: MaterializeParams) => {
 			manifestSha256,
 		};
 	} catch (error) {
+		try {
+			await closeManifestStream();
+		} catch {
+			// Ignore cleanup errors to preserve root cause.
+		}
 		await rm(tempDir, { recursive: true, force: true });
 		throw error;
 	}
