@@ -1,6 +1,6 @@
 # 🗃️ docs-cache
 
-Deterministic local caching of documentation repositories.
+Deterministic local caching of external documentation for agents and tools
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![npm version](https://img.shields.io/npm/v/docs-cache)](https://www.npmjs.com/package/docs-cache)
@@ -9,9 +9,9 @@ Deterministic local caching of documentation repositories.
 
 ## Purpose
 
-Provides agents and automation tools with local access to Git-hosted documentation through a deterministic cache.
+Provides agents and automation tools with local access to external documentation without committing it to the repository.
 
-Documentation is synced locally, reused when unchanged, and exposed through configurable symlinks for different tools and agents.
+Documentation is cached in a gitignored location, exposed to agent and tool targets via links or copies, and updated through sync commands or postinstall hooks.
 
 ## Features
 
@@ -19,6 +19,8 @@ Documentation is synced locally, reused when unchanged, and exposed through conf
 - **Deterministic**: `docs.lock` pins commits and file metadata.
 - **Fast**: Local cache avoids network roundtrips after sync.
 - **Flexible**: Cache full repos or just the subdirectories you need.
+
+> **Note**: Sources are downloaded to a local cache. If you provide a `targetDir`, `docs-cache` creates a symlink or copy from the cache to that target directory. The target should be outside `.docs`.
 
 ## Usage
 
@@ -95,17 +97,16 @@ npx docs-cache clean
 
 ## NPM Integration
 
-Use `postinstall` to ensure docs are ready for local agents immediately after installation in your local project:
+Use `postinstall` to ensure documentation is available locally immediately after installation:
 
 ```json
-// package.json
 {
   "scripts": {
     "postinstall": "docs-cache sync"
   }
 }
-```
 
 ## License
 
 MIT
+```
