@@ -97,7 +97,7 @@ const parseAddEntries = (rawArgs: string[]) => {
 const runCommand = async (
 	command: string,
 	options: CliOptions,
-	positionals: string[],
+	_positionals: string[],
 	rawArgs: string[],
 ) => {
 	if (command === "add") {
@@ -210,7 +210,7 @@ export async function main(): Promise<void> {
 		process.on("unhandledRejection", errorHandler);
 
 		const parsed = parseArgs();
-		const rawArgs = parsed.rawArgs;
+		const _rawArgs = parsed.rawArgs;
 
 		if (parsed.help) {
 			printHelp();

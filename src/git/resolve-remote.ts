@@ -5,6 +5,8 @@ import { redactRepoUrl } from "./redact";
 
 const execFileAsync = promisify(execFile);
 
+const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
+
 type ResolveRemoteParams = {
 	repo: string;
 	ref: string;
@@ -66,7 +68,7 @@ export const resolveRemoteCommit = async (params: ResolveRemoteParams) => {
 		"git",
 		["ls-remote", params.repo, params.ref],
 		{
-			timeout: params.timeoutMs,
+			timeout: params.timeoutMs ?? DEFAULT_TIMEOUT_MS,
 			maxBuffer: 1024 * 1024,
 		},
 	);
