@@ -4,7 +4,7 @@ Deterministic local caching of documentation repositories.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![npm version](https://img.shields.io/npm/v/docs-cache)](https://www.npmjs.com/package/docs-cache)
-[![size](https://img.shields.io/badge/size-3.5%20kB-blue)](https://github.com/fbosch/docs-cache)
+[![size](https://img.shields.io/badge/size-3.6%20kB-blue)](https://github.com/fbosch/docs-cache)
 [![Audit](https://github.com/fbosch/docs-cache/actions/workflows/audit.yml/badge.svg)](https://github.com/fbosch/docs-cache/actions/workflows/audit.yml)
 
 ## Purpose
@@ -109,3 +109,5 @@ Use `postinstall` to ensure docs are ready for local agents immediately after in
 ## License
 
 MIT
+
+
