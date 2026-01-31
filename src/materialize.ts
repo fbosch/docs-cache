@@ -10,6 +10,7 @@ import {
 	rm,
 	writeFile,
 } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import fg from "fast-glob";
 
@@ -104,7 +105,10 @@ export const materializeSource = async (params: MaterializeParams) => {
 		);
 		let bytes = 0;
 		const manifest: Array<{ path: string; size: number }> = [];
-		const concurrency = 64;
+		const concurrency = Math.max(
+			1,
+			Math.min(files.length, Math.max(8, Math.min(128, os.cpus().length * 8))),
+		);
 
 		for (let i = 0; i < files.length; i += concurrency) {
 			const batch = files.slice(i, i + concurrency);
