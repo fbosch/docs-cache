@@ -367,14 +367,16 @@ test("cacheDir with absolute path", async () => {
 	assert.equal(config.cacheDir, "/tmp/docs-cache");
 });
 
-test("toc flag set to true", async () => {
+test("toc flag set to true in defaults", async () => {
 	const configPath = await writeConfig({
-		toc: true,
+		defaults: {
+			toc: true,
+		},
 		sources: [{ id: "test", repo: "https://github.com/example/repo.git" }],
 	});
 
 	const { config } = await loadConfig(configPath);
-	assert.equal(config.toc, true);
+	assert.equal(config.defaults.toc, true);
 });
 
 test("targetMode at root level", async () => {
@@ -399,6 +401,7 @@ test("defaults with all fields specified", async () => {
 			maxBytes: 1000000,
 			maxFiles: 100,
 			allowHosts: ["github.com"],
+			toc: true,
 		},
 		sources: [{ id: "test", repo: "https://github.com/example/repo.git" }],
 	});
@@ -412,4 +415,5 @@ test("defaults with all fields specified", async () => {
 	assert.equal(config.defaults.maxBytes, 1000000);
 	assert.equal(config.defaults.maxFiles, 100);
 	assert.deepEqual(config.defaults.allowHosts, ["github.com"]);
+	assert.equal(config.defaults.toc, true);
 });

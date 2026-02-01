@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { runSync } from "../dist/api.mjs";
 
-test("sync writes TOC.md when toc is enabled", async () => {
+test("sync writes per-source TOC when defaults.toc is enabled", async () => {
 	const tmpRoot = path.join(
 		tmpdir(),
 		`docs-cache-toc-${Date.now().toString(36)}`,
@@ -22,7 +22,9 @@ test("sync writes TOC.md when toc is enabled", async () => {
 	const config = {
 		$schema:
 			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
-		toc: true,
+		defaults: {
+			toc: true,
+		},
 		sources: [
 			{
 				id: "local",
@@ -65,21 +67,20 @@ test("sync writes TOC.md when toc is enabled", async () => {
 		},
 	);
 
-	// Check global TOC exists
-	const globalTocPath = path.join(cacheDir, "TOC.md");
-	const globalToc = await readFile(globalTocPath, "utf8");
-	assert.ok(globalToc.includes("# Documentation Cache - Table of Contents"));
-	assert.ok(globalToc.includes("### local"));
-	assert.ok(globalToc.includes("**Repository**: https://example.com/repo.git"));
-	assert.ok(globalToc.includes("**Commit**: abc123"));
-	assert.ok(globalToc.includes("**Files**: 1"));
-
 	// Check per-source TOC exists
 	const sourceTocPath = path.join(cacheDir, "local", "TOC.md");
 	const sourceToc = await readFile(sourceTocPath, "utf8");
 	assert.ok(sourceToc.includes("# local - Documentation"));
 	assert.ok(sourceToc.includes("**Repository**: https://example.com/repo.git"));
 	assert.ok(sourceToc.includes("- [README.md](./README.md)"));
+
+	// Check global TOC does NOT exist
+	const globalTocPath = path.join(cacheDir, "TOC.md");
+	await assert.rejects(
+		() => readFile(globalTocPath, "utf8"),
+		/ENOENT/,
+		"Global TOC should not exist",
+	);
 });
 
 test("sync writes per-source TOC when source.toc is enabled", async () => {

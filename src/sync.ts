@@ -482,17 +482,15 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 			`${symbols.info} Completed in ${elapsedMs.toFixed(0)}ms · ${formatBytes(totalBytes)} · ${totalFiles} files${warningCount ? ` · ${warningCount} warning${warningCount === 1 ? "" : "s"}` : ""}`,
 		);
 	}
-	// Check if any source has TOC enabled or global TOC is enabled
+	// Check if any source has TOC enabled
 	const anySourceHasToc = plan.sources.some((source) => source.toc === true);
-	const shouldWriteToc = plan.config.toc || anySourceHasToc;
 
-	if (shouldWriteToc) {
+	if (anySourceHasToc) {
 		await writeToc({
 			cacheDir: plan.cacheDir,
 			configPath: plan.configPath,
 			lock,
 			sources: plan.sources,
-			globalToc: plan.config.toc ?? false,
 		});
 	}
 	plan.lockExists = true;

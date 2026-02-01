@@ -20,6 +20,7 @@ export const DefaultsSchema = z
 		maxBytes: z.number().min(1),
 		maxFiles: z.number().min(1).optional(),
 		allowHosts: z.array(z.string().min(1)).min(1),
+		toc: z.boolean().optional(),
 	})
 	.strict();
 
@@ -47,7 +48,6 @@ export const ConfigSchema = z
 		$schema: z.string().min(1).optional(),
 		cacheDir: z.string().min(1).optional(),
 		targetMode: TargetModeSchema.optional(),
-		toc: z.boolean().optional(),
 		defaults: DefaultsSchema.partial().optional(),
 		sources: z.array(SourceSchema),
 	})

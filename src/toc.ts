@@ -17,33 +17,6 @@ type TocEntry = {
 	files: string[];
 };
 
-const generateGlobalToc = (entries: TocEntry[], _cacheDir: string): string => {
-	const lines: string[] = [];
-	lines.push("# Documentation Cache - Table of Contents");
-	lines.push("");
-	lines.push(`Generated: ${new Date().toISOString()}`);
-	lines.push("");
-	lines.push("## Cached Sources");
-	lines.push("");
-
-	for (const entry of entries) {
-		lines.push(`### ${entry.id}`);
-		lines.push("");
-		lines.push(`- **Repository**: ${entry.repo}`);
-		lines.push(`- **Ref**: ${entry.ref}`);
-		lines.push(`- **Commit**: ${entry.resolvedCommit}`);
-		lines.push(`- **Files**: ${entry.fileCount}`);
-		lines.push(`- **Cache Path**: ${entry.cachePath}`);
-		if (entry.targetDir) {
-			lines.push(`- **Target Directory**: ${entry.targetDir}`);
-		}
-		lines.push(`- **Source TOC**: [${entry.id}/TOC.md](${entry.id}/TOC.md)`);
-		lines.push("");
-	}
-
-	return lines.join("\n");
-};
-
 const generateSourceToc = (entry: TocEntry): string => {
 	const lines: string[] = [];
 	lines.push(`# ${entry.id} - Documentation`);
@@ -87,13 +60,10 @@ export const writeToc = async (params: {
 	configPath: string;
 	lock: DocsCacheLock;
 	sources: DocsCacheResolvedSource[];
-	globalToc: boolean;
 }) => {
 	const sourcesById = new Map(
 		params.sources.map((source) => [source.id, source]),
 	);
-
-	const entries: TocEntry[] = [];
 
 	for (const [id, lockEntry] of Object.entries(params.lock.sources)) {
 		const source = sourcesById.get(id);
@@ -115,21 +85,12 @@ export const writeToc = async (params: {
 			files,
 		};
 
-		entries.push(entry);
-
-		// Generate per-source TOC if the source has TOC enabled or if global TOC is enabled
+		// Generate per-source TOC if the source has TOC enabled
 		const sourceToc = source?.toc ?? false;
-		if (sourceToc || params.globalToc) {
+		if (sourceToc) {
 			const sourceTocPath = path.join(sourceDir, DEFAULT_TOC_FILENAME);
 			const sourceTocContent = generateSourceToc(entry);
 			await writeFile(sourceTocPath, sourceTocContent, "utf8");
 		}
-	}
-
-	// Generate global TOC if enabled
-	if (params.globalToc) {
-		const globalTocPath = path.join(params.cacheDir, DEFAULT_TOC_FILENAME);
-		const globalTocContent = generateGlobalToc(entries, params.cacheDir);
-		await writeFile(globalTocPath, globalTocContent, "utf8");
 	}
 };

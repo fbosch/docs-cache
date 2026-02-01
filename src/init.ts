@@ -145,7 +145,7 @@ export const initConfig = async (
 			baseConfig.cacheDir = resolvedCacheDir;
 		}
 		if (answers.toc) {
-			baseConfig.toc = true;
+			baseConfig.defaults = { toc: true };
 		}
 		pkg["docs-cache"] = stripDefaultConfigValues(baseConfig);
 		await writeFile(
@@ -179,7 +179,7 @@ export const initConfig = async (
 		config.cacheDir = resolvedCacheDir;
 	}
 	if (answers.toc) {
-		config.toc = true;
+		config.defaults = { toc: true };
 	}
 
 	await writeConfig(resolvedConfigPath, config);

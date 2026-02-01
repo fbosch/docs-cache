@@ -137,9 +137,6 @@ export const removeSources = async (params: {
 	if (rawConfig?.cacheDir) {
 		nextConfig.cacheDir = rawConfig.cacheDir;
 	}
-	if (rawConfig?.toc !== undefined) {
-		nextConfig.toc = rawConfig.toc;
-	}
 	if (rawConfig?.defaults) {
 		nextConfig.defaults = rawConfig.defaults;
 	}

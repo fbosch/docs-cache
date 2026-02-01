@@ -87,9 +87,8 @@ test("init writes docs.config.json when selected", async () => {
 
 	const raw = await readFile(configPath, "utf8");
 	const config = JSON.parse(raw);
-	assert.equal(config.toc, true);
+	assert.equal(config.defaults?.toc, true);
 	assert.equal(Array.isArray(config.sources), true);
-	assert.equal(config.defaults, undefined);
 });
 
 test("init writes package.json docs-cache when selected", async () => {
@@ -114,9 +113,8 @@ test("init writes package.json docs-cache when selected", async () => {
 	const raw = await readFile(packagePath, "utf8");
 	const pkg = JSON.parse(raw);
 	assert.ok(pkg["docs-cache"]);
-	assert.equal(pkg["docs-cache"].toc, undefined);
+	assert.equal(pkg["docs-cache"].defaults?.toc, undefined);
 	assert.equal(pkg["docs-cache"].cacheDir, undefined);
-	assert.equal(pkg["docs-cache"].defaults, undefined);
 });
 
 test("init writes .gitignore entry when missing", async () => {

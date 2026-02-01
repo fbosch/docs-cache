@@ -23,6 +23,7 @@ export interface DocsCacheDefaults {
 	maxBytes: number;
 	maxFiles?: number;
 	allowHosts: string[];
+	toc?: boolean;
 }
 
 export interface DocsCacheSource {
@@ -46,7 +47,6 @@ export interface DocsCacheConfig {
 	$schema?: string;
 	cacheDir?: string;
 	targetMode?: "symlink" | "copy";
-	toc?: boolean;
 	defaults?: Partial<DocsCacheDefaults>;
 	sources: DocsCacheSource[];
 }
@@ -74,7 +74,6 @@ const PACKAGE_JSON_FILENAME = "package.json";
 const DEFAULT_TARGET_MODE = process.platform === "win32" ? "copy" : "symlink";
 export const DEFAULT_CONFIG: DocsCacheConfig = {
 	cacheDir: DEFAULT_CACHE_DIR,
-	toc: false,
 	defaults: {
 		ref: "HEAD",
 		mode: "materialize",
@@ -84,6 +83,7 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 		required: true,
 		maxBytes: 200000000,
 		allowHosts: ["github.com", "gitlab.com"],
+		toc: false,
 	},
 	sources: [],
 };
@@ -146,7 +146,6 @@ export const stripDefaultConfigValues = (
 	const next: DocsCacheConfig = {
 		$schema: pruned.$schema as DocsCacheConfig["$schema"],
 		cacheDir: pruned.cacheDir as DocsCacheConfig["cacheDir"],
-		toc: pruned.toc as DocsCacheConfig["toc"],
 		targetMode: pruned.targetMode as DocsCacheConfig["targetMode"],
 		defaults: pruned.defaults as DocsCacheConfig["defaults"],
 		sources: config.sources,
@@ -249,10 +248,6 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 	const cacheDir = input.cacheDir
 		? assertString(input.cacheDir, "cacheDir")
 		: DEFAULT_CACHE_DIR;
-	const toc =
-		input.toc !== undefined
-			? assertBoolean(input.toc, "toc")
-			: (DEFAULT_CONFIG.toc ?? false);
 
 	const defaultsInput = input.defaults;
 	const targetModeOverride =
@@ -302,6 +297,10 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				defaultsInput.allowHosts !== undefined
 					? assertStringArray(defaultsInput.allowHosts, "defaults.allowHosts")
 					: defaultValues.allowHosts,
+			toc:
+				defaultsInput.toc !== undefined
+					? assertBoolean(defaultsInput.toc, "defaults.toc")
+					: defaultValues.toc,
 		};
 	} else if (targetModeOverride !== undefined) {
 		defaults = {
@@ -412,7 +411,6 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 	return {
 		cacheDir,
 		targetMode: targetModeOverride,
-		toc,
 		defaults,
 		sources,
 	};
@@ -437,7 +435,7 @@ export const resolveSources = (
 		maxBytes: source.maxBytes ?? defaults.maxBytes,
 		maxFiles: source.maxFiles ?? defaults.maxFiles,
 		integrity: source.integrity,
-		toc: source.toc,
+		toc: source.toc ?? defaults.toc,
 	}));
 };
 
