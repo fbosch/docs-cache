@@ -83,7 +83,7 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 		required: true,
 		maxBytes: 200000000,
 		allowHosts: ["github.com", "gitlab.com"],
-		toc: false,
+		toc: true,
 	},
 	sources: [],
 };

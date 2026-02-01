@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { DocsCacheResolvedSource } from "./config";
 import type { DocsCacheLock } from "./lock";
@@ -70,6 +70,15 @@ export const writeToc = async (params: {
 			: undefined;
 
 		const sourceDir = path.join(params.cacheDir, id);
+
+		// Check if source directory exists (might not exist for offline/missing optional sources)
+		try {
+			await access(sourceDir);
+		} catch {
+			// Source directory doesn't exist, skip TOC generation
+			continue;
+		}
+
 		const files = await readManifest(sourceDir);
 
 		const entry: TocEntry = {
@@ -84,7 +93,7 @@ export const writeToc = async (params: {
 		};
 
 		// Generate per-source TOC if the source has TOC enabled
-		const sourceToc = source?.toc ?? false;
+		const sourceToc = source?.toc ?? true;
 		if (sourceToc) {
 			const sourceTocPath = path.join(sourceDir, DEFAULT_TOC_FILENAME);
 			const sourceTocContent = generateSourceToc(entry);

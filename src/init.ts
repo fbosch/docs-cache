@@ -96,7 +96,7 @@ export const initConfig = async (
 	const tocAnswer = await confirm({
 		message:
 			"Generate TOC.md (table of contents with links to all documentation)",
-		initialValue: false,
+		initialValue: true,
 	});
 	if (isCancel(tocAnswer)) {
 		throw new Error("Init cancelled.");
