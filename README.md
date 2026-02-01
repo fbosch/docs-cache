@@ -92,7 +92,7 @@ All fields in `defaults` apply to all sources unless overridden per-source:
 - `maxBytes`: Maximum total bytes to materialize (default: `200000000`)
 - `maxFiles`: Maximum total files to materialize (optional)
 - `allowHosts`: Allowed Git hosts (default: `["github.com", "gitlab.com"]`)
-- `toc`: Generate per-source `TOC.md` listing all documentation files (default: `false`)
+- `toc`: Generate per-source `TOC.md` listing all documentation files (default: `true`)
 
 **Source Options:**
 
