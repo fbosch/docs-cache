@@ -1,0 +1,153 @@
+import assert from "node:assert/strict";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { test } from "node:test";
+
+import { runSync } from "../dist/api.mjs";
+
+const toPosix = (value) => value.split(path.sep).join("/");
+
+test("sync writes TOC.md when toc is enabled", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-toc-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const repoDir = path.join(tmpRoot, "repo");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	await mkdir(repoDir, { recursive: true });
+	await writeFile(path.join(repoDir, "README.md"), "hello", "utf8");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		toc: true,
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+				targetDir: "./target-dir",
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
+		},
+		{
+			resolveRemoteCommit: async () => ({
+				repo: "https://example.com/repo.git",
+				ref: "HEAD",
+				resolvedCommit: "abc123",
+			}),
+			fetchSource: async () => ({
+				repoDir,
+				cleanup: async () => undefined,
+			}),
+			materializeSource: async ({ cacheDir: cacheRoot, sourceId }) => {
+				const outDir = path.join(cacheRoot, sourceId);
+				await mkdir(outDir, { recursive: true });
+				await writeFile(
+					path.join(outDir, ".manifest.jsonl"),
+					`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
+				);
+				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
+				return { bytes: 5, fileCount: 1 };
+			},
+		},
+	);
+
+	// Check global TOC exists
+	const globalTocPath = path.join(cacheDir, "TOC.md");
+	const globalToc = await readFile(globalTocPath, "utf8");
+	assert.ok(globalToc.includes("# Documentation Cache - Table of Contents"));
+	assert.ok(globalToc.includes("### local"));
+	assert.ok(globalToc.includes("**Repository**: https://example.com/repo.git"));
+	assert.ok(globalToc.includes("**Commit**: abc123"));
+	assert.ok(globalToc.includes("**Files**: 1"));
+
+	// Check per-source TOC exists
+	const sourceTocPath = path.join(cacheDir, "local", "TOC.md");
+	const sourceToc = await readFile(sourceTocPath, "utf8");
+	assert.ok(sourceToc.includes("# local - Documentation"));
+	assert.ok(sourceToc.includes("**Repository**: https://example.com/repo.git"));
+	assert.ok(sourceToc.includes("- [README.md](./README.md)"));
+});
+
+test("sync writes per-source TOC when source.toc is enabled", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-source-toc-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const repoDir = path.join(tmpRoot, "repo");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	await mkdir(repoDir, { recursive: true });
+	await writeFile(path.join(repoDir, "README.md"), "hello", "utf8");
+	await writeFile(path.join(repoDir, "guide.md"), "guide content", "utf8");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+				toc: true,
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
+		},
+		{
+			resolveRemoteCommit: async () => ({
+				repo: "https://example.com/repo.git",
+				ref: "HEAD",
+				resolvedCommit: "abc123",
+			}),
+			fetchSource: async () => ({
+				repoDir,
+				cleanup: async () => undefined,
+			}),
+			materializeSource: async ({ cacheDir: cacheRoot, sourceId }) => {
+				const outDir = path.join(cacheRoot, sourceId);
+				await mkdir(outDir, { recursive: true });
+				await writeFile(
+					path.join(outDir, ".manifest.jsonl"),
+					`${JSON.stringify({ path: "README.md", size: 5 })}\n${JSON.stringify({ path: "guide.md", size: 13 })}\n`,
+				);
+				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
+				await writeFile(path.join(outDir, "guide.md"), "guide content", "utf8");
+				return { bytes: 18, fileCount: 2 };
+			},
+		},
+	);
+
+	// Check per-source TOC exists
+	const sourceTocPath = path.join(cacheDir, "local", "TOC.md");
+	const sourceToc = await readFile(sourceTocPath, "utf8");
+	assert.ok(sourceToc.includes("# local - Documentation"));
+	assert.ok(sourceToc.includes("- [README.md](./README.md)"));
+	assert.ok(sourceToc.includes("- [guide.md](./guide.md)"));
+});

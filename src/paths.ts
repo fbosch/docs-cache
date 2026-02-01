@@ -1,7 +1,7 @@
 import path from "node:path";
 
 export const DEFAULT_LOCK_FILENAME = "docs.lock";
-export const DEFAULT_INDEX_FILENAME = "index.json";
+export const DEFAULT_TOC_FILENAME = "TOC.md";
 
 export const toPosixPath = (value: string) => value.replace(/\\/g, "/");
 
@@ -40,10 +40,10 @@ export const resolveCacheDir = (
 export const getCacheLayout = (cacheDir: string, sourceId: string) => {
 	const _reposDir = path.join(cacheDir, "repos");
 	const sourceDir = path.join(cacheDir, sourceId);
-	const indexPath = path.join(cacheDir, DEFAULT_INDEX_FILENAME);
+	const tocPath = path.join(cacheDir, DEFAULT_TOC_FILENAME);
 	return {
 		cacheDir,
 		sourceDir,
-		indexPath,
+		tocPath,
 	};
 };

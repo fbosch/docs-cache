@@ -93,12 +93,12 @@ export const initConfig = async (
 		throw new Error("Init cancelled.");
 	}
 	const cacheDirValue = cacheDirAnswer || DEFAULT_CACHE_DIR;
-	const indexAnswer = await confirm({
+	const tocAnswer = await confirm({
 		message:
-			"Generate index.json (summary of cached sources + paths for tools)",
+			"Generate TOC.md (table of contents with links to all documentation)",
 		initialValue: false,
 	});
-	if (isCancel(indexAnswer)) {
+	if (isCancel(tocAnswer)) {
 		throw new Error("Init cancelled.");
 	}
 	const gitignoreStatus = await getGitignoreStatus(cwd, cacheDirValue);
@@ -117,12 +117,12 @@ export const initConfig = async (
 	const answers = {
 		configPath,
 		cacheDir: cacheDirAnswer,
-		index: indexAnswer,
+		toc: tocAnswer,
 		gitignore: gitignoreAnswer,
 	} as {
 		configPath: string;
 		cacheDir: string;
-		index: boolean;
+		toc: boolean;
 		gitignore: boolean;
 	};
 
@@ -144,8 +144,8 @@ export const initConfig = async (
 		if (resolvedCacheDir !== DEFAULT_CACHE_DIR) {
 			baseConfig.cacheDir = resolvedCacheDir;
 		}
-		if (answers.index) {
-			baseConfig.index = true;
+		if (answers.toc) {
+			baseConfig.toc = true;
 		}
 		pkg["docs-cache"] = stripDefaultConfigValues(baseConfig);
 		await writeFile(
@@ -178,8 +178,8 @@ export const initConfig = async (
 	if (resolvedCacheDir !== DEFAULT_CACHE_DIR) {
 		config.cacheDir = resolvedCacheDir;
 	}
-	if (answers.index) {
-		config.index = true;
+	if (answers.toc) {
+		config.toc = true;
 	}
 
 	await writeConfig(resolvedConfigPath, config);
