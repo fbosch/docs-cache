@@ -6,8 +6,6 @@ import { test } from "node:test";
 
 import { runSync } from "../dist/api.mjs";
 
-const toPosix = (value) => value.split(path.sep).join("/");
-
 test("sync writes TOC.md when toc is enabled", async () => {
 	const tmpRoot = path.join(
 		tmpdir(),

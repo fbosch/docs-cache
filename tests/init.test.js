@@ -8,8 +8,8 @@ import { initConfig } from "../dist/api.mjs";
 
 const stubPrompts = (answers, callbacks = {}) => ({
 	confirm: async (options) => {
-		if (options.message?.startsWith("Generate index.json")) {
-			return answers.index;
+		if (options.message?.startsWith("Generate TOC.md")) {
+			return answers.toc;
 		}
 		if (options.message === "Add cache directory to .gitignore") {
 			if (callbacks.onGitignorePrompt) {
@@ -80,14 +80,14 @@ test("init writes docs.config.json when selected", async () => {
 		stubPrompts({
 			location: "config",
 			cacheDir: ".docs",
-			index: true,
+			toc: true,
 			gitignore: true,
 		}),
 	);
 
 	const raw = await readFile(configPath, "utf8");
 	const config = JSON.parse(raw);
-	assert.equal(config.index, true);
+	assert.equal(config.toc, true);
 	assert.equal(Array.isArray(config.sources), true);
 	assert.equal(config.defaults, undefined);
 });
@@ -106,7 +106,7 @@ test("init writes package.json docs-cache when selected", async () => {
 		stubPrompts({
 			location: "package",
 			cacheDir: ".docs",
-			index: false,
+			toc: false,
 			gitignore: false,
 		}),
 	);
@@ -114,7 +114,7 @@ test("init writes package.json docs-cache when selected", async () => {
 	const raw = await readFile(packagePath, "utf8");
 	const pkg = JSON.parse(raw);
 	assert.ok(pkg["docs-cache"]);
-	assert.equal(pkg["docs-cache"].index, undefined);
+	assert.equal(pkg["docs-cache"].toc, undefined);
 	assert.equal(pkg["docs-cache"].cacheDir, undefined);
 	assert.equal(pkg["docs-cache"].defaults, undefined);
 });
@@ -135,7 +135,7 @@ test("init writes .gitignore entry when missing", async () => {
 		stubPrompts({
 			location: "config",
 			cacheDir: ".docs",
-			index: false,
+			toc: false,
 			gitignore: true,
 		}),
 	);
@@ -163,7 +163,7 @@ test("init skips gitignore prompt when entry exists", async () => {
 			{
 				location: "config",
 				cacheDir: ".docs",
-				index: false,
+				toc: false,
 			},
 			{
 				onGitignorePrompt: () => {

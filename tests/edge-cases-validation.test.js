@@ -367,14 +367,14 @@ test("cacheDir with absolute path", async () => {
 	assert.equal(config.cacheDir, "/tmp/docs-cache");
 });
 
-test("index flag set to true", async () => {
+test("toc flag set to true", async () => {
 	const configPath = await writeConfig({
-		index: true,
+		toc: true,
 		sources: [{ id: "test", repo: "https://github.com/example/repo.git" }],
 	});
 
 	const { config } = await loadConfig(configPath);
-	assert.equal(config.index, true);
+	assert.equal(config.toc, true);
 });
 
 test("targetMode at root level", async () => {

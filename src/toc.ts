@@ -17,7 +17,7 @@ type TocEntry = {
 	files: string[];
 };
 
-const generateGlobalToc = (entries: TocEntry[], cacheDir: string): string => {
+const generateGlobalToc = (entries: TocEntry[], _cacheDir: string): string => {
 	const lines: string[] = [];
 	lines.push("# Documentation Cache - Table of Contents");
 	lines.push("");
