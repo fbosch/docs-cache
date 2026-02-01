@@ -1,7 +1,7 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-
 import {
+	DEFAULT_CACHE_DIR,
 	DEFAULT_CONFIG,
 	type DocsCacheConfig,
 	resolveConfigPath,
@@ -9,6 +9,7 @@ import {
 	validateConfig,
 	writeConfig,
 } from "./config";
+import { ensureGitignoreEntry } from "./gitignore";
 import { resolveTargetDir } from "./paths";
 import { resolveRepoInput } from "./resolve-repo";
 import { assertSafeSourceId } from "./source-id";
@@ -68,16 +69,19 @@ export const addSources = async (params: {
 	let config = DEFAULT_CONFIG;
 	let rawConfig: DocsCacheConfig | null = null;
 	let rawPackage: Record<string, unknown> | null = null;
+	let hadDocsCacheConfig = false;
 	if (await exists(resolvedPath)) {
 		if (target.mode === "package") {
 			const pkg = await loadPackageConfig(resolvedPath);
 			rawPackage = pkg.parsed;
 			rawConfig = pkg.config;
 			config = rawConfig ?? DEFAULT_CONFIG;
+			hadDocsCacheConfig = Boolean(rawConfig);
 		} else {
 			const raw = await readFile(resolvedPath, "utf8");
 			rawConfig = JSON.parse(raw.toString());
 			config = validateConfig(rawConfig);
+			hadDocsCacheConfig = true;
 		}
 	}
 
@@ -138,11 +142,19 @@ export const addSources = async (params: {
 	} else {
 		await writeConfig(resolvedPath, nextConfig);
 	}
+	const gitignoreResult = !hadDocsCacheConfig
+		? await ensureGitignoreEntry(
+				path.dirname(resolvedPath),
+				rawConfig?.cacheDir ?? DEFAULT_CACHE_DIR,
+			)
+		: null;
 
 	return {
 		configPath: resolvedPath,
 		sources: newSources,
 		skipped,
 		created: true,
+		gitignoreUpdated: gitignoreResult?.updated ?? false,
+		gitignorePath: gitignoreResult?.gitignorePath ?? null,
 	};
 };
