@@ -141,3 +141,21 @@ test("add writes package.json without default fields", async () => {
 	assert.equal(pkg["docs-cache"].defaults, undefined);
 	assert.equal(pkg["docs-cache"].targetMode, undefined);
 });
+
+test("add writes .gitignore when initializing config", async () => {
+	const tmpRoot = path.join(tmpdir(), `docs-cache-add-gitignore-${Date.now()}`);
+	await mkdir(tmpRoot, { recursive: true });
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	await execFileAsync("node", [
+		"bin/docs-cache.mjs",
+		"add",
+		"--offline",
+		"https://github.com/fbosch/docs-cache.git",
+		"--config",
+		configPath,
+	]);
+
+	const raw = await readFile(path.join(tmpRoot, ".gitignore"), "utf8");
+	assert.match(raw, /^\.docs\/$/m);
+});

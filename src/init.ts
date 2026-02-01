@@ -13,6 +13,7 @@ import {
 	stripDefaultConfigValues,
 	writeConfig,
 } from "./config";
+import { ensureGitignoreEntry, getGitignoreStatus } from "./gitignore";
 
 type InitOptions = {
 	cacheDirOverride?: string;
@@ -91,6 +92,7 @@ export const initConfig = async (
 	if (isCancel(cacheDirAnswer)) {
 		throw new Error("Init cancelled.");
 	}
+	const cacheDirValue = cacheDirAnswer || DEFAULT_CACHE_DIR;
 	const indexAnswer = await confirm({
 		message:
 			"Generate index.json (summary of cached sources + paths for tools)",
@@ -99,15 +101,29 @@ export const initConfig = async (
 	if (isCancel(indexAnswer)) {
 		throw new Error("Init cancelled.");
 	}
+	const gitignoreStatus = await getGitignoreStatus(cwd, cacheDirValue);
+	let gitignoreAnswer = false;
+	if (gitignoreStatus.entry && !gitignoreStatus.hasEntry) {
+		const reply = await confirm({
+			message: "Add cache directory to .gitignore",
+			initialValue: true,
+		});
+		if (isCancel(reply)) {
+			throw new Error("Init cancelled.");
+		}
+		gitignoreAnswer = reply;
+	}
 
 	const answers = {
 		configPath,
 		cacheDir: cacheDirAnswer,
 		index: indexAnswer,
+		gitignore: gitignoreAnswer,
 	} as {
 		configPath: string;
 		cacheDir: string;
 		index: boolean;
+		gitignore: boolean;
 	};
 
 	const resolvedConfigPath = path.resolve(cwd, answers.configPath);
@@ -124,9 +140,9 @@ export const initConfig = async (
 				"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
 			sources: [],
 		};
-		const cacheDirValue = answers.cacheDir || DEFAULT_CACHE_DIR;
-		if (cacheDirValue !== DEFAULT_CACHE_DIR) {
-			baseConfig.cacheDir = cacheDirValue;
+		const resolvedCacheDir = answers.cacheDir || DEFAULT_CACHE_DIR;
+		if (resolvedCacheDir !== DEFAULT_CACHE_DIR) {
+			baseConfig.cacheDir = resolvedCacheDir;
 		}
 		if (answers.index) {
 			baseConfig.index = true;
@@ -137,9 +153,17 @@ export const initConfig = async (
 			`${JSON.stringify(pkg, null, 2)}\n`,
 			"utf8",
 		);
+		const gitignoreResult = answers.gitignore
+			? await ensureGitignoreEntry(
+					path.dirname(resolvedConfigPath),
+					resolvedCacheDir,
+				)
+			: null;
 		return {
 			configPath: resolvedConfigPath,
 			created: true,
+			gitignoreUpdated: gitignoreResult?.updated ?? false,
+			gitignorePath: gitignoreResult?.gitignorePath ?? null,
 		};
 	}
 	if (await exists(resolvedConfigPath)) {
@@ -150,17 +174,25 @@ export const initConfig = async (
 			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
 		sources: [],
 	};
-	const cacheDirValue = answers.cacheDir || DEFAULT_CACHE_DIR;
-	if (cacheDirValue !== DEFAULT_CACHE_DIR) {
-		config.cacheDir = cacheDirValue;
+	const resolvedCacheDir = answers.cacheDir || DEFAULT_CACHE_DIR;
+	if (resolvedCacheDir !== DEFAULT_CACHE_DIR) {
+		config.cacheDir = resolvedCacheDir;
 	}
 	if (answers.index) {
 		config.index = true;
 	}
 
 	await writeConfig(resolvedConfigPath, config);
+	const gitignoreResult = answers.gitignore
+		? await ensureGitignoreEntry(
+				path.dirname(resolvedConfigPath),
+				resolvedCacheDir,
+			)
+		: null;
 	return {
 		configPath: resolvedConfigPath,
 		created: true,
+		gitignoreUpdated: gitignoreResult?.updated ?? false,
+		gitignorePath: gitignoreResult?.gitignorePath ?? null,
 	};
 };

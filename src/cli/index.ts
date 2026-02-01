@@ -148,6 +148,11 @@ const runCommand = async (
 			ui.line(
 				`${symbols.info} Updated ${pc.gray(path.relative(process.cwd(), result.configPath) || "docs.config.json")}`,
 			);
+			if (result.gitignoreUpdated && result.gitignorePath) {
+				ui.line(
+					`${symbols.info} Updated ${pc.gray(ui.path(result.gitignorePath))}`,
+				);
+			}
 		}
 		return;
 	}
@@ -297,6 +302,11 @@ const runCommand = async (
 			ui.line(
 				`${symbols.success} Wrote ${pc.gray(ui.path(result.configPath))}`,
 			);
+			if (result.gitignoreUpdated && result.gitignorePath) {
+				ui.line(
+					`${symbols.info} Updated ${pc.gray(ui.path(result.gitignorePath))}`,
+				);
+			}
 		}
 		return;
 	}

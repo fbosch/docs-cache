@@ -14,6 +14,11 @@ pnpm.
 - Test: `pnpm test`
 - Typecheck: `pnpm typecheck`
 
+## Testing expectations
+
+- Add or update tests for behavior changes and bug fixes.
+- Prefer extending existing test coverage in `tests/` before adding new files.
+
 ## Cache layout
 
 - Materialized sources live at `.docs/<id>/`.

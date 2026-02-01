@@ -6,8 +6,19 @@ import { test } from "node:test";
 
 import { initConfig } from "../dist/api.mjs";
 
-const stubPrompts = (answers) => ({
-	confirm: async () => answers.index,
+const stubPrompts = (answers, callbacks = {}) => ({
+	confirm: async (options) => {
+		if (options.message?.startsWith("Generate index.json")) {
+			return answers.index;
+		}
+		if (options.message === "Add cache directory to .gitignore") {
+			if (callbacks.onGitignorePrompt) {
+				callbacks.onGitignorePrompt();
+			}
+			return answers.gitignore ?? true;
+		}
+		return false;
+	},
 	isCancel: () => false,
 	select: async () => answers.location,
 	text: async (options) => {
@@ -70,6 +81,7 @@ test("init writes docs.config.json when selected", async () => {
 			location: "config",
 			cacheDir: ".docs",
 			index: true,
+			gitignore: true,
 		}),
 	);
 
@@ -95,6 +107,7 @@ test("init writes package.json docs-cache when selected", async () => {
 			location: "package",
 			cacheDir: ".docs",
 			index: false,
+			gitignore: false,
 		}),
 	);
 
@@ -104,4 +117,61 @@ test("init writes package.json docs-cache when selected", async () => {
 	assert.equal(pkg["docs-cache"].index, undefined);
 	assert.equal(pkg["docs-cache"].cacheDir, undefined);
 	assert.equal(pkg["docs-cache"].defaults, undefined);
+});
+
+test("init writes .gitignore entry when missing", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-init-gitignore-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	await writeFile(
+		path.join(tmpRoot, "package.json"),
+		JSON.stringify({ name: "x", version: "0.0.0" }),
+	);
+
+	await initConfig(
+		{ json: false, cwd: tmpRoot },
+		stubPrompts({
+			location: "config",
+			cacheDir: ".docs",
+			index: false,
+			gitignore: true,
+		}),
+	);
+
+	const raw = await readFile(path.join(tmpRoot, ".gitignore"), "utf8");
+	assert.match(raw, /^\.docs\/$/m);
+});
+
+test("init skips gitignore prompt when entry exists", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-init-gitignore-skip-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	await writeFile(
+		path.join(tmpRoot, "package.json"),
+		JSON.stringify({ name: "x", version: "0.0.0" }),
+	);
+	await writeFile(path.join(tmpRoot, ".gitignore"), ".docs/\n", "utf8");
+
+	let prompted = false;
+	await initConfig(
+		{ json: false, cwd: tmpRoot },
+		stubPrompts(
+			{
+				location: "config",
+				cacheDir: ".docs",
+				index: false,
+			},
+			{
+				onGitignorePrompt: () => {
+					prompted = true;
+				},
+			},
+		),
+	);
+
+	assert.equal(prompted, false);
 });
