@@ -15,20 +15,78 @@ type TocEntry = {
 	files: string[];
 };
 
+type TocFileEntry = {
+	name: string;
+	path: string;
+};
+
+type TocTree = {
+	dirs: Map<string, TocTree>;
+	files: TocFileEntry[];
+};
+
+const createTocTree = (files: string[]): TocTree => {
+	const root: TocTree = { dirs: new Map(), files: [] };
+
+	for (const file of files) {
+		const parts = file.split("/").filter(Boolean);
+		if (parts.length === 0) {
+			continue;
+		}
+
+		let node = root;
+		for (const part of parts.slice(0, -1)) {
+			let child = node.dirs.get(part);
+			if (!child) {
+				child = { dirs: new Map(), files: [] };
+				node.dirs.set(part, child);
+			}
+			node = child;
+		}
+
+		const name = parts[parts.length - 1];
+		node.files.push({ name, path: file });
+	}
+
+	return root;
+};
+
+const renderTocTree = (tree: TocTree, depth: number, lines: string[]) => {
+	const indent = "  ".repeat(depth);
+	const dirNames = Array.from(tree.dirs.keys()).sort();
+	const files = [...tree.files].sort((a, b) => a.name.localeCompare(b.name));
+
+	for (const dirName of dirNames) {
+		lines.push(`${indent}- ${dirName}/`);
+		const child = tree.dirs.get(dirName);
+		if (child) {
+			renderTocTree(child, depth + 1, lines);
+		}
+	}
+
+	for (const file of files) {
+		lines.push(`${indent}- [${file.name}](./${file.path})`);
+	}
+};
+
 const generateSourceToc = (entry: TocEntry): string => {
 	const lines: string[] = [];
-	lines.push(`# ${entry.id} - Documentation`);
+	lines.push("---");
+	lines.push(`id: ${entry.id}`);
+	lines.push(`repository: ${entry.repo}`);
+	lines.push(`ref: ${entry.ref}`);
+	lines.push(`commit: ${entry.resolvedCommit}`);
+	if (entry.targetDir) {
+		lines.push(`targetDir: ${entry.targetDir}`);
+	}
+	lines.push("---");
 	lines.push("");
-	lines.push(`- **Repository**: ${entry.repo}`);
-	lines.push(`- **Ref**: ${entry.ref}`);
-	lines.push(`- **Commit**: ${entry.resolvedCommit}`);
+	lines.push(`# ${entry.id} - Documentation`);
 	lines.push("");
 	lines.push("## Files");
 	lines.push("");
-
-	for (const file of [...entry.files].sort()) {
-		lines.push(`- [${file}](./${file})`);
-	}
+	const tree = createTocTree(entry.files);
+	renderTocTree(tree, 0, lines);
 	lines.push("");
 
 	return lines.join("\n");
@@ -58,9 +116,13 @@ export const writeToc = async (params: {
 	configPath: string;
 	lock: DocsCacheLock;
 	sources: DocsCacheResolvedSource[];
+	results?: Array<{ id: string; status: "up-to-date" | "changed" | "missing" }>;
 }) => {
 	const sourcesById = new Map(
 		params.sources.map((source) => [source.id, source]),
+	);
+	const resultsById = new Map(
+		(params.results ?? []).map((result) => [result.id, result]),
 	);
 
 	for (const [id, lockEntry] of Object.entries(params.lock.sources)) {
@@ -97,6 +159,15 @@ export const writeToc = async (params: {
 		const sourceTocPath = path.join(sourceDir, DEFAULT_TOC_FILENAME);
 
 		if (sourceToc) {
+			const result = resultsById.get(id);
+			if (result?.status === "up-to-date") {
+				try {
+					await access(sourceTocPath);
+					continue;
+				} catch {
+					// Missing TOC; regenerate below.
+				}
+			}
 			const sourceTocContent = generateSourceToc(entry);
 			await writeFile(sourceTocPath, sourceTocContent, "utf8");
 		} else {

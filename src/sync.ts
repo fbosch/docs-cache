@@ -488,6 +488,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		configPath: plan.configPath,
 		lock,
 		sources: plan.sources,
+		results: plan.results,
 	});
 	plan.lockExists = true;
 	return plan;
