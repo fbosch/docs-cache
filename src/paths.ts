@@ -40,10 +40,8 @@ export const resolveCacheDir = (
 export const getCacheLayout = (cacheDir: string, sourceId: string) => {
 	const _reposDir = path.join(cacheDir, "repos");
 	const sourceDir = path.join(cacheDir, sourceId);
-	const tocPath = path.join(cacheDir, DEFAULT_TOC_FILENAME);
 	return {
 		cacheDir,
 		sourceDir,
-		tocPath,
 	};
 };

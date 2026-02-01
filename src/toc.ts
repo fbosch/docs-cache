@@ -2,9 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { DocsCacheResolvedSource } from "./config";
 import type { DocsCacheLock } from "./lock";
-import { resolveTargetDir, toPosixPath } from "./paths";
-
-export const DEFAULT_TOC_FILENAME = "TOC.md";
+import { DEFAULT_TOC_FILENAME, resolveTargetDir, toPosixPath } from "./paths";
 
 type TocEntry = {
 	id: string;
