@@ -144,8 +144,9 @@ export const initConfig = async (
 		if (resolvedCacheDir !== DEFAULT_CACHE_DIR) {
 			baseConfig.cacheDir = resolvedCacheDir;
 		}
-		if (answers.toc) {
-			baseConfig.defaults = { toc: true };
+		// Since TOC defaults to true, only set it explicitly if user chose false
+		if (!answers.toc) {
+			baseConfig.defaults = { toc: false };
 		}
 		pkg["docs-cache"] = stripDefaultConfigValues(baseConfig);
 		await writeFile(
@@ -178,8 +179,9 @@ export const initConfig = async (
 	if (resolvedCacheDir !== DEFAULT_CACHE_DIR) {
 		config.cacheDir = resolvedCacheDir;
 	}
-	if (answers.toc) {
-		config.defaults = { toc: true };
+	// Since TOC defaults to true, only set it explicitly if user chose false
+	if (!answers.toc) {
+		config.defaults = { toc: false };
 	}
 
 	await writeConfig(resolvedConfigPath, config);

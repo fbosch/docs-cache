@@ -87,7 +87,8 @@ test("init writes docs.config.json when selected", async () => {
 
 	const raw = await readFile(configPath, "utf8");
 	const config = JSON.parse(raw);
-	assert.equal(config.defaults?.toc, true);
+	// When toc is true (default), it shouldn't be explicitly set
+	assert.equal(config.defaults?.toc, undefined);
 	assert.equal(Array.isArray(config.sources), true);
 });
 
@@ -113,7 +114,8 @@ test("init writes package.json docs-cache when selected", async () => {
 	const raw = await readFile(packagePath, "utf8");
 	const pkg = JSON.parse(raw);
 	assert.ok(pkg["docs-cache"]);
-	assert.equal(pkg["docs-cache"].defaults?.toc, undefined);
+	// When toc is false (user disabled it), it should be explicitly set
+	assert.equal(pkg["docs-cache"].defaults?.toc, false);
 	assert.equal(pkg["docs-cache"].cacheDir, undefined);
 });
 
