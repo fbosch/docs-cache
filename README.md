@@ -75,46 +75,58 @@ npx docs-cache clean
 
 **Top-level**
 
-| Field      | Type   | Description                              |
-| ---------- | ------ | ---------------------------------------- |
-| `cacheDir` | string | Directory for cache, defaults to `.docs` |
-| `sources`  | array  | List of repositories to sync             |
-| `defaults` | object | Default settings for all sources         |
+| Field      | Details                                | Required |
+| ---------- | -------------------------------------- | -------- |
+| `cacheDir` | Directory for cache. Default: `.docs`. | Optional |
+| `sources`  | List of repositories to sync.          | Required |
+| `defaults` | Default settings for all sources.      | Optional |
 
-**Default options**
+<details>
+<summary>Show default and source options</summary>
+
+### Default options
 
 All fields in `defaults` apply to all sources unless overridden per-source.
 
-| Field        | Type                | Description                                                                                                      | Default                                                      |
-| ------------ | ------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `ref`        | string              | Branch, tag, or commit                                                                                            | `"HEAD"`                                                    |
-| `mode`       | string              | Cache mode                                                                                                       | `"materialize"`                                             |
-| `include`    | string[]            | Glob patterns to copy                                                                                            | `["**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}"]`       |
-| `targetMode` | `"symlink"\|"copy"` | How to write files into the cache                                                                                | `"symlink"` on Unix, `"copy"` on Windows                   |
-| `depth`      | number              | Git clone depth                                                                                                  | `1`                                                          |
-| `required`   | boolean             | Whether missing sources should fail                                                                               | `true`                                                       |
-| `maxBytes`   | number              | Maximum total bytes to materialize                                                                               | `200000000`                                                  |
-| `maxFiles`   | number              | Maximum total files to materialize                                                                               | Optional                                                     |
-| `allowHosts` | string[]            | Allowed Git hosts                                                                                                | `["github.com", "gitlab.com"]`                             |
-| `toc`        | boolean             | Generate per-source `TOC.md` listing all documentation files                                                     | `true`                                                       |
+| Field        | Details                                                                                                   |
+| ------------ | --------------------------------------------------------------------------------------------------------- |
+| `ref`        | Branch, tag, or commit. Default: `"HEAD"`.                                                                |
+| `mode`       | Cache mode. Default: `"materialize"`.                                                                     |
+| `include`    | Glob patterns to copy. Default: `["**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}"]`.                   |
+| `targetMode` | How to link or copy from the cache to the destination. Default: `"symlink"` on Unix, `"copy"` on Windows. |
+| `depth`      | Git clone depth. Default: `1`.                                                                            |
+| `required`   | Whether missing sources should fail. Default: `true`.                                                     |
+| `maxBytes`   | Maximum total bytes to materialize. Default: `200000000`.                                                 |
+| `maxFiles`   | Maximum total files to materialize.                                                                       |
+| `allowHosts` | Allowed Git hosts. Default: `["github.com", "gitlab.com"]`.                                               |
+| `toc`        | Generate per-source `TOC.md` listing all documentation files. Default: `true`.                            |
 
-**Source options**
+### Source options
 
-| Field        | Type                | Description                                                                                                      | Required | Overrides | Default                                                  |
-| ------------ | ------------------- | ---------------------------------------------------------------------------------------------------------------- | -------- | --------- | -------------------------------------------------------- |
-| `repo`       | string              | Git URL                                                                                                          | Yes      | No        | -                                                        |
-| `id`         | string              | Unique identifier for the source                                                                                 | Yes      | No        | -                                                        |
-| `ref`        | string              | Branch, tag, or commit                                                                                           | No       | Yes       | Inherits from defaults                                   |
-| `include`    | string[]            | Glob patterns to copy                                                                                            | No       | Yes       | Inherits from defaults                                   |
-| `exclude`    | string[]            | Glob patterns to skip                                                                                            | No       | No        | -                                                        |
-| `targetDir`  | string              | Optional path where files should be symlinked/copied to, outside `.docs`                                          | No       | No        | -                                                        |
-| `targetMode` | `"symlink"\|"copy"` | How to write files into the cache                                                                                | No       | Yes       | Inherits from defaults                                   |
-| `required`   | boolean             | Whether missing sources should fail                                                                              | No       | Yes       | Inherits from defaults                                   |
-| `maxBytes`   | number              | Maximum total bytes to materialize                                                                               | No       | Yes       | Inherits from defaults                                   |
-| `maxFiles`   | number              | Maximum total files to materialize                                                                               | No       | Yes       | Inherits from defaults                                   |
-| `toc`        | boolean             | Generate per-source `TOC.md` listing all documentation files                                                     | No       | Yes       | Inherits from defaults                                   |
+#### Required
+
+| Field  | Details                           |
+| ------ | --------------------------------- |
+| `repo` | Git URL.                          |
+| `id`   | Unique identifier for the source. |
+
+#### Optional
+
+| Field        | Details                                                          |
+| ------------ | ---------------------------------------------------------------- |
+| `ref`        | Branch, tag, or commit.                                          |
+| `include`    | Glob patterns to copy.                                           |
+| `exclude`    | Glob patterns to skip.                                           |
+| `targetDir`  | Path where files should be symlinked/copied to, outside `.docs`. |
+| `targetMode` | How to link or copy from the cache to the destination.           |
+| `required`   | Whether missing sources should fail.                             |
+| `maxBytes`   | Maximum total bytes to materialize.                              |
+| `maxFiles`   | Maximum total files to materialize.                              |
+| `toc`        | Generate per-source `TOC.md` listing all documentation files.    |
 
 > **Note**: Sources are always downloaded to `.docs/<id>/`. If you provide a `targetDir`, `docs-cache` will create a symlink or copy pointing from the cache to that target directory. The target should be outside `.docs`.
+
+</details>
 
 ## NPM Integration
 
@@ -123,7 +135,7 @@ Use `postinstall` to ensure documentation is available locally immediately after
 ```json
 {
   "scripts": {
-    "postinstall": "npx docs-cache sync"
+    "postinstall": "npx docs-cache sync --prune"
   }
 }
 ```
