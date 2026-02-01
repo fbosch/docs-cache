@@ -11,12 +11,12 @@ import {
 } from "./config";
 import { fetchSource } from "./git/fetch-source";
 import { resolveRemoteCommit } from "./git/resolve-remote";
-import { writeIndex } from "./index";
 import { readLock, resolveLockPath, writeLock } from "./lock";
 import { MANIFEST_FILENAME } from "./manifest";
 import { computeManifestHash, materializeSource } from "./materialize";
 import { resolveCacheDir, resolveTargetDir } from "./paths";
 import { applyTargetDir } from "./targets";
+import { writeToc } from "./toc";
 import { verifyCache } from "./verify";
 
 type SyncOptions = {
@@ -482,14 +482,14 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 			`${symbols.info} Completed in ${elapsedMs.toFixed(0)}ms · ${formatBytes(totalBytes)} · ${totalFiles} files${warningCount ? ` · ${warningCount} warning${warningCount === 1 ? "" : "s"}` : ""}`,
 		);
 	}
-	if (plan.config.index) {
-		await writeIndex({
-			cacheDir: plan.cacheDir,
-			configPath: plan.configPath,
-			lock,
-			sources: plan.sources,
-		});
-	}
+	// Always call writeToc to handle both generation and cleanup
+	await writeToc({
+		cacheDir: plan.cacheDir,
+		configPath: plan.configPath,
+		lock,
+		sources: plan.sources,
+		results: plan.results,
+	});
 	plan.lockExists = true;
 	return plan;
 };

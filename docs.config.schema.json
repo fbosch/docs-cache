@@ -14,9 +14,6 @@
 			"type": "string",
 			"enum": ["symlink", "copy"]
 		},
-		"index": {
-			"type": "boolean"
-		},
 		"defaults": {
 			"type": "object",
 			"properties": {
@@ -62,6 +59,9 @@
 						"type": "string",
 						"minLength": 1
 					}
+				},
+				"toc": {
+					"type": "boolean"
 				}
 			},
 			"additionalProperties": false
@@ -144,6 +144,9 @@
 						},
 						"required": ["type", "value"],
 						"additionalProperties": false
+					},
+					"toc": {
+						"type": "boolean"
 					}
 				},
 				"required": ["id", "repo"],

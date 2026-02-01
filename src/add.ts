@@ -128,9 +128,6 @@ export const addSources = async (params: {
 	if (rawConfig?.cacheDir) {
 		nextConfig.cacheDir = rawConfig.cacheDir;
 	}
-	if (rawConfig?.index !== undefined) {
-		nextConfig.index = rawConfig.index;
-	}
 	if (rawConfig?.defaults) {
 		nextConfig.defaults = rawConfig.defaults;
 	}
