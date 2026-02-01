@@ -55,7 +55,7 @@ const generateSourceToc = (entry: TocEntry): string => {
 	lines.push("## Files");
 	lines.push("");
 
-	for (const file of entry.files.sort()) {
+	for (const file of [...entry.files].sort()) {
 		lines.push(`- [${file}](./${file})`);
 	}
 	lines.push("");
@@ -117,7 +117,7 @@ export const writeToc = async (params: {
 
 		entries.push(entry);
 
-		// Generate per-source TOC if the source has toc enabled or if global toc is enabled
+		// Generate per-source TOC if the source has TOC enabled or if global TOC is enabled
 		const sourceToc = source?.toc ?? false;
 		if (sourceToc || params.globalToc) {
 			const sourceTocPath = path.join(sourceDir, DEFAULT_TOC_FILENAME);
