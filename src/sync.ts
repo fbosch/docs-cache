@@ -482,17 +482,13 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 			`${symbols.info} Completed in ${elapsedMs.toFixed(0)}ms · ${formatBytes(totalBytes)} · ${totalFiles} files${warningCount ? ` · ${warningCount} warning${warningCount === 1 ? "" : "s"}` : ""}`,
 		);
 	}
-	// Check if any source has TOC enabled
-	const anySourceHasToc = plan.sources.some((source) => source.toc === true);
-
-	if (anySourceHasToc) {
-		await writeToc({
-			cacheDir: plan.cacheDir,
-			configPath: plan.configPath,
-			lock,
-			sources: plan.sources,
-		});
-	}
+	// Always call writeToc to handle both generation and cleanup
+	await writeToc({
+		cacheDir: plan.cacheDir,
+		configPath: plan.configPath,
+		lock,
+		sources: plan.sources,
+	});
 	plan.lockExists = true;
 	return plan;
 };

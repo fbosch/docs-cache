@@ -216,3 +216,110 @@ test("sync writes per-source TOC by default when no toc config is specified", as
 	assert.ok(sourceToc.includes("**Repository**: https://example.com/repo.git"));
 	assert.ok(sourceToc.includes("- [README.md](./README.md)"));
 });
+
+test("sync removes TOC.md when toc is disabled", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-toc-removal-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const repoDir = path.join(tmpRoot, "repo");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	await mkdir(repoDir, { recursive: true });
+	await writeFile(path.join(repoDir, "README.md"), "hello", "utf8");
+
+	// First sync with TOC enabled (default)
+	const config1 = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config1, null, 2)}\n`, "utf8");
+
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
+		},
+		{
+			resolveRemoteCommit: async () => ({
+				repo: "https://example.com/repo.git",
+				ref: "HEAD",
+				resolvedCommit: "abc123",
+			}),
+			fetchSource: async () => ({
+				repoDir,
+				cleanup: async () => undefined,
+			}),
+			materializeSource: async ({ cacheDir: cacheRoot, sourceId }) => {
+				const outDir = path.join(cacheRoot, sourceId);
+				await mkdir(outDir, { recursive: true });
+				await writeFile(
+					path.join(outDir, ".manifest.jsonl"),
+					`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
+				);
+				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
+				return { bytes: 5, fileCount: 1 };
+			},
+		},
+	);
+
+	// Verify TOC.md was created
+	const sourceTocPath = path.join(cacheDir, "local", "TOC.md");
+	const tocContent = await readFile(sourceTocPath, "utf8");
+	assert.ok(tocContent.includes("# local - Documentation"));
+
+	// Second sync with TOC disabled
+	const config2 = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+				toc: false,
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config2, null, 2)}\n`, "utf8");
+
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: true,
+			failOnMiss: false,
+		},
+		{
+			resolveRemoteCommit: async () => ({
+				repo: "https://example.com/repo.git",
+				ref: "HEAD",
+				resolvedCommit: "abc123",
+			}),
+			fetchSource: async () => ({
+				repoDir,
+				cleanup: async () => undefined,
+			}),
+		},
+	);
+
+	// Verify TOC.md was removed
+	await assert.rejects(
+		() => readFile(sourceTocPath, "utf8"),
+		/ENOENT/,
+		"TOC.md should have been removed",
+	);
+});
