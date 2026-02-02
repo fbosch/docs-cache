@@ -1,8 +1,9 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { access, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { assertSafeSourceId } from "../source-id";
@@ -25,8 +26,9 @@ const getCacheBaseDir = (): string => {
 	}
 };
 
-// Persistent git cache directory in user's cache location
-const GIT_CACHE_DIR = path.join(getCacheBaseDir(), "docs-cache-git");
+const resolveGitCacheDir = () =>
+	process.env.DOCS_CACHE_GIT_DIR ||
+	path.join(getCacheBaseDir(), "docs-cache-git");
 
 // Helper to check if a path exists
 const exists = async (filePath: string): Promise<boolean> => {
@@ -91,7 +93,7 @@ const hashRepoUrl = (repo: string): string => {
 // Get the persistent cache path for a repository
 const getPersistentCachePath = (repo: string): string => {
 	const repoHash = hashRepoUrl(repo);
-	return path.join(GIT_CACHE_DIR, repoHash);
+	return path.join(resolveGitCacheDir(), repoHash);
 };
 
 // Check if a git repo is valid
@@ -212,8 +214,9 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 	const isCommitRef = /^[0-9a-f]{7,40}$/i.test(params.ref);
 	const useSparse = isSparseEligible(params.include);
 
+	const cacheRoot = resolveGitCacheDir();
 	// Ensure the git cache directory exists
-	await mkdir(GIT_CACHE_DIR, { recursive: true });
+	await mkdir(cacheRoot, { recursive: true });
 
 	// If cache exists and is valid, try to fetch and update
 	if (cacheExists && (await isValidGitRepo(cachePath))) {
@@ -273,7 +276,8 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 		}
 	}
 
-	localCloneArgs.push(cachePath, outDir);
+	const cacheUrl = pathToFileURL(cachePath).href;
+	localCloneArgs.push(cacheUrl, outDir);
 	await git(localCloneArgs, {
 		timeoutMs: params.timeoutMs,
 		allowFileProtocol: true,
