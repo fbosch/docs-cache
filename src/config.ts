@@ -255,7 +255,11 @@ const normalizeTocConfig = (
 	}
 	// If toc is a boolean, keep it and set tocFormat accordingly
 	if (typeof toc === "boolean") {
-		return { toc, tocFormat: toc ? "compressed" : undefined };
+		if (toc) {
+			return { toc, tocFormat: "compressed" };
+		}
+		// When toc is explicitly false, omit tocFormat to avoid setting a format for a disabled TOC
+		return { toc };
 	}
 	// Default case - no toc or tocFormat provided
 	return {};
