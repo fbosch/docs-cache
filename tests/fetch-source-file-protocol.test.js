@@ -35,6 +35,10 @@ if (args.includes("clone")) {
   fs.mkdirSync(outDir, { recursive: true });
 }
 
+if (args.includes("checkout")) {
+  process.exit(0);
+}
+
 process.exit(0);
 `;
 	await writeFile(scriptPath, payload, "utf8");
