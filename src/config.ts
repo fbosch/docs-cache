@@ -242,19 +242,22 @@ const normalizeTocConfig = (
 	toc: boolean | TocFormat | undefined,
 	tocFormat: TocFormat | undefined,
 ): { toc?: boolean | TocFormat; tocFormat?: TocFormat } => {
-	// If tocFormat is explicitly set, use it
+	// If tocFormat is explicitly set, use it (and keep toc if it was set too)
 	if (tocFormat !== undefined) {
+		if (toc !== undefined) {
+			return { toc, tocFormat };
+		}
 		return { tocFormat };
 	}
-	// If toc is a format string, migrate it to tocFormat
+	// If toc is a format string, set tocFormat but also keep toc
 	if (typeof toc === "string") {
-		return { tocFormat: toc };
+		return { toc, tocFormat: toc };
 	}
-	// If toc is a boolean, handle backward compatibility
+	// If toc is a boolean, keep it and set tocFormat accordingly
 	if (typeof toc === "boolean") {
 		return { toc, tocFormat: toc ? "compressed" : undefined };
 	}
-	// Default case
+	// Default case - no toc or tocFormat provided
 	return {};
 };
 
