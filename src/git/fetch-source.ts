@@ -6,6 +6,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
+import { getErrnoCode } from "../errors";
 import { assertSafeSourceId } from "../source-id";
 import { exists, resolveGitCacheDir } from "./cache-dir";
 
@@ -71,7 +72,7 @@ const removeDir = async (dirPath: string, retries = DEFAULT_RM_RETRIES) => {
 			await rm(dirPath, { recursive: true, force: true });
 			return;
 		} catch (error) {
-			const code = (error as NodeJS.ErrnoException).code;
+			const code = getErrnoCode(error);
 			if (code !== "ENOTEMPTY" && code !== "EBUSY" && code !== "EPERM") {
 				throw error;
 			}

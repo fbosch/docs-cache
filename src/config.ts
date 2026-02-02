@@ -244,15 +244,16 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 			.join("; ");
 		throw new Error(`Config does not match schema: ${details}.`);
 	}
+	const configInput = parsed.data;
 
-	const cacheDir = input.cacheDir
-		? assertString(input.cacheDir, "cacheDir")
+	const cacheDir = configInput.cacheDir
+		? assertString(configInput.cacheDir, "cacheDir")
 		: DEFAULT_CACHE_DIR;
 
-	const defaultsInput = input.defaults;
+	const defaultsInput = configInput.defaults;
 	const targetModeOverride =
-		input.targetMode !== undefined
-			? assertTargetMode(input.targetMode, "targetMode")
+		configInput.targetMode !== undefined
+			? assertTargetMode(configInput.targetMode, "targetMode")
 			: undefined;
 	const defaultValues = DEFAULT_CONFIG.defaults as DocsCacheDefaults;
 	let defaults: DocsCacheDefaults = defaultValues;
@@ -306,11 +307,7 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 		};
 	}
 
-	if (!Array.isArray(input.sources)) {
-		throw new Error("sources must be an array.");
-	}
-
-	const sources = input.sources.map((entry, index) => {
+	const sources = configInput.sources.map((entry, index) => {
 		if (!isRecord(entry)) {
 			throw new Error(`sources[${index}] must be an object.`);
 		}

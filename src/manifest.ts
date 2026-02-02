@@ -2,9 +2,26 @@ import { createReadStream } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 
-type ManifestEntry = {
+export type ManifestEntry = {
 	path: string;
 	size: number;
+};
+
+const parseManifestEntry = (value: unknown): ManifestEntry => {
+	if (!value || typeof value !== "object") {
+		throw new Error("Manifest entry must be an object.");
+	}
+	const record = value as Record<string, unknown>;
+	if (typeof record.path !== "string" || record.path.length === 0) {
+		throw new Error("Manifest entry path must be a non-empty string.");
+	}
+	if (typeof record.size !== "number" || Number.isNaN(record.size)) {
+		throw new Error("Manifest entry size must be a number.");
+	}
+	if (record.size < 0) {
+		throw new Error("Manifest entry size must be zero or greater.");
+	}
+	return { path: record.path, size: record.size };
 };
 
 export const MANIFEST_FILENAME = ".manifest.jsonl";
@@ -23,7 +40,7 @@ export const readManifest = async (sourceDir: string) => {
 			if (!trimmed) {
 				continue;
 			}
-			entries.push(JSON.parse(trimmed) as ManifestEntry);
+			entries.push(parseManifestEntry(JSON.parse(trimmed)));
 		}
 		return { manifestPath, entries };
 	} finally {
@@ -32,7 +49,9 @@ export const readManifest = async (sourceDir: string) => {
 	}
 };
 
-export const streamManifestEntries = async function* (sourceDir: string) {
+export const streamManifestEntries = async function* (
+	sourceDir: string,
+): AsyncGenerator<ManifestEntry> {
 	const manifestPath = path.join(sourceDir, MANIFEST_FILENAME);
 	const stream = createReadStream(manifestPath, { encoding: "utf8" });
 	const lines = readline.createInterface({
@@ -45,7 +64,7 @@ export const streamManifestEntries = async function* (sourceDir: string) {
 			if (!trimmed) {
 				continue;
 			}
-			yield JSON.parse(trimmed) as ManifestEntry;
+			yield parseManifestEntry(JSON.parse(trimmed));
 		}
 	} finally {
 		lines.close();

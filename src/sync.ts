@@ -7,6 +7,7 @@ import {
 	DEFAULT_CACHE_DIR,
 	DEFAULT_CONFIG,
 	type DocsCacheDefaults,
+	type DocsCacheResolvedSource,
 	loadConfig,
 } from "./config";
 import { fetchSource } from "./git/fetch-source";
@@ -92,7 +93,7 @@ const normalizePatterns = (patterns?: string[]) => {
 	return Array.from(new Set(normalized)).sort();
 };
 
-const RULES_HASH_BLACKLIST = new Set([
+const RULES_HASH_BLACKLIST = [
 	"id",
 	"repo",
 	"ref",
@@ -101,24 +102,40 @@ const RULES_HASH_BLACKLIST = new Set([
 	"required",
 	"integrity",
 	"toc",
-]);
+] as const;
+
+type RulesHashBlacklistKey = (typeof RULES_HASH_BLACKLIST)[number];
+type RulesHashKey = Exclude<
+	keyof DocsCacheResolvedSource,
+	RulesHashBlacklistKey
+>;
+
+const RULES_HASH_KEYS = [
+	"mode",
+	"include",
+	"exclude",
+	"maxBytes",
+	"maxFiles",
+	"unwrapSingleRootDir",
+] as const satisfies ReadonlyArray<RulesHashKey>;
+
+const normalizeRulesValue = (
+	key: RulesHashKey,
+	value: DocsCacheResolvedSource[RulesHashKey],
+) => {
+	if (key === "include" && Array.isArray(value)) {
+		return normalizePatterns(value);
+	}
+	if (key === "exclude" && Array.isArray(value)) {
+		return normalizePatterns(value);
+	}
+	return value;
+};
 
 const computeRulesHash = (source: DocsCacheResolvedSource) => {
-	const entries = Object.entries(source)
-		.filter(
-			([key, value]) => value !== undefined && !RULES_HASH_BLACKLIST.has(key),
-		)
-		.map(([key, value]) => {
-			if (key === "include" && Array.isArray(value)) {
-				return [key, normalizePatterns(value)];
-			}
-			if (key === "exclude" && Array.isArray(value)) {
-				return [key, normalizePatterns(value)];
-			}
-			return [key, value];
-		})
-		.sort(([left], [right]) => left.localeCompare(right));
-	const payload = Object.fromEntries(entries);
+	const payload = Object.fromEntries(
+		RULES_HASH_KEYS.map((key) => [key, normalizeRulesValue(key, source[key])]),
+	);
 	const hash = createHash("sha256");
 	hash.update(JSON.stringify(payload));
 	return hash.digest("hex");

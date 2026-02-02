@@ -1,5 +1,6 @@
 import { cp, mkdir, readdir, rm, symlink } from "node:fs/promises";
 import path from "node:path";
+import { getErrnoCode } from "./errors";
 import { MANIFEST_FILENAME } from "./manifest";
 import { DEFAULT_TOC_FILENAME } from "./paths";
 
@@ -70,7 +71,7 @@ export const applyTargetDir = async (params: TargetParams) => {
 	try {
 		await deps.symlink(sourceDir, params.targetDir, type);
 	} catch (error) {
-		const code = (error as NodeJS.ErrnoException).code;
+		const code = getErrnoCode(error);
 		const fallbackCodes = new Set(["EPERM", "EACCES", "ENOTSUP", "EINVAL"]);
 		if (code && fallbackCodes.has(code)) {
 			if (params.explicitTargetMode) {
