@@ -79,13 +79,17 @@ export const verifyCache = async (options: VerifyOptions) => {
 				ok: issues.length === 0,
 				issues,
 			};
-		} catch (_error) {
-			return {
-				ok: false,
-				issues: [
-					label === "source" ? "missing manifest" : "missing target manifest",
-				],
-			};
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code === "ENOENT" || code === "ENOTDIR") {
+				return {
+					ok: false,
+					issues: [
+						label === "source" ? "missing manifest" : "missing target manifest",
+					],
+				};
+			}
+			throw error;
 		}
 	};
 
