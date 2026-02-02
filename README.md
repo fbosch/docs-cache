@@ -94,12 +94,12 @@ All fields in `defaults` apply to all sources unless overridden per-source.
 | `mode`       | Cache mode. Default: `"materialize"`.                                                                     |
 | `include`    | Glob patterns to copy. Default: `["**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}"]`.                   |
 | `targetMode` | How to link or copy from the cache to the destination. Default: `"symlink"` on Unix, `"copy"` on Windows. |
-| `depth`      | Git clone depth. Default: `1`.                                                                            |
 | `required`   | Whether missing sources should fail. Default: `true`.                                                     |
 | `maxBytes`   | Maximum total bytes to materialize. Default: `200000000` (200 MB).                                        |
 | `maxFiles`   | Maximum total files to materialize.                                                                       |
 | `allowHosts` | Allowed Git hosts. Default: `["github.com", "gitlab.com"]`.                                               |
 | `toc`        | Generate per-source `TOC.md`. Default: `true`. Supports `true`, `false`, or a format (`"tree"`, `"compressed"`). |
+| `unwrapSingleRootDir` | If the materialized output is nested under a single directory, unwrap it (recursively). Default: `false`. |
 
 ### Source options
 
@@ -123,6 +123,7 @@ All fields in `defaults` apply to all sources unless overridden per-source.
 | `maxBytes`   | Maximum total bytes to materialize.                              |
 | `maxFiles`   | Maximum total files to materialize.                              |
 | `toc`        | Generate per-source `TOC.md`. Supports `true`, `false`, or a format (`"tree"`, `"compressed"`). |
+| `unwrapSingleRootDir` | If the materialized output is nested under a single directory, unwrap it (recursively). |
 
 > **Note**: Sources are always downloaded to `.docs/<id>/`. If you provide a `targetDir`, `docs-cache` will create a symlink or copy pointing from the cache to that target directory. The target should be outside `.docs`. Git operation timeout is configured via the `--timeout-ms` CLI flag, not as a per-source configuration option.
 
