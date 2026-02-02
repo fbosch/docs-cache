@@ -9,6 +9,12 @@ export const symbols = {
 	warn: pc.yellow("⚠"),
 };
 
+let _silentMode = false;
+
+export const setSilentMode = (silent: boolean) => {
+	_silentMode = silent;
+};
+
 export const ui = {
 	// Formatters
 	path: (value: string) => {
@@ -24,19 +30,25 @@ export const ui = {
 	pad: (value: string, length: number) => value.padEnd(length),
 
 	// Components
-	line: (text: string = "") => process.stdout.write(`${text}\n`),
+	line: (text: string = "") => {
+		if (_silentMode) return;
+		process.stdout.write(`${text}\n`);
+	},
 
 	header: (label: string, value: string) => {
+		if (_silentMode) return;
 		process.stdout.write(`${pc.blue("ℹ")} ${label.padEnd(10)} ${value}\n`);
 	},
 
 	item: (icon: string, label: string, details?: string) => {
+		if (_silentMode) return;
 		const partLabel = pc.bold(label);
 		const partDetails = details ? pc.gray(details) : "";
 		process.stdout.write(`  ${icon} ${partLabel} ${partDetails}\n`);
 	},
 
 	step: (action: string, subject: string, details?: string) => {
+		if (_silentMode) return;
 		const icon = pc.cyan("→");
 		process.stdout.write(
 			`  ${icon} ${action} ${pc.bold(subject)}${details ? ` ${pc.dim(details)}` : ""}\n`,

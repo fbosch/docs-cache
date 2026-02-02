@@ -9,4 +9,5 @@ export type CliOptions = {
 	concurrency?: number;
 	json: boolean;
 	timeoutMs?: number;
+	silent: boolean;
 };
