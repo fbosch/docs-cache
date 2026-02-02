@@ -1,44 +1,17 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { access, mkdir, mkdtemp, rm } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { assertSafeSourceId } from "../source-id";
+import { exists, resolveGitCacheDir } from "./cache-dir";
 
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_TIMEOUT_MS = 120000; // 120 seconds (2 minutes)
-
-// Get platform-specific cache directory
-const getCacheBaseDir = (): string => {
-	const home = homedir();
-	switch (process.platform) {
-		case "darwin":
-			return path.join(home, "Library", "Caches");
-		case "win32":
-			return process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
-		default:
-			// Linux and other Unix-like systems (XDG Base Directory)
-			return process.env.XDG_CACHE_HOME || path.join(home, ".cache");
-	}
-};
-
-const resolveGitCacheDir = () =>
-	process.env.DOCS_CACHE_GIT_DIR ||
-	path.join(getCacheBaseDir(), "docs-cache-git");
-
-// Helper to check if a path exists
-const exists = async (filePath: string): Promise<boolean> => {
-	try {
-		await access(filePath);
-		return true;
-	} catch {
-		return false;
-	}
-};
 
 const git = async (
 	args: string[],
