@@ -97,7 +97,7 @@ const resolveUnwrapPrefix = (
 		let rootDir: string | null = null;
 		for (const entry of entries) {
 			const remaining = prefix
-				? entry.normalized.replace(prefix, "")
+				? entry.normalized.slice(prefix.length)
 				: entry.normalized;
 			const parts = remaining.split("/");
 			if (parts.length < 2) {
@@ -206,7 +206,7 @@ export const materializeSource = async (params: MaterializeParams) => {
 		const targetDirs = new Set<string>();
 		for (const { normalized } of entries) {
 			const rootPath = unwrapPrefix
-				? normalized.replace(unwrapPrefix, "")
+				? normalized.slice(unwrapPrefix.length)
 				: normalized;
 			targetDirs.add(path.posix.dirname(rootPath));
 		}
@@ -265,8 +265,8 @@ export const materializeSource = async (params: MaterializeParams) => {
 							return null;
 						}
 						const normalizedPath = unwrapPrefix
-							? entry.normalized.replace(unwrapPrefix, "")
-							: entry.relativePath;
+							? entry.normalized.slice(unwrapPrefix.length)
+							: entry.normalized;
 						const targetPath = path.join(tempDir, normalizedPath);
 						ensureSafePath(tempDir, targetPath);
 						if (stats.size >= STREAM_COPY_THRESHOLD_BYTES) {
@@ -282,7 +282,7 @@ export const materializeSource = async (params: MaterializeParams) => {
 						}
 						return {
 							path: unwrapPrefix
-								? entry.normalized.replace(unwrapPrefix, "")
+								? entry.normalized.slice(unwrapPrefix.length)
 								: entry.normalized,
 							size: stats.size,
 						};
