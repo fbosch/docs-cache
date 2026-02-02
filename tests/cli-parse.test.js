@@ -104,3 +104,27 @@ test("parseArgs handles ssh repo only", async (t) => {
 		"git@github.com:fbosch/docs-cache.git",
 	]);
 });
+
+test("parseArgs handles --silent flag", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs(["node", "docs-cache", "status", "--silent"]);
+
+	assert.equal(result.command, "status");
+	assert.equal(result.options.silent, true);
+});
+
+test("parseArgs silent flag defaults to false", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs(["node", "docs-cache", "status"]);
+
+	assert.equal(result.command, "status");
+	assert.equal(result.options.silent, false);
+});

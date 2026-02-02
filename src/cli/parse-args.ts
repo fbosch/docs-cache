@@ -41,6 +41,7 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 			.option("--concurrency <n>", "Concurrency limit")
 			.option("--json", "Output JSON")
 			.option("--timeout-ms <n>", "Network timeout in milliseconds")
+			.option("--silent", "Suppress non-error output")
 			.help();
 
 		const result = cli.parse(argv, { run: false });
@@ -64,6 +65,7 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 			timeoutMs: result.options.timeoutMs
 				? Number(result.options.timeoutMs)
 				: undefined,
+			silent: Boolean(result.options.silent),
 		};
 
 		if (options.concurrency !== undefined && options.concurrency < 1) {

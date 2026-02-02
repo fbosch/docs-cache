@@ -4,7 +4,7 @@ import pc from "picocolors";
 import { ExitCode } from "./exit-code";
 import { parseArgs } from "./parse-args";
 import type { CliOptions } from "./types";
-import { symbols, ui } from "./ui";
+import { setSilentMode, symbols, ui } from "./ui";
 
 export const CLI_NAME = "docs-cache";
 
@@ -33,6 +33,7 @@ Global options:
   --concurrency <n>
   --json
   --timeout-ms <n>
+  --silent
 `;
 
 const printHelp = () => {
@@ -323,6 +324,9 @@ export async function main(): Promise<void> {
 
 		const parsed = parseArgs();
 		const _rawArgs = parsed.rawArgs;
+
+		// Set silent mode if the flag is present
+		setSilentMode(parsed.options.silent);
 
 		if (parsed.help) {
 			printHelp();
