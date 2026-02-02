@@ -2,6 +2,7 @@ import { access, stat } from "node:fs/promises";
 import path from "node:path";
 import { symbols, ui } from "./cli/ui";
 import { DEFAULT_CACHE_DIR, loadConfig } from "./config";
+import { getErrnoCode } from "./errors";
 import { streamManifestEntries } from "./manifest";
 import { resolveCacheDir, resolveTargetDir } from "./paths";
 
@@ -52,7 +53,7 @@ export const verifyCache = async (options: VerifyOptions) => {
 						sizeMismatchCount += 1;
 					}
 				} catch (error) {
-					const code = (error as NodeJS.ErrnoException).code;
+					const code = getErrnoCode(error);
 					if (code === "ENOENT" || code === "ENOTDIR") {
 						missingCount += 1;
 						continue;
@@ -80,7 +81,7 @@ export const verifyCache = async (options: VerifyOptions) => {
 				issues,
 			};
 		} catch (error) {
-			const code = (error as NodeJS.ErrnoException).code;
+			const code = getErrnoCode(error);
 			if (code === "ENOENT" || code === "ENOTDIR") {
 				return {
 					ok: false,

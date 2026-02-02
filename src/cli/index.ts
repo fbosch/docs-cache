@@ -3,7 +3,7 @@ import process from "node:process";
 import pc from "picocolors";
 import { ExitCode } from "./exit-code";
 import { parseArgs } from "./parse-args";
-import type { CliOptions } from "./types";
+import type { CliCommand } from "./types";
 import { setSilentMode, symbols, ui } from "./ui";
 
 export const CLI_NAME = "docs-cache";
@@ -93,12 +93,10 @@ const parseAddEntries = (rawArgs: string[]) => {
 	return entries;
 };
 
-const runCommand = async (
-	command: string,
-	options: CliOptions,
-	positionals: string[],
-	rawArgs: string[],
-) => {
+const runCommand = async (parsed: CliCommand, rawArgs: string[]) => {
+	const command = parsed.command;
+	const options = parsed.options;
+	const positionals = parsed.args;
 	if (command === "add") {
 		const { addSources } = await import("../add");
 		const { runSync } = await import("../sync");
@@ -380,12 +378,7 @@ export async function main(): Promise<void> {
 			process.exit(ExitCode.InvalidArgument);
 		}
 
-		await runCommand(
-			parsed.command,
-			parsed.options,
-			parsed.positionals,
-			parsed.rawArgs,
-		);
+		await runCommand(parsed.parsed, parsed.rawArgs);
 	} catch (error) {
 		errorHandler(error as Error);
 	}

@@ -395,7 +395,7 @@ test("source with unknown fields is now rejected", async () => {
 	);
 });
 
-test("depth must be positive", async () => {
+test("depth is now rejected", async () => {
 	const configPath = await writeConfig({
 		sources: [
 			{
@@ -407,22 +407,6 @@ test("depth must be positive", async () => {
 	});
 	await assert.rejects(
 		() => loadConfig(configPath),
-		/depth.*>=1|depth.*greater than zero/i,
-	);
-});
-
-test("negative depth is rejected", async () => {
-	const configPath = await writeConfig({
-		sources: [
-			{
-				id: "test",
-				repo: "https://github.com/example/repo.git",
-				depth: -1,
-			},
-		],
-	});
-	await assert.rejects(
-		() => loadConfig(configPath),
-		/depth.*>=1|depth.*greater than zero/i,
+		/Unrecognized key: "depth"|does not match schema/i,
 	);
 });

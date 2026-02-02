@@ -2,7 +2,7 @@ import process from "node:process";
 
 import cac from "cac";
 import { ExitCode } from "./exit-code";
-import type { CliOptions } from "./types";
+import type { CliCommand, CliOptions } from "./types";
 
 const COMMANDS = [
 	"add",
@@ -23,6 +23,7 @@ export type ParsedArgs = {
 	positionals: string[];
 	rawArgs: string[];
 	help: boolean;
+	parsed: CliCommand;
 };
 
 export const parseArgs = (argv = process.argv): ParsedArgs => {
@@ -83,6 +84,11 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 			positionals: result.args.slice(1),
 			rawArgs,
 			help: Boolean(result.options.help),
+			parsed: {
+				command: command ?? null,
+				args: result.args.slice(1),
+				options,
+			},
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

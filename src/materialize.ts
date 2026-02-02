@@ -15,6 +15,7 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import fg from "fast-glob";
 
+import { getErrnoCode } from "./errors";
 import { MANIFEST_FILENAME } from "./manifest";
 import { getCacheLayout, toPosixPath } from "./paths";
 import { assertSafeSourceId } from "./source-id";
@@ -27,6 +28,18 @@ type MaterializeParams = {
 	exclude?: string[];
 	maxBytes: number;
 	maxFiles?: number;
+	unwrapSingleRootDir?: boolean;
+};
+
+type ResolvedMaterializeParams = {
+	sourceId: string;
+	repoDir: string;
+	cacheDir: string;
+	include: string[];
+	exclude: string[];
+	maxBytes: number;
+	maxFiles?: number;
+	unwrapSingleRootDir: boolean;
 };
 
 type ManifestStats = {
@@ -57,7 +70,7 @@ const openFileNoFollow = async (filePath: string) => {
 	try {
 		return await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
 	} catch (error) {
-		const code = (error as NodeJS.ErrnoException).code;
+		const code = getErrnoCode(error);
 		if (code === "ELOOP") {
 			return null;
 		}
@@ -72,6 +85,52 @@ const openFileNoFollow = async (filePath: string) => {
 	}
 };
 
+const resolveUnwrapPrefix = (
+	entries: Array<{ normalized: string }>,
+	unwrapSingleRootDir?: boolean,
+) => {
+	if (!unwrapSingleRootDir || entries.length === 0) {
+		return null;
+	}
+	let prefix = "";
+	while (true) {
+		let rootDir: string | null = null;
+		for (const entry of entries) {
+			const remaining = prefix
+				? entry.normalized.slice(prefix.length)
+				: entry.normalized;
+			const parts = remaining.split("/");
+			if (parts.length < 2) {
+				return prefix || null;
+			}
+			const nextRoot = parts[0];
+			if (!rootDir) {
+				rootDir = nextRoot;
+				continue;
+			}
+			if (rootDir !== nextRoot) {
+				return prefix || null;
+			}
+		}
+		if (!rootDir) {
+			return prefix || null;
+		}
+		const nextPrefix = `${prefix}${rootDir}/`;
+		if (nextPrefix === prefix) {
+			return prefix || null;
+		}
+		prefix = nextPrefix;
+	}
+};
+
+const resolveMaterializeParams = (
+	params: MaterializeParams,
+): ResolvedMaterializeParams => ({
+	...params,
+	exclude: params.exclude ?? [],
+	unwrapSingleRootDir: params.unwrapSingleRootDir ?? false,
+});
+
 const acquireLock = async (lockPath: string, timeoutMs = 5000) => {
 	const start = Date.now();
 	while (Date.now() - start < timeoutMs) {
@@ -84,7 +143,7 @@ const acquireLock = async (lockPath: string, timeoutMs = 5000) => {
 				},
 			};
 		} catch (error) {
-			const code = (error as NodeJS.ErrnoException).code;
+			const code = getErrnoCode(error);
 			if (code !== "EEXIST") {
 				throw error;
 			}
@@ -95,11 +154,12 @@ const acquireLock = async (lockPath: string, timeoutMs = 5000) => {
 };
 
 export const materializeSource = async (params: MaterializeParams) => {
-	assertSafeSourceId(params.sourceId, "sourceId");
-	const layout = getCacheLayout(params.cacheDir, params.sourceId);
-	await mkdir(params.cacheDir, { recursive: true });
+	const resolved = resolveMaterializeParams(params);
+	assertSafeSourceId(resolved.sourceId, "sourceId");
+	const layout = getCacheLayout(resolved.cacheDir, resolved.sourceId);
+	await mkdir(resolved.cacheDir, { recursive: true });
 	const tempDir = await mkdtemp(
-		path.join(params.cacheDir, `.tmp-${params.sourceId}-`),
+		path.join(resolved.cacheDir, `.tmp-${resolved.sourceId}-`),
 	);
 	let manifestStreamRef: ReturnType<typeof createWriteStream> | null = null;
 	const closeManifestStream = async () => {
@@ -126,9 +186,9 @@ export const materializeSource = async (params: MaterializeParams) => {
 	};
 
 	try {
-		const files = await fg(params.include, {
-			cwd: params.repoDir,
-			ignore: [".git/**", ...(params.exclude ?? [])],
+		const files = await fg(resolved.include, {
+			cwd: resolved.repoDir,
+			ignore: [".git/**", ...resolved.exclude],
 			dot: true,
 			onlyFiles: true,
 			followSymbolicLinks: false,
@@ -139,9 +199,16 @@ export const materializeSource = async (params: MaterializeParams) => {
 				normalized: normalizePath(relativePath),
 			}))
 			.sort((left, right) => left.normalized.localeCompare(right.normalized));
+		const unwrapPrefix = resolveUnwrapPrefix(
+			entries,
+			resolved.unwrapSingleRootDir,
+		);
 		const targetDirs = new Set<string>();
-		for (const { relativePath } of entries) {
-			targetDirs.add(path.dirname(relativePath));
+		for (const { normalized } of entries) {
+			const rootPath = unwrapPrefix
+				? normalized.slice(unwrapPrefix.length)
+				: normalized;
+			targetDirs.add(path.posix.dirname(rootPath));
 		}
 		await Promise.all(
 			Array.from(targetDirs, (dir) =>
@@ -187,7 +254,7 @@ export const materializeSource = async (params: MaterializeParams) => {
 			const batch = entries.slice(i, i + concurrency);
 			const results = await Promise.all(
 				batch.map(async (entry) => {
-					const filePath = path.join(params.repoDir, entry.relativePath);
+					const filePath = path.join(resolved.repoDir, entry.relativePath);
 					const fileHandle = await openFileNoFollow(filePath);
 					if (!fileHandle) {
 						return null;
@@ -197,7 +264,10 @@ export const materializeSource = async (params: MaterializeParams) => {
 						if (!stats.isFile()) {
 							return null;
 						}
-						const targetPath = path.join(tempDir, entry.relativePath);
+						const normalizedPath = unwrapPrefix
+							? entry.normalized.slice(unwrapPrefix.length)
+							: entry.normalized;
+						const targetPath = path.join(tempDir, normalizedPath);
 						ensureSafePath(tempDir, targetPath);
 						if (stats.size >= STREAM_COPY_THRESHOLD_BYTES) {
 							const reader = createReadStream(filePath, {
@@ -211,7 +281,9 @@ export const materializeSource = async (params: MaterializeParams) => {
 							await writeFile(targetPath, data);
 						}
 						return {
-							path: entry.normalized,
+							path: unwrapPrefix
+								? entry.normalized.slice(unwrapPrefix.length)
+								: entry.normalized,
 							size: stats.size,
 						};
 					} finally {
@@ -223,15 +295,18 @@ export const materializeSource = async (params: MaterializeParams) => {
 				if (!entry) {
 					continue;
 				}
-				if (params.maxFiles !== undefined && fileCount + 1 > params.maxFiles) {
+				if (
+					resolved.maxFiles !== undefined &&
+					fileCount + 1 > resolved.maxFiles
+				) {
 					throw new Error(
-						`Materialized content exceeds maxFiles (${params.maxFiles}).`,
+						`Materialized content exceeds maxFiles (${resolved.maxFiles}).`,
 					);
 				}
 				bytes += entry.size;
-				if (bytes > params.maxBytes) {
+				if (bytes > resolved.maxBytes) {
 					throw new Error(
-						`Materialized content exceeds maxBytes (${params.maxBytes}).`,
+						`Materialized content exceeds maxBytes (${resolved.maxBytes}).`,
 					);
 				}
 				const line = `${JSON.stringify(entry)}\n`;
