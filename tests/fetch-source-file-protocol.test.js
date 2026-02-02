@@ -85,9 +85,11 @@ test("sync uses file protocol allowlist for local cache checkout", async () => {
 	};
 	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 
-	const previousPath = process.env.PATH;
+	const previousPath = process.env.PATH ?? process.env.Path;
 	const previousGitDir = process.env.DOCS_CACHE_GIT_DIR;
-	process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ""}`;
+	const nextPath = `${binDir}${path.delimiter}${previousPath ?? ""}`;
+	process.env.PATH = nextPath;
+	process.env.Path = nextPath;
 	process.env.DOCS_CACHE_GIT_DIR = gitCacheRoot;
 	process.env.GIT_TERMINAL_PROMPT = "0";
 
@@ -130,6 +132,7 @@ test("sync uses file protocol allowlist for local cache checkout", async () => {
 		);
 	} finally {
 		process.env.PATH = previousPath;
+		process.env.Path = previousPath;
 		process.env.DOCS_CACHE_GIT_DIR = previousGitDir;
 		await rm(tmpRoot, { recursive: true, force: true });
 	}
