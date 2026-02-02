@@ -44,9 +44,7 @@ export type CleanGitCacheOptions = {
 	json?: boolean;
 };
 
-export const cleanGitCache = async (
-	options: CleanGitCacheOptions = {},
-): Promise<CleanGitCacheResult> => {
+export const cleanGitCache = async (): Promise<CleanGitCacheResult> => {
 	const cacheDir = resolveGitCacheDir();
 	const cacheExists = await exists(cacheDir);
 

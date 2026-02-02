@@ -215,7 +215,7 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 			await git(["-C", cachePath, ...fetchArgs], {
 				timeoutMs: params.timeoutMs,
 			});
-		} catch (error) {
+		} catch (_error) {
 			// Fetch failed, remove corrupt cache and re-clone
 			await rm(cachePath, { recursive: true, force: true });
 			await cloneRepo(params, cachePath);
