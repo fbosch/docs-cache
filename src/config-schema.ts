@@ -16,7 +16,6 @@ export const DefaultsSchema = z
 		mode: CacheModeSchema,
 		include: z.array(z.string().min(1)).min(1),
 		targetMode: TargetModeSchema.optional(),
-		depth: z.number().min(1),
 		required: z.boolean(),
 		maxBytes: z.number().min(1),
 		maxFiles: z.number().min(1).optional(),
@@ -33,7 +32,6 @@ export const SourceSchema = z
 		targetMode: TargetModeSchema.optional(),
 		ref: z.string().min(1).optional(),
 		mode: CacheModeSchema.optional(),
-		depth: z.number().min(1).optional(),
 		include: z.array(z.string().min(1)).optional(),
 		exclude: z.array(z.string().min(1)).optional(),
 		required: z.boolean().optional(),
@@ -41,6 +39,7 @@ export const SourceSchema = z
 		maxFiles: z.number().min(1).optional(),
 		integrity: IntegritySchema.optional(),
 		toc: z.union([z.boolean(), TocFormatSchema]).optional(),
+		unwrapSingleRootDir: z.boolean().optional(),
 	})
 	.strict();
 

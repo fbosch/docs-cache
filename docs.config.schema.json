@@ -37,10 +37,6 @@
 					"type": "string",
 					"enum": ["symlink", "copy"]
 				},
-				"depth": {
-					"type": "number",
-					"minimum": 1
-				},
 				"required": {
 					"type": "boolean"
 				},
@@ -107,10 +103,6 @@
 						"type": "string",
 						"enum": ["materialize"]
 					},
-					"depth": {
-						"type": "number",
-						"minimum": 1
-					},
 					"include": {
 						"type": "array",
 						"items": {
@@ -171,6 +163,9 @@
 					"tocFormat": {
 						"type": "string",
 						"enum": ["tree", "compressed"]
+					},
+					"unwrapSingleRootDir": {
+						"type": "boolean"
 					}
 				},
 				"required": ["id", "repo"],

@@ -20,7 +20,6 @@ export interface DocsCacheDefaults {
 	mode: CacheMode;
 	include: string[];
 	targetMode?: "symlink" | "copy";
-	depth: number;
 	required: boolean;
 	maxBytes: number;
 	maxFiles?: number;
@@ -35,7 +34,6 @@ export interface DocsCacheSource {
 	targetMode?: "symlink" | "copy";
 	ref?: string;
 	mode?: CacheMode;
-	depth?: number;
 	include?: string[];
 	exclude?: string[];
 	required?: boolean;
@@ -43,6 +41,7 @@ export interface DocsCacheSource {
 	maxFiles?: number;
 	integrity?: DocsCacheIntegrity;
 	toc?: boolean | TocFormat;
+	unwrapSingleRootDir?: boolean;
 }
 
 export interface DocsCacheConfig {
@@ -60,7 +59,6 @@ export interface DocsCacheResolvedSource {
 	targetMode?: "symlink" | "copy";
 	ref: string;
 	mode: CacheMode;
-	depth: number;
 	include?: string[];
 	exclude?: string[];
 	required: boolean;
@@ -68,6 +66,7 @@ export interface DocsCacheResolvedSource {
 	maxFiles?: number;
 	integrity?: DocsCacheIntegrity;
 	toc?: boolean | TocFormat;
+	unwrapSingleRootDir?: boolean;
 }
 
 export const DEFAULT_CONFIG_FILENAME = "docs.config.json";
@@ -81,7 +80,6 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 		mode: "materialize",
 		include: ["**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}"],
 		targetMode: DEFAULT_TARGET_MODE,
-		depth: 1,
 		required: true,
 		maxBytes: 200000000,
 		allowHosts: ["github.com", "gitlab.com"],
@@ -280,10 +278,6 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				defaultsInput.targetMode !== undefined
 					? assertTargetMode(defaultsInput.targetMode, "defaults.targetMode")
 					: (targetModeOverride ?? defaultValues.targetMode),
-			depth:
-				defaultsInput.depth !== undefined
-					? assertPositiveNumber(defaultsInput.depth, "defaults.depth")
-					: defaultValues.depth,
 			required:
 				defaultsInput.required !== undefined
 					? assertBoolean(defaultsInput.required, "defaults.required")
@@ -348,12 +342,6 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 		if (entry.mode !== undefined) {
 			source.mode = assertMode(entry.mode, `sources[${index}].mode`);
 		}
-		if (entry.depth !== undefined) {
-			source.depth = assertPositiveNumber(
-				entry.depth,
-				`sources[${index}].depth`,
-			);
-		}
 		if (entry.include !== undefined) {
 			source.include = assertStringArray(
 				entry.include,
@@ -394,6 +382,12 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 		if (entry.toc !== undefined) {
 			source.toc = entry.toc as boolean | TocFormat;
 		}
+		if (entry.unwrapSingleRootDir !== undefined) {
+			source.unwrapSingleRootDir = assertBoolean(
+				entry.unwrapSingleRootDir,
+				`sources[${index}].unwrapSingleRootDir`,
+			);
+		}
 
 		return source;
 	});
@@ -433,7 +427,6 @@ export const resolveSources = (
 		targetMode: source.targetMode ?? defaults.targetMode,
 		ref: source.ref ?? defaults.ref,
 		mode: source.mode ?? defaults.mode,
-		depth: source.depth ?? defaults.depth,
 		include: source.include ?? defaults.include,
 		exclude: source.exclude,
 		required: source.required ?? defaults.required,
@@ -441,6 +434,7 @@ export const resolveSources = (
 		maxFiles: source.maxFiles ?? defaults.maxFiles,
 		integrity: source.integrity,
 		toc: source.toc ?? defaults.toc,
+		unwrapSingleRootDir: source.unwrapSingleRootDir,
 	}));
 };
 

@@ -306,22 +306,20 @@ test("required field with various boolean values", async () => {
 	}
 });
 
-test("depth values from 1 to higher numbers", async () => {
-	const depths = [1, 2, 5, 10, 100];
-
-	for (const depth of depths) {
-		const configPath = await writeConfig({
-			sources: [
-				{
-					id: `test-${depths.indexOf(depth)}`,
-					repo: "https://github.com/example/repo.git",
-					depth,
-				},
-			],
-		});
-		const { sources } = await loadConfig(configPath);
-		assert.equal(sources[0].depth, depth);
-	}
+test("depth is now rejected", async () => {
+	const configPath = await writeConfig({
+		sources: [
+			{
+				id: "test",
+				repo: "https://github.com/example/repo.git",
+				depth: 1,
+			},
+		],
+	});
+	await assert.rejects(
+		() => loadConfig(configPath),
+		/Unrecognized key: "depth"|does not match schema/i,
+	);
 });
 
 test("config with empty sources array", async () => {
@@ -396,7 +394,6 @@ test("defaults with all fields specified", async () => {
 			mode: "materialize",
 			include: ["**/*.md"],
 			targetMode: "copy",
-			depth: 1,
 			required: false,
 			maxBytes: 1000000,
 			maxFiles: 100,
@@ -410,7 +407,6 @@ test("defaults with all fields specified", async () => {
 	assert.equal(config.defaults.ref, "main");
 	assert.equal(config.defaults.mode, "materialize");
 	assert.equal(config.defaults.targetMode, "copy");
-	assert.equal(config.defaults.depth, 1);
 	assert.equal(config.defaults.required, false);
 	assert.equal(config.defaults.maxBytes, 1000000);
 	assert.equal(config.defaults.maxFiles, 100);

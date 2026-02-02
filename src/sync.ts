@@ -92,14 +92,33 @@ const normalizePatterns = (patterns?: string[]) => {
 	return Array.from(new Set(normalized)).sort();
 };
 
-const computeRulesHash = (params: {
-	include: string[];
-	exclude?: string[];
-}) => {
-	const payload = {
-		include: normalizePatterns(params.include),
-		exclude: normalizePatterns(params.exclude),
-	};
+const RULES_HASH_BLACKLIST = new Set([
+	"id",
+	"repo",
+	"ref",
+	"targetDir",
+	"targetMode",
+	"required",
+	"integrity",
+	"toc",
+]);
+
+const computeRulesHash = (source: DocsCacheResolvedSource) => {
+	const entries = Object.entries(source)
+		.filter(
+			([key, value]) => value !== undefined && !RULES_HASH_BLACKLIST.has(key),
+		)
+		.map(([key, value]) => {
+			if (key === "include" && Array.isArray(value)) {
+				return [key, normalizePatterns(value)];
+			}
+			if (key === "exclude" && Array.isArray(value)) {
+				return [key, normalizePatterns(value)];
+			}
+			return [key, value];
+		})
+		.sort(([left], [right]) => left.localeCompare(right));
+	const payload = Object.fromEntries(entries);
 	const hash = createHash("sha256");
 	hash.update(JSON.stringify(payload));
 	return hash.digest("hex");
@@ -136,7 +155,11 @@ export const getSyncPlan = async (
 			const lockEntry = lockData?.sources?.[source.id];
 			const include = source.include ?? defaults.include;
 			const exclude = source.exclude;
-			const rulesSha256 = computeRulesHash({ include, exclude });
+			const rulesSha256 = computeRulesHash({
+				...source,
+				include,
+				exclude,
+			});
 			if (options.offline) {
 				const docsPresent = await hasDocs(resolvedCacheDir, source.id);
 				return {
@@ -323,6 +346,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						targetDir: resolvedTarget,
 						mode: source.targetMode ?? defaults.targetMode,
 						explicitTargetMode: source.targetMode !== undefined,
+						unwrapSingleRootDir: source.unwrapSingleRootDir,
 					});
 				}),
 			);
@@ -353,7 +377,6 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					ref: source.ref,
 					resolvedCommit: result.resolvedCommit,
 					cacheDir: plan.cacheDir,
-					depth: source.depth ?? defaults.depth,
 					include: source.include ?? defaults.include,
 					timeoutMs: options.timeoutMs,
 				});
@@ -408,6 +431,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 							targetDir: resolvedTarget,
 							mode: source.targetMode ?? defaults.targetMode,
 							explicitTargetMode: source.targetMode !== undefined,
+							unwrapSingleRootDir: source.unwrapSingleRootDir,
 						});
 					}
 					result.bytes = stats.bytes;

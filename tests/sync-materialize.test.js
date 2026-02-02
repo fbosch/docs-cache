@@ -200,6 +200,70 @@ test("sync offline fails when required source missing", async () => {
 	);
 });
 
+test("sync target can unwrap single root directory", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-unwrap-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const repoDir = path.join(tmpRoot, "repo");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+	const targetDir = path.join(tmpRoot, "target");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+				targetDir: "target",
+				unwrapSingleRootDir: true,
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
+		},
+		{
+			resolveRemoteCommit: async () => ({
+				repo: "https://example.com/repo.git",
+				ref: "HEAD",
+				resolvedCommit: "abc123",
+			}),
+			fetchSource: async () => ({
+				repoDir,
+				cleanup: async () => undefined,
+			}),
+			materializeSource: async ({ cacheDir: cacheRoot, sourceId }) => {
+				const outDir = path.join(cacheRoot, sourceId, "umbraco-forms");
+				await mkdir(outDir, { recursive: true });
+				await writeFile(
+					path.join(cacheRoot, sourceId, ".manifest.jsonl"),
+					`${JSON.stringify({ path: "umbraco-forms/README.md", size: 5 })}\n`,
+				);
+				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
+				return { bytes: 5, fileCount: 1 };
+			},
+		},
+	);
+
+	assert.equal(await exists(path.join(targetDir, "README.md")), true);
+	assert.equal(
+		await exists(path.join(targetDir, "umbraco-forms", "README.md")),
+		false,
+	);
+});
+
 test("sync offline allows missing optional sources", async () => {
 	const tmpRoot = path.join(
 		tmpdir(),
