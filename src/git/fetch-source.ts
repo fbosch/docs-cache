@@ -302,28 +302,10 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 
 	const cacheUrl = pathToFileURL(cachePath).href;
 	localCloneArgs.push(cacheUrl, outDir);
-	let allowLocalFilter = true;
-	if (allowLocalFilter) {
-		localCloneArgs.splice(2, 0, "--filter=blob:none");
-	}
-	try {
-		await git(localCloneArgs, {
-			timeoutMs: params.timeoutMs,
-			allowFileProtocol: true,
-		});
-	} catch (error) {
-		if (!allowLocalFilter || !isFilterUnsupported(error)) {
-			throw error;
-		}
-		allowLocalFilter = false;
-		const fallbackArgs = localCloneArgs.filter(
-			(arg) => arg !== "--filter=blob:none",
-		);
-		await git(fallbackArgs, {
-			timeoutMs: params.timeoutMs,
-			allowFileProtocol: true,
-		});
-	}
+	await git(localCloneArgs, {
+		timeoutMs: params.timeoutMs,
+		allowFileProtocol: true,
+	});
 
 	if (useSparse) {
 		const sparsePaths = extractSparsePaths(params.include);
