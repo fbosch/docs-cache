@@ -67,16 +67,15 @@ test("sync writes TOC with compressed format by default", async () => {
 		},
 	);
 
-	// Check per-source TOC exists and uses compressed format (flat list)
+	// Check per-source TOC exists and uses compressed format (Vercel-style)
 	const sourceTocPath = path.join(cacheDir, "local", "TOC.md");
 	const sourceToc = await readFile(sourceTocPath, "utf8");
 	assert.ok(sourceToc.includes("# local - Documentation"));
 	assert.ok(sourceToc.includes("repository: https://example.com/repo.git"));
-	// Compressed format should show files with full paths
-	assert.ok(sourceToc.includes("- [README.md](./README.md)"));
-	assert.ok(sourceToc.includes("- [docs/guide.md](./docs/guide.md)"));
-	// Compressed format should NOT have nested structure (no "- docs/" line)
-	assert.ok(!sourceToc.includes("- docs/"));
+	// Compressed format should be pipe-separated with directory grouping
+	assert.ok(sourceToc.includes("root:{README.md}"));
+	assert.ok(sourceToc.includes("docs:{guide.md}"));
+	assert.ok(sourceToc.includes("|"));
 });
 
 test("sync writes TOC with tree format when specified", async () => {
@@ -215,7 +214,7 @@ test("sync writes TOC with compressed format via defaults.tocFormat", async () =
 	const sourceTocPath = path.join(cacheDir, "local", "TOC.md");
 	const sourceToc = await readFile(sourceTocPath, "utf8");
 	assert.ok(sourceToc.includes("# local - Documentation"));
-	assert.ok(sourceToc.includes("- [README.md](./README.md)"));
+	assert.ok(sourceToc.includes("root:{README.md}"));
 });
 
 test("sync writes TOC with tree format via defaults.tocFormat", async () => {
@@ -351,7 +350,7 @@ test("sync supports backward compatibility: toc=true uses compressed format", as
 	const sourceTocPath = path.join(cacheDir, "local", "TOC.md");
 	const sourceToc = await readFile(sourceTocPath, "utf8");
 	assert.ok(sourceToc.includes("# local - Documentation"));
-	assert.ok(sourceToc.includes("- [README.md](./README.md)"));
+	assert.ok(sourceToc.includes("root:{README.md}"));
 });
 
 test("sync supports backward compatibility: toc as format string", async () => {

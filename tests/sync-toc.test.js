@@ -72,7 +72,7 @@ test("sync writes per-source TOC when defaults.toc is enabled", async () => {
 	const sourceToc = await readFile(sourceTocPath, "utf8");
 	assert.ok(sourceToc.includes("# local - Documentation"));
 	assert.ok(sourceToc.includes("repository: https://example.com/repo.git"));
-	assert.ok(sourceToc.includes("- [README.md](./README.md)"));
+	assert.ok(sourceToc.includes("root:{README.md}"));
 
 	// Check global TOC does NOT exist
 	const globalTocPath = path.join(cacheDir, "TOC.md");
@@ -148,8 +148,8 @@ test("sync writes per-source TOC when source.toc is enabled", async () => {
 	const sourceToc = await readFile(sourceTocPath, "utf8");
 	assert.ok(sourceToc.includes("# local - Documentation"));
 	assert.ok(sourceToc.includes("---"));
-	assert.ok(sourceToc.includes("- [README.md](./README.md)"));
-	assert.ok(sourceToc.includes("- [guide.md](./guide.md)"));
+	assert.ok(sourceToc.includes("README.md"));
+	assert.ok(sourceToc.includes("guide.md"));
 });
 
 test("sync writes per-source TOC by default when no toc config is specified", async () => {
@@ -215,7 +215,7 @@ test("sync writes per-source TOC by default when no toc config is specified", as
 	const sourceToc = await readFile(sourceTocPath, "utf8");
 	assert.ok(sourceToc.includes("# local - Documentation"));
 	assert.ok(sourceToc.includes("repository: https://example.com/repo.git"));
-	assert.ok(sourceToc.includes("- [README.md](./README.md)"));
+	assert.ok(sourceToc.includes("root:{README.md}"));
 });
 
 test("sync removes TOC.md when toc is disabled", async () => {

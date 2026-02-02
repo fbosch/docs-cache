@@ -70,13 +70,47 @@ const renderTocTree = (tree: TocTree, depth: number, lines: string[]) => {
 };
 
 const renderCompressedToc = (files: string[], lines: string[]) => {
+	// Group files by directory in Vercel AGENTS.md style
+	// Format: dir1:{file1,file2}|dir2:{file3,file4}
+
 	// Sort files alphabetically
 	const sortedFiles = [...files].sort((a, b) => a.localeCompare(b));
 
-	// Render as a flat list with paths
+	// Group files by directory
+	const dirGroups = new Map<string, string[]>();
+
 	for (const file of sortedFiles) {
-		lines.push(`- [${file}](./${file})`);
+		const lastSlash = file.lastIndexOf("/");
+		const dir = lastSlash === -1 ? "" : file.substring(0, lastSlash);
+		const filename = lastSlash === -1 ? file : file.substring(lastSlash + 1);
+
+		const existing = dirGroups.get(dir);
+		if (existing) {
+			existing.push(filename);
+		} else {
+			dirGroups.set(dir, [filename]);
+		}
 	}
+
+	// Sort directories alphabetically
+	const sortedDirs = Array.from(dirGroups.keys()).sort();
+
+	// Build pipe-separated format
+	const segments: string[] = [];
+	for (const dir of sortedDirs) {
+		const filesInDir = dirGroups.get(dir);
+		if (!filesInDir) continue;
+		const fileList = filesInDir.join(",");
+		if (dir === "") {
+			// Root directory
+			segments.push(`root:{${fileList}}`);
+		} else {
+			segments.push(`${dir}:{${fileList}}`);
+		}
+	}
+
+	// Add as a single line
+	lines.push(segments.join("|"));
 };
 
 const generateSourceToc = (
