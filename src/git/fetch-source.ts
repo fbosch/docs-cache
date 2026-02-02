@@ -26,8 +26,12 @@ const git = async (
 		"protocol.ext.allow=never",
 	];
 
-	// Only allow file protocol if explicitly requested (for local cache clones)
-	if (!options?.allowFileProtocol) {
+	// Configure file protocol access
+	if (options?.allowFileProtocol) {
+		// Explicitly allow file protocol for local cache clones
+		configs.push("-c", "protocol.file.allow=always");
+	} else {
+		// Disallow file protocol by default (when false or undefined)
 		configs.push("-c", "protocol.file.allow=never");
 	}
 

@@ -244,12 +244,14 @@ const runCommand = async (
 		if (options.json) {
 			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 		} else if (result.removed) {
-			const sizeInMB = result.bytesFreed
-				? `${(result.bytesFreed / 1024 / 1024).toFixed(2)} MB`
-				: "unknown size";
-			const repoLabel = result.repoCount
-				? ` (${result.repoCount} cached repositor${result.repoCount === 1 ? "y" : "ies"})`
-				: "";
+			const sizeInMB =
+				result.bytesFreed !== undefined
+					? `${(result.bytesFreed / 1024 / 1024).toFixed(2)} MB`
+					: "unknown size";
+			const repoLabel =
+				result.repoCount !== undefined
+					? ` (${result.repoCount} cached repositor${result.repoCount === 1 ? "y" : "ies"})`
+					: "";
 			ui.line(
 				`${symbols.success} Cleared global git cache${repoLabel}: ${sizeInMB} freed`,
 			);
