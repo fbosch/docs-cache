@@ -133,11 +133,14 @@ export const materializeSource = async (params: MaterializeParams) => {
 			onlyFiles: true,
 			followSymbolicLinks: false,
 		});
-		files.sort((left, right) =>
-			normalizePath(left).localeCompare(normalizePath(right)),
-		);
+		const entries = files
+			.map((relativePath) => ({
+				relativePath,
+				normalized: normalizePath(relativePath),
+			}))
+			.sort((left, right) => left.normalized.localeCompare(right.normalized));
 		const targetDirs = new Set<string>();
-		for (const relativePath of files) {
+		for (const { relativePath } of entries) {
 			targetDirs.add(path.dirname(relativePath));
 		}
 		await Promise.all(
@@ -149,7 +152,10 @@ export const materializeSource = async (params: MaterializeParams) => {
 		let fileCount = 0;
 		const concurrency = Math.max(
 			1,
-			Math.min(files.length, Math.max(8, Math.min(128, os.cpus().length * 8))),
+			Math.min(
+				entries.length,
+				Math.max(8, Math.min(128, os.cpus().length * 8)),
+			),
 		);
 		const manifestPath = path.join(tempDir, MANIFEST_FILENAME);
 		const manifestStream = createWriteStream(manifestPath, {
@@ -177,12 +183,11 @@ export const materializeSource = async (params: MaterializeParams) => {
 			});
 		};
 
-		for (let i = 0; i < files.length; i += concurrency) {
-			const batch = files.slice(i, i + concurrency);
+		for (let i = 0; i < entries.length; i += concurrency) {
+			const batch = entries.slice(i, i + concurrency);
 			const results = await Promise.all(
-				batch.map(async (relativePath) => {
-					const relNormalized = normalizePath(relativePath);
-					const filePath = path.join(params.repoDir, relativePath);
+				batch.map(async (entry) => {
+					const filePath = path.join(params.repoDir, entry.relativePath);
 					const fileHandle = await openFileNoFollow(filePath);
 					if (!fileHandle) {
 						return null;
@@ -192,7 +197,7 @@ export const materializeSource = async (params: MaterializeParams) => {
 						if (!stats.isFile()) {
 							return null;
 						}
-						const targetPath = path.join(tempDir, relativePath);
+						const targetPath = path.join(tempDir, entry.relativePath);
 						ensureSafePath(tempDir, targetPath);
 						if (stats.size >= STREAM_COPY_THRESHOLD_BYTES) {
 							const reader = createReadStream(filePath, {
@@ -206,7 +211,7 @@ export const materializeSource = async (params: MaterializeParams) => {
 							await writeFile(targetPath, data);
 						}
 						return {
-							path: relNormalized,
+							path: entry.normalized,
 							size: stats.size,
 						};
 					} finally {
