@@ -430,3 +430,70 @@ test("sync supports backward compatibility: toc as format string", async () => {
 	// Should NOT have frontmatter
 	assert.ok(!sourceToc.includes("---"));
 });
+
+test("sync supports backward compatibility: toc=false disables TOC generation", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-toc-false-compat-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const repoDir = path.join(tmpRoot, "repo");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	await mkdir(repoDir, { recursive: true });
+	await writeFile(path.join(repoDir, "README.md"), "hello", "utf8");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+				toc: false,
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
+		},
+		{
+			resolveRemoteCommit: async () => ({
+				repo: "https://example.com/repo.git",
+				ref: "HEAD",
+				resolvedCommit: "abc123",
+			}),
+			fetchSource: async () => ({
+				repoDir,
+				cleanup: async () => undefined,
+			}),
+			materializeSource: async ({ cacheDir: cacheRoot, sourceId }) => {
+				const outDir = path.join(cacheRoot, sourceId);
+				await mkdir(outDir, { recursive: true });
+				await writeFile(
+					path.join(outDir, ".manifest.jsonl"),
+					`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
+				);
+				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
+				return { bytes: 5, fileCount: 1 };
+			},
+		},
+	);
+
+	// Verify TOC.md was NOT created
+	const sourceTocPath = path.join(cacheDir, "local", "TOC.md");
+	await assert.rejects(
+		() => readFile(sourceTocPath, "utf8"),
+		/ENOENT/,
+		"TOC.md should not exist when toc is disabled",
+	);
+});
