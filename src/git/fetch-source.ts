@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -12,6 +12,8 @@ import { exists, resolveGitCacheDir } from "./cache-dir";
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_TIMEOUT_MS = 120000; // 120 seconds (2 minutes)
+const DEFAULT_RM_RETRIES = 3;
+const DEFAULT_RM_BACKOFF_MS = 100;
 
 const git = async (
 	args: string[],
@@ -62,6 +64,26 @@ const git = async (
 	});
 };
 
+const removeDir = async (dirPath: string, retries = DEFAULT_RM_RETRIES) => {
+	for (let attempt = 0; attempt <= retries; attempt += 1) {
+		try {
+			await rm(dirPath, { recursive: true, force: true });
+			return;
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code !== "ENOTEMPTY" && code !== "EBUSY" && code !== "EPERM") {
+				throw error;
+			}
+			if (attempt === retries) {
+				throw error;
+			}
+			await new Promise((resolve) =>
+				setTimeout(resolve, DEFAULT_RM_BACKOFF_MS * (attempt + 1)),
+			);
+		}
+	}
+};
+
 // Hash a repo URL to create a safe directory name
 const hashRepoUrl = (repo: string): string => {
 	return createHash("sha256").update(repo).digest("hex").substring(0, 16);
@@ -78,6 +100,21 @@ const isValidGitRepo = async (repoPath: string): Promise<boolean> => {
 	try {
 		await git(["rev-parse", "--git-dir"], { cwd: repoPath });
 		return true;
+	} catch {
+		return false;
+	}
+};
+
+const isPartialClone = async (repoPath: string) => {
+	try {
+		const configPath = path.join(repoPath, ".git", "config");
+		const raw = await readFile(configPath, "utf8");
+		const lower = raw.toLowerCase();
+		return (
+			lower.includes("partialclone") ||
+			lower.includes("promisor") ||
+			lower.includes("partialclonefilter")
+		);
 	} catch {
 		return false;
 	}
@@ -148,15 +185,18 @@ const extractSparsePaths = (include?: string[]) => {
 const cloneRepo = async (params: FetchParams, outDir: string) => {
 	const isCommitRef = /^[0-9a-f]{7,40}$/i.test(params.ref);
 	const useSparse = isSparseEligible(params.include);
-	const cloneArgs = [
-		"clone",
-		"--no-checkout",
-		"--filter=blob:none",
-		"--depth",
-		String(params.depth),
-		"--recurse-submodules=no",
-		"--no-tags",
-	];
+	const buildCloneArgs = () => {
+		const cloneArgs = [
+			"clone",
+			"--no-checkout",
+			"--depth",
+			String(params.depth),
+			"--recurse-submodules=no",
+			"--no-tags",
+		];
+		return cloneArgs;
+	};
+	const cloneArgs = buildCloneArgs();
 	if (useSparse) {
 		cloneArgs.push("--sparse");
 	}
@@ -197,33 +237,38 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 
 	// If cache exists and is valid, try to fetch and update
 	if (cacheExists && (await isValidGitRepo(cachePath))) {
-		try {
-			// Fetch the specific ref or commit
-			const fetchArgs = ["fetch", "origin"];
-			if (!isCommitRef) {
-				// Fetch specific branch/tag
-				const refSpec =
-					params.ref === "HEAD"
-						? "HEAD"
-						: `${params.ref}:refs/remotes/origin/${params.ref}`;
-				fetchArgs.push(refSpec, "--depth", String(params.depth));
-			} else {
-				// For commit refs, fetch the default branch and hope the commit is there
-				fetchArgs.push("--depth", String(params.depth));
-			}
-
-			await git(["-C", cachePath, ...fetchArgs], {
-				timeoutMs: params.timeoutMs,
-			});
-		} catch (_error) {
-			// Fetch failed, remove corrupt cache and re-clone
-			await rm(cachePath, { recursive: true, force: true });
+		if (await isPartialClone(cachePath)) {
+			await removeDir(cachePath);
 			await cloneRepo(params, cachePath);
+		} else {
+			try {
+				// Fetch the specific ref or commit
+				const fetchArgs = ["fetch", "origin"];
+				if (!isCommitRef) {
+					// Fetch specific branch/tag
+					const refSpec =
+						params.ref === "HEAD"
+							? "HEAD"
+							: `${params.ref}:refs/remotes/origin/${params.ref}`;
+					fetchArgs.push(refSpec, "--depth", String(params.depth));
+				} else {
+					// For commit refs, fetch the default branch and hope the commit is there
+					fetchArgs.push("--depth", String(params.depth));
+				}
+
+				await git(["-C", cachePath, ...fetchArgs], {
+					timeoutMs: params.timeoutMs,
+				});
+			} catch (_error) {
+				// Fetch failed, remove corrupt cache and re-clone
+				await removeDir(cachePath);
+				await cloneRepo(params, cachePath);
+			}
 		}
 	} else {
 		// No cache or invalid - do fresh clone
 		if (cacheExists) {
-			await rm(cachePath, { recursive: true, force: true });
+			await removeDir(cachePath);
 		}
 		await cloneRepo(params, cachePath);
 	}
@@ -235,12 +280,14 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 	const localCloneArgs = [
 		"clone",
 		"--no-checkout",
-		"--filter=blob:none",
 		"--depth",
 		String(params.depth),
 		"--recurse-submodules=no",
 		"--no-tags",
 	];
+	if (await isPartialClone(cachePath)) {
+		localCloneArgs.splice(2, 0, "--filter=blob:none");
+	}
 
 	if (useSparse) {
 		localCloneArgs.push("--sparse");
@@ -255,16 +302,35 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 
 	const cacheUrl = pathToFileURL(cachePath).href;
 	localCloneArgs.push(cacheUrl, outDir);
-	await git(localCloneArgs, {
-		timeoutMs: params.timeoutMs,
-		allowFileProtocol: true,
-	});
+	let allowLocalFilter = true;
+	if (allowLocalFilter) {
+		localCloneArgs.splice(2, 0, "--filter=blob:none");
+	}
+	try {
+		await git(localCloneArgs, {
+			timeoutMs: params.timeoutMs,
+			allowFileProtocol: true,
+		});
+	} catch (error) {
+		if (!allowLocalFilter || !isFilterUnsupported(error)) {
+			throw error;
+		}
+		allowLocalFilter = false;
+		const fallbackArgs = localCloneArgs.filter(
+			(arg) => arg !== "--filter=blob:none",
+		);
+		await git(fallbackArgs, {
+			timeoutMs: params.timeoutMs,
+			allowFileProtocol: true,
+		});
+	}
 
 	if (useSparse) {
 		const sparsePaths = extractSparsePaths(params.include);
 		if (sparsePaths.length > 0) {
 			await git(["-C", outDir, "sparse-checkout", "set", ...sparsePaths], {
 				timeoutMs: params.timeoutMs,
+				allowFileProtocol: true,
 			});
 		}
 	}
@@ -273,6 +339,7 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 		["-C", outDir, "checkout", "--quiet", "--detach", params.resolvedCommit],
 		{
 			timeoutMs: params.timeoutMs,
+			allowFileProtocol: true,
 		},
 	);
 };
@@ -290,7 +357,7 @@ const archiveRepo = async (params: FetchParams) => {
 		);
 		return tempDir;
 	} catch (error) {
-		await rm(tempDir, { recursive: true, force: true });
+		await removeDir(tempDir);
 		throw error;
 	}
 };
@@ -302,7 +369,7 @@ export const fetchSource = async (params: FetchParams) => {
 		return {
 			repoDir: archiveDir,
 			cleanup: async () => {
-				await rm(archiveDir, { recursive: true, force: true });
+				await removeDir(archiveDir);
 			},
 		};
 	} catch {
@@ -314,11 +381,11 @@ export const fetchSource = async (params: FetchParams) => {
 			return {
 				repoDir: tempDir,
 				cleanup: async () => {
-					await rm(tempDir, { recursive: true, force: true });
+					await removeDir(tempDir);
 				},
 			};
 		} catch (error) {
-			await rm(tempDir, { recursive: true, force: true });
+			await removeDir(tempDir);
 			throw error;
 		}
 	}
