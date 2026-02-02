@@ -70,12 +70,15 @@ test("sync writes TOC with compressed format by default", async () => {
 	// Check per-source TOC exists and uses compressed format (Vercel-style)
 	const sourceTocPath = path.join(cacheDir, "local", "TOC.md");
 	const sourceToc = await readFile(sourceTocPath, "utf8");
-	assert.ok(sourceToc.includes("# local - Documentation"));
 	assert.ok(sourceToc.includes("repository: https://example.com/repo.git"));
-	// Compressed format should be pipe-separated with directory grouping
+	// Compressed format should start with label and be pipe-separated
+	assert.ok(sourceToc.includes("[local Docs Index]"));
 	assert.ok(sourceToc.includes("root:{README.md}"));
 	assert.ok(sourceToc.includes("docs:{guide.md}"));
 	assert.ok(sourceToc.includes("|"));
+	// Should NOT have title or ## Files header
+	assert.ok(!sourceToc.includes("# local - Documentation"));
+	assert.ok(!sourceToc.includes("## Files"));
 });
 
 test("sync writes TOC with tree format when specified", async () => {

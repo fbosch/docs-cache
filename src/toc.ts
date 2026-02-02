@@ -69,9 +69,13 @@ const renderTocTree = (tree: TocTree, depth: number, lines: string[]) => {
 	}
 };
 
-const renderCompressedToc = (files: string[], lines: string[]) => {
+const renderCompressedToc = (
+	files: string[],
+	lines: string[],
+	label: string,
+) => {
 	// Group files by directory in Vercel AGENTS.md style
-	// Format: dir1:{file1,file2}|dir2:{file3,file4}
+	// Format: [Label]|dir1:{file1,file2}|dir2:{file3,file4}
 
 	// Sort files alphabetically
 	const sortedFiles = [...files].sort((a, b) => a.localeCompare(b));
@@ -97,6 +101,10 @@ const renderCompressedToc = (files: string[], lines: string[]) => {
 
 	// Build pipe-separated format
 	const segments: string[] = [];
+
+	// Add label as first segment
+	segments.push(`[${label}]`);
+
 	for (const dir of sortedDirs) {
 		const filesInDir = dirGroups.get(dir);
 		if (!filesInDir) continue;
@@ -128,17 +136,19 @@ const generateSourceToc = (
 	}
 	lines.push("---");
 	lines.push("");
-	lines.push(`# ${entry.id} - Documentation`);
-	lines.push("");
-	lines.push("## Files");
-	lines.push("");
 
 	if (format === "tree") {
+		// For tree format, keep the headers for readability
+		lines.push(`# ${entry.id} - Documentation`);
+		lines.push("");
+		lines.push("## Files");
+		lines.push("");
 		const tree = createTocTree(entry.files);
 		renderTocTree(tree, 0, lines);
 	} else {
-		// compressed format
-		renderCompressedToc(entry.files, lines);
+		// compressed format - no headers, just the label and content
+		const label = `${entry.id} Docs Index`;
+		renderCompressedToc(entry.files, lines, label);
 	}
 
 	lines.push("");
