@@ -100,7 +100,8 @@ All fields in `defaults` apply to all sources unless overridden per-source.
 | `maxFiles`   | Maximum total files to materialize.                                                                       |
 | `allowHosts` | Allowed Git hosts. Default: `["github.com", "gitlab.com"]`.                                               |
 | `toc`        | Generate per-source `TOC.md` listing all documentation files. Default: `true`.                            |
-| `timeoutMs`  | Git operation timeout in milliseconds. Default: `120000` (2 minutes).                                     |
+
+> **Note**: Git operation timeout can be configured via the `--timeout-ms` CLI flag (default: 120000ms / 2 minutes).
 
 ### Source options
 
@@ -124,9 +125,8 @@ All fields in `defaults` apply to all sources unless overridden per-source.
 | `maxBytes`   | Maximum total bytes to materialize.                              |
 | `maxFiles`   | Maximum total files to materialize.                              |
 | `toc`        | Generate per-source `TOC.md` listing all documentation files.    |
-| `timeoutMs`  | Git operation timeout in milliseconds.                           |
 
-> **Note**: Sources are always downloaded to `.docs/<id>/`. If you provide a `targetDir`, `docs-cache` will create a symlink or copy pointing from the cache to that target directory. The target should be outside `.docs`.
+> **Note**: Sources are always downloaded to `.docs/<id>/`. If you provide a `targetDir`, `docs-cache` will create a symlink or copy pointing from the cache to that target directory. The target should be outside `.docs`. Git operation timeout is configured via the `--timeout-ms` CLI flag, not as a per-source configuration option.
 
 </details>
 
