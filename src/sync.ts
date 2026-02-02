@@ -7,6 +7,7 @@ import {
 	DEFAULT_CACHE_DIR,
 	DEFAULT_CONFIG,
 	type DocsCacheDefaults,
+	type DocsCacheResolvedSource,
 	loadConfig,
 } from "./config";
 import { fetchSource } from "./git/fetch-source";
@@ -92,14 +93,54 @@ const normalizePatterns = (patterns?: string[]) => {
 	return Array.from(new Set(normalized)).sort();
 };
 
-const computeRulesHash = (params: {
-	include: string[];
-	exclude?: string[];
-}) => {
-	const payload = {
-		include: normalizePatterns(params.include),
-		exclude: normalizePatterns(params.exclude),
-	};
+const RULES_HASH_BLACKLIST = [
+	"id",
+	"repo",
+	"ref",
+	"targetDir",
+	"targetMode",
+	"required",
+	"integrity",
+	"toc",
+] as const;
+
+type RulesHashBlacklistKey = (typeof RULES_HASH_BLACKLIST)[number];
+type RulesHashKey = Exclude<
+	keyof DocsCacheResolvedSource,
+	RulesHashBlacklistKey
+>;
+
+const RULES_HASH_KEYS = [
+	"mode",
+	"include",
+	"exclude",
+	"maxBytes",
+	"maxFiles",
+	"unwrapSingleRootDir",
+] as const satisfies ReadonlyArray<RulesHashKey>;
+
+const normalizeRulesValue = (
+	key: RulesHashKey,
+	value: DocsCacheResolvedSource[RulesHashKey],
+) => {
+	if (key === "include" && Array.isArray(value)) {
+		return normalizePatterns(value);
+	}
+	if (key === "exclude" && Array.isArray(value)) {
+		return normalizePatterns(value);
+	}
+	return value;
+};
+
+const computeRulesHash = (source: DocsCacheResolvedSource) => {
+	const entries = RULES_HASH_KEYS.map((key) => [
+		key,
+		normalizeRulesValue(key, source[key]),
+	]) as Array<[string, unknown]>;
+	entries.sort(([left]: [string, unknown], [right]: [string, unknown]) =>
+		left.localeCompare(right),
+	);
+	const payload = Object.fromEntries(entries);
 	const hash = createHash("sha256");
 	hash.update(JSON.stringify(payload));
 	return hash.digest("hex");
@@ -136,7 +177,11 @@ export const getSyncPlan = async (
 			const lockEntry = lockData?.sources?.[source.id];
 			const include = source.include ?? defaults.include;
 			const exclude = source.exclude;
-			const rulesSha256 = computeRulesHash({ include, exclude });
+			const rulesSha256 = computeRulesHash({
+				...source,
+				include,
+				exclude,
+			});
 			if (options.offline) {
 				const docsPresent = await hasDocs(resolvedCacheDir, source.id);
 				return {
@@ -323,6 +368,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						targetDir: resolvedTarget,
 						mode: source.targetMode ?? defaults.targetMode,
 						explicitTargetMode: source.targetMode !== undefined,
+						unwrapSingleRootDir: source.unwrapSingleRootDir,
 					});
 				}),
 			);
@@ -344,19 +390,21 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 				index += 1;
 				const { result, source } = job;
 				const lockEntry = plan.lockData?.sources?.[source.id];
-				if (!options.json) {
-					ui.step("Fetching", source.id);
-				}
 				const fetch = await runFetch({
 					sourceId: source.id,
 					repo: source.repo,
 					ref: source.ref,
 					resolvedCommit: result.resolvedCommit,
 					cacheDir: plan.cacheDir,
-					depth: source.depth ?? defaults.depth,
 					include: source.include ?? defaults.include,
 					timeoutMs: options.timeoutMs,
 				});
+				if (!options.json) {
+					ui.step(
+						fetch.fromCache ? "Restoring from cache" : "Downloading repo",
+						source.id,
+					);
+				}
 				try {
 					const manifestPath = path.join(
 						plan.cacheDir,
@@ -366,6 +414,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					if (
 						result.status !== "up-to-date" &&
 						lockEntry?.manifestSha256 &&
+						lockEntry?.rulesSha256 === result.rulesSha256 &&
 						(await exists(manifestPath))
 					) {
 						const computed = await computeManifestHash({
@@ -389,6 +438,9 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 							return;
 						}
 					}
+					if (!options.json) {
+						ui.step("Building cache layout", source.id);
+					}
 					const stats = await runMaterialize({
 						sourceId: source.id,
 						repoDir: fetch.repoDir,
@@ -397,6 +449,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						exclude: source.exclude,
 						maxBytes: source.maxBytes ?? defaults.maxBytes,
 						maxFiles: source.maxFiles ?? defaults.maxFiles,
+						unwrapSingleRootDir: source.unwrapSingleRootDir,
 					});
 					if (source.targetDir) {
 						const resolvedTarget = resolveTargetDir(
@@ -408,6 +461,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 							targetDir: resolvedTarget,
 							mode: source.targetMode ?? defaults.targetMode,
 							explicitTargetMode: source.targetMode !== undefined,
+							unwrapSingleRootDir: source.unwrapSingleRootDir,
 						});
 					}
 					result.bytes = stats.bytes;

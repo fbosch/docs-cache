@@ -6,12 +6,14 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
+import { getErrnoCode } from "../errors";
 import { assertSafeSourceId } from "../source-id";
 import { exists, resolveGitCacheDir } from "./cache-dir";
 
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_TIMEOUT_MS = 120000; // 120 seconds (2 minutes)
+const DEFAULT_GIT_DEPTH = 1;
 const DEFAULT_RM_RETRIES = 3;
 const DEFAULT_RM_BACKOFF_MS = 100;
 
@@ -70,7 +72,7 @@ const removeDir = async (dirPath: string, retries = DEFAULT_RM_RETRIES) => {
 			await rm(dirPath, { recursive: true, force: true });
 			return;
 		} catch (error) {
-			const code = (error as NodeJS.ErrnoException).code;
+			const code = getErrnoCode(error);
 			if (code !== "ENOTEMPTY" && code !== "EBUSY" && code !== "EPERM") {
 				throw error;
 			}
@@ -126,9 +128,14 @@ type FetchParams = {
 	ref: string;
 	resolvedCommit: string;
 	cacheDir: string;
-	depth: number;
 	include?: string[];
 	timeoutMs?: number;
+};
+
+type FetchResult = {
+	repoDir: string;
+	cleanup: () => Promise<void>;
+	fromCache: boolean;
 };
 
 const runGitArchive = async (
@@ -190,7 +197,7 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 			"clone",
 			"--no-checkout",
 			"--depth",
-			String(params.depth),
+			String(DEFAULT_GIT_DEPTH),
 			"--recurse-submodules=no",
 			"--no-tags",
 		];
@@ -250,10 +257,10 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 						params.ref === "HEAD"
 							? "HEAD"
 							: `${params.ref}:refs/remotes/origin/${params.ref}`;
-					fetchArgs.push(refSpec, "--depth", String(params.depth));
+					fetchArgs.push(refSpec, "--depth", String(DEFAULT_GIT_DEPTH));
 				} else {
 					// For commit refs, fetch the default branch and hope the commit is there
-					fetchArgs.push("--depth", String(params.depth));
+					fetchArgs.push("--depth", String(DEFAULT_GIT_DEPTH));
 				}
 
 				await git(["-C", cachePath, ...fetchArgs], {
@@ -281,7 +288,7 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 		"clone",
 		"--no-checkout",
 		"--depth",
-		String(params.depth),
+		String(DEFAULT_GIT_DEPTH),
 		"--recurse-submodules=no",
 		"--no-tags",
 	];
@@ -344,7 +351,9 @@ const archiveRepo = async (params: FetchParams) => {
 	}
 };
 
-export const fetchSource = async (params: FetchParams) => {
+export const fetchSource = async (
+	params: FetchParams,
+): Promise<FetchResult> => {
 	assertSafeSourceId(params.sourceId, "sourceId");
 	try {
 		const archiveDir = await archiveRepo(params);
@@ -353,6 +362,7 @@ export const fetchSource = async (params: FetchParams) => {
 			cleanup: async () => {
 				await removeDir(archiveDir);
 			},
+			fromCache: false,
 		};
 	} catch {
 		const tempDir = await mkdtemp(
@@ -365,6 +375,7 @@ export const fetchSource = async (params: FetchParams) => {
 				cleanup: async () => {
 					await removeDir(tempDir);
 				},
+				fromCache: true,
 			};
 		} catch (error) {
 			await removeDir(tempDir);

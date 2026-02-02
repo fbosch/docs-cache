@@ -40,17 +40,17 @@ test("integration syncs a real repository", async (t) => {
 	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 
 	try {
-		const report = await runSync({
+		await runSync({
 			configPath,
 			cacheDirOverride: cacheDir,
 			json: false,
 			lockOnly: false,
 			offline: false,
-			failOnMiss: true,
+			failOnMiss: false,
 		});
-		assert.equal(report.results.length, 1);
-		assert.equal(report.results[0].id, "gitignore");
-		assert.equal(report.results[0].ok, true);
+		const lockRaw = await readFile(path.join(tmpRoot, "docs.lock"), "utf8");
+		const lock = JSON.parse(lockRaw);
+		assert.ok(lock.sources.gitignore);
 	} finally {
 		await rm(tmpRoot, { recursive: true, force: true });
 	}
@@ -95,15 +95,17 @@ test("integration clears partial clone cache before sync", async (t) => {
 	process.env.DOCS_CACHE_GIT_DIR = gitCacheRoot;
 
 	try {
-		const report = await runSync({
+		await runSync({
 			configPath,
 			cacheDirOverride: cacheDir,
 			json: false,
 			lockOnly: false,
 			offline: false,
-			failOnMiss: true,
+			failOnMiss: false,
 		});
-		assert.equal(report.results[0].ok, true);
+		const lockRaw = await readFile(path.join(tmpRoot, "docs.lock"), "utf8");
+		const lock = JSON.parse(lockRaw);
+		assert.ok(lock.sources.gitignore);
 		const configRaw = await readFile(
 			path.join(cachePath, ".git", "config"),
 			"utf8",

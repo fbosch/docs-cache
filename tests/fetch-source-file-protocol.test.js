@@ -26,13 +26,19 @@ fs.appendFileSync(logPath, \
 );
 
 const args = process.argv.slice(2);
-if (args.includes("archive")) {
+const isWin = process.platform === "win32";
+const normalize = (value) => (isWin ? value.toLowerCase() : value);
+if (args.map(normalize).includes("archive")) {
   process.exit(1);
 }
 
-if (args.includes("clone")) {
+if (args.map(normalize).includes("clone")) {
   const outDir = args[args.length - 1];
   fs.mkdirSync(outDir, { recursive: true });
+}
+
+if (args.map(normalize).includes("checkout")) {
+  process.exit(0);
 }
 
 process.exit(0);
@@ -81,9 +87,18 @@ test("sync uses file protocol allowlist for local cache checkout", async () => {
 	};
 	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 
-	const previousPath = process.env.PATH;
+	const previousPath = process.env.PATH ?? process.env.Path;
+	const previousPathExt = process.env.PATHEXT;
 	const previousGitDir = process.env.DOCS_CACHE_GIT_DIR;
-	process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ""}`;
+	const nextPath =
+		process.platform === "win32"
+			? binDir
+			: `${binDir}${path.delimiter}${previousPath ?? ""}`;
+	process.env.PATH = nextPath;
+	process.env.Path = nextPath;
+	if (process.platform === "win32") {
+		process.env.PATHEXT = previousPathExt ?? ".COM;.EXE;.BAT;.CMD";
+	}
 	process.env.DOCS_CACHE_GIT_DIR = gitCacheRoot;
 	process.env.GIT_TERMINAL_PROMPT = "0";
 
@@ -126,6 +141,8 @@ test("sync uses file protocol allowlist for local cache checkout", async () => {
 		);
 	} finally {
 		process.env.PATH = previousPath;
+		process.env.Path = previousPath;
+		process.env.PATHEXT = previousPathExt;
 		process.env.DOCS_CACHE_GIT_DIR = previousGitDir;
 		await rm(tmpRoot, { recursive: true, force: true });
 	}
