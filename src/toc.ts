@@ -1,6 +1,6 @@
 import { access, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { DocsCacheResolvedSource } from "./config";
+import type { DocsCacheResolvedSource, TocFormat } from "./config";
 import type { DocsCacheLock } from "./lock";
 import { DEFAULT_TOC_FILENAME, resolveTargetDir, toPosixPath } from "./paths";
 
@@ -69,24 +69,78 @@ const renderTocTree = (tree: TocTree, depth: number, lines: string[]) => {
 	}
 };
 
-const generateSourceToc = (entry: TocEntry): string => {
-	const lines: string[] = [];
-	lines.push("---");
-	lines.push(`id: ${entry.id}`);
-	lines.push(`repository: ${entry.repo}`);
-	lines.push(`ref: ${entry.ref}`);
-	lines.push(`commit: ${entry.resolvedCommit}`);
-	if (entry.targetDir) {
-		lines.push(`targetDir: ${entry.targetDir}`);
+const renderCompressedToc = (
+	files: string[],
+	lines: string[],
+	label: string,
+) => {
+	// Group files by directory in Vercel AGENTS.md style
+	// Format: [Label]|dir1:{file1,file2}|dir2:{file3,file4}
+
+	// Sort files alphabetically
+	const sortedFiles = [...files].sort((a, b) => a.localeCompare(b));
+
+	// Group files by directory
+	const dirGroups = new Map<string, string[]>();
+
+	for (const file of sortedFiles) {
+		const lastSlash = file.lastIndexOf("/");
+		const dir = lastSlash === -1 ? "" : file.substring(0, lastSlash);
+		const filename = lastSlash === -1 ? file : file.substring(lastSlash + 1);
+
+		const existing = dirGroups.get(dir);
+		if (existing) {
+			existing.push(filename);
+		} else {
+			dirGroups.set(dir, [filename]);
+		}
 	}
-	lines.push("---");
-	lines.push("");
-	lines.push(`# ${entry.id} - Documentation`);
-	lines.push("");
-	lines.push("## Files");
-	lines.push("");
-	const tree = createTocTree(entry.files);
-	renderTocTree(tree, 0, lines);
+
+	// Sort directories alphabetically
+	const sortedDirs = Array.from(dirGroups.keys()).sort();
+
+	// Build pipe-separated format
+	const segments: string[] = [];
+
+	// Add label as first segment
+	segments.push(`[${label}]`);
+
+	for (const dir of sortedDirs) {
+		const filesInDir = dirGroups.get(dir);
+		if (!filesInDir) continue;
+		const fileList = filesInDir.join(",");
+		if (dir === "") {
+			// Root directory
+			segments.push(`root:{${fileList}}`);
+		} else {
+			segments.push(`${dir}:{${fileList}}`);
+		}
+	}
+
+	// Add as a single line
+	lines.push(segments.join("|"));
+};
+
+const generateSourceToc = (
+	entry: TocEntry,
+	format: TocFormat = "compressed",
+): string => {
+	const lines: string[] = [];
+
+	if (format === "tree") {
+		// For tree format, keep the headers for readability
+		lines.push(`# ${entry.id} - Documentation`);
+		lines.push("");
+		lines.push("## Files");
+		lines.push("");
+		const tree = createTocTree(entry.files);
+		renderTocTree(tree, 0, lines);
+	} else {
+		// compressed format - no headers, just the label and content
+		const label = `${entry.id} Docs Index`;
+		renderCompressedToc(entry.files, lines, label);
+	}
+
 	lines.push("");
 
 	return lines.join("\n");
@@ -154,11 +208,21 @@ export const writeToc = async (params: {
 			files,
 		};
 
-		// Generate per-source TOC if the source has TOC enabled
-		const sourceToc = source?.toc ?? true;
+		// Determine if TOC should be generated and what format to use
+		const sourceTocConfig = source?.toc;
+
+		// Determine if TOC is enabled (default: true)
+		const tocEnabled = sourceTocConfig !== false;
+
+		// Determine TOC format
+		let tocFormat: TocFormat = "compressed"; // default
+		if (typeof sourceTocConfig === "string") {
+			tocFormat = sourceTocConfig;
+		}
+
 		const sourceTocPath = path.join(sourceDir, DEFAULT_TOC_FILENAME);
 
-		if (sourceToc) {
+		if (tocEnabled) {
 			const result = resultsById.get(id);
 			if (result?.status === "up-to-date") {
 				try {
@@ -168,7 +232,7 @@ export const writeToc = async (params: {
 					// Missing TOC; regenerate below.
 				}
 			}
-			const sourceTocContent = generateSourceToc(entry);
+			const sourceTocContent = generateSourceToc(entry, tocFormat);
 			await writeFile(sourceTocPath, sourceTocContent, "utf8");
 		} else {
 			// Remove TOC.md if it exists but toc is disabled

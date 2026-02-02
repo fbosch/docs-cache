@@ -1,4 +1,5 @@
 export { cleanCache } from "./clean";
+export { cleanGitCache } from "./clean-git-cache";
 export { parseArgs } from "./cli/parse-args";
 export { loadConfig } from "./config";
 export { redactRepoUrl } from "./git/redact";

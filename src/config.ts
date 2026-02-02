@@ -6,6 +6,8 @@ import { assertSafeSourceId } from "./source-id";
 
 export type CacheMode = "materialize";
 
+export type TocFormat = "tree" | "compressed";
+
 export type IntegrityType = "commit" | "manifest";
 
 export interface DocsCacheIntegrity {
@@ -23,7 +25,7 @@ export interface DocsCacheDefaults {
 	maxBytes: number;
 	maxFiles?: number;
 	allowHosts: string[];
-	toc?: boolean;
+	toc?: boolean | TocFormat;
 }
 
 export interface DocsCacheSource {
@@ -40,7 +42,7 @@ export interface DocsCacheSource {
 	maxBytes?: number;
 	maxFiles?: number;
 	integrity?: DocsCacheIntegrity;
-	toc?: boolean;
+	toc?: boolean | TocFormat;
 }
 
 export interface DocsCacheConfig {
@@ -65,7 +67,7 @@ export interface DocsCacheResolvedSource {
 	maxBytes: number;
 	maxFiles?: number;
 	integrity?: DocsCacheIntegrity;
-	toc?: boolean;
+	toc?: boolean | TocFormat;
 }
 
 export const DEFAULT_CONFIG_FILENAME = "docs.config.json";
@@ -260,6 +262,7 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 		if (!isRecord(defaultsInput)) {
 			throw new Error("defaults must be an object.");
 		}
+
 		defaults = {
 			ref:
 				defaultsInput.ref !== undefined
@@ -299,7 +302,7 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 					: defaultValues.allowHosts,
 			toc:
 				defaultsInput.toc !== undefined
-					? assertBoolean(defaultsInput.toc, "defaults.toc")
+					? (defaultsInput.toc as boolean | TocFormat)
 					: defaultValues.toc,
 		};
 	} else if (targetModeOverride !== undefined) {
@@ -387,9 +390,11 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				`sources[${index}].integrity`,
 			);
 		}
+
 		if (entry.toc !== undefined) {
-			source.toc = assertBoolean(entry.toc, `sources[${index}].toc`);
+			source.toc = entry.toc as boolean | TocFormat;
 		}
+
 		return source;
 	});
 

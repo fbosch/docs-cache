@@ -10,6 +10,7 @@ const COMMANDS = [
 	"sync",
 	"status",
 	"clean",
+	"clean-cache",
 	"prune",
 	"verify",
 	"init",

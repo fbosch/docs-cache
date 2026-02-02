@@ -61,7 +61,19 @@
 					}
 				},
 				"toc": {
-					"type": "boolean"
+					"anyOf": [
+						{
+							"type": "boolean"
+						},
+						{
+							"type": "string",
+							"enum": ["tree", "compressed"]
+						}
+					]
+				},
+				"tocFormat": {
+					"type": "string",
+					"enum": ["tree", "compressed"]
 				}
 			},
 			"additionalProperties": false
@@ -146,7 +158,19 @@
 						"additionalProperties": false
 					},
 					"toc": {
-						"type": "boolean"
+						"anyOf": [
+							{
+								"type": "boolean"
+							},
+							{
+								"type": "string",
+								"enum": ["tree", "compressed"]
+							}
+						]
+					},
+					"tocFormat": {
+						"type": "string",
+						"enum": ["tree", "compressed"]
 					}
 				},
 				"required": ["id", "repo"],

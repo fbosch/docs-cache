@@ -12,14 +12,15 @@ const HELP_TEXT = `
 Usage: ${CLI_NAME} <command> [options]
 
 Commands:
-  add     Add sources to the config (supports github:org/repo#ref)
-  remove  Remove sources from the config and targets
-  sync    Synchronize cache with config
-  status  Show cache status
-  clean   Remove cache
-  prune   Remove unused data
-  verify  Validate cache integrity
-  init    Create a new config interactively
+  add         Add sources to the config (supports github:org/repo#ref)
+  remove      Remove sources from the config and targets
+  sync        Synchronize cache with config
+  status      Show cache status
+  clean       Remove project cache
+  clean-cache Clear global git cache
+  prune       Remove unused data
+  verify      Validate cache integrity
+  init        Create a new config interactively
 
 Global options:
   --source <repo> (add only)
@@ -231,6 +232,33 @@ const runCommand = async (
 		} else {
 			ui.line(
 				`${symbols.info} Cache already missing at ${ui.path(result.cacheDir)}`,
+			);
+		}
+		return;
+	}
+	if (command === "clean-cache") {
+		const { cleanGitCache } = await import("../clean-git-cache");
+		const result = await cleanGitCache({
+			json: options.json,
+		});
+		if (options.json) {
+			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+		} else if (result.removed) {
+			const sizeInMB =
+				result.bytesFreed !== undefined
+					? `${(result.bytesFreed / 1024 / 1024).toFixed(2)} MB`
+					: "unknown size";
+			const repoLabel =
+				result.repoCount !== undefined
+					? ` (${result.repoCount} cached repositor${result.repoCount === 1 ? "y" : "ies"})`
+					: "";
+			ui.line(
+				`${symbols.success} Cleared global git cache${repoLabel}: ${sizeInMB} freed`,
+			);
+			ui.line(`${symbols.info} Cache location: ${ui.path(result.cacheDir)}`);
+		} else {
+			ui.line(
+				`${symbols.info} Global git cache already empty at ${ui.path(result.cacheDir)}`,
 			);
 		}
 		return;
