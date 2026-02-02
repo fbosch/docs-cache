@@ -133,9 +133,14 @@ const normalizeRulesValue = (
 };
 
 const computeRulesHash = (source: DocsCacheResolvedSource) => {
-	const payload = Object.fromEntries(
-		RULES_HASH_KEYS.map((key) => [key, normalizeRulesValue(key, source[key])]),
+	const entries = RULES_HASH_KEYS.map((key) => [
+		key,
+		normalizeRulesValue(key, source[key]),
+	]) as Array<[string, unknown]>;
+	entries.sort(([left]: [string, unknown], [right]: [string, unknown]) =>
+		left.localeCompare(right),
 	);
+	const payload = Object.fromEntries(entries);
 	const hash = createHash("sha256");
 	hash.update(JSON.stringify(payload));
 	return hash.digest("hex");

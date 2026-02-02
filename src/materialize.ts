@@ -204,11 +204,11 @@ export const materializeSource = async (params: MaterializeParams) => {
 			resolved.unwrapSingleRootDir,
 		);
 		const targetDirs = new Set<string>();
-		for (const { relativePath, normalized } of entries) {
+		for (const { normalized } of entries) {
 			const rootPath = unwrapPrefix
 				? normalized.replace(unwrapPrefix, "")
-				: relativePath;
-			targetDirs.add(path.dirname(rootPath));
+				: normalized;
+			targetDirs.add(path.posix.dirname(rootPath));
 		}
 		await Promise.all(
 			Array.from(targetDirs, (dir) =>

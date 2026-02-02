@@ -25,6 +25,7 @@ export interface DocsCacheDefaults {
 	maxFiles?: number;
 	allowHosts: string[];
 	toc?: boolean | TocFormat;
+	unwrapSingleRootDir?: boolean;
 }
 
 export interface DocsCacheSource {
@@ -84,6 +85,7 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 		maxBytes: 200000000,
 		allowHosts: ["github.com", "gitlab.com"],
 		toc: true,
+		unwrapSingleRootDir: false,
 	},
 	sources: [],
 };
@@ -299,6 +301,13 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				defaultsInput.toc !== undefined
 					? (defaultsInput.toc as boolean | TocFormat)
 					: defaultValues.toc,
+			unwrapSingleRootDir:
+				defaultsInput.unwrapSingleRootDir !== undefined
+					? assertBoolean(
+							defaultsInput.unwrapSingleRootDir,
+							"defaults.unwrapSingleRootDir",
+						)
+					: defaultValues.unwrapSingleRootDir,
 		};
 	} else if (targetModeOverride !== undefined) {
 		defaults = {
@@ -431,7 +440,8 @@ export const resolveSources = (
 		maxFiles: source.maxFiles ?? defaults.maxFiles,
 		integrity: source.integrity,
 		toc: source.toc ?? defaults.toc,
-		unwrapSingleRootDir: source.unwrapSingleRootDir,
+		unwrapSingleRootDir:
+			source.unwrapSingleRootDir ?? defaults.unwrapSingleRootDir,
 	}));
 };
 
