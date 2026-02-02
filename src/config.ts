@@ -238,14 +238,6 @@ const assertIntegrity = (value: unknown, label: string): DocsCacheIntegrity => {
 	return { type, value: integrityValue };
 };
 
-const assertTocFormat = (value: unknown, label: string): TocFormat => {
-	const format = assertString(value, label) as TocFormat;
-	if (format !== "tree" && format !== "compressed") {
-		throw new Error(`${label} must be "tree" or "compressed".`);
-	}
-	return format;
-};
-
 const normalizeTocConfig = (
 	toc: boolean | TocFormat | undefined,
 	tocFormat: TocFormat | undefined,
