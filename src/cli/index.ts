@@ -238,9 +238,7 @@ const runCommand = async (
 	}
 	if (command === "clean-cache") {
 		const { cleanGitCache } = await import("../clean-git-cache");
-		const result = await cleanGitCache({
-			json: options.json,
-		});
+		const result = await cleanGitCache();
 		if (options.json) {
 			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 		} else if (result.removed) {
