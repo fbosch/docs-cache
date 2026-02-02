@@ -8,7 +8,7 @@ import { assertSafeSourceId } from "../source-id";
 
 const execFileAsync = promisify(execFile);
 
-const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
+const DEFAULT_TIMEOUT_MS = 120000; // 120 seconds (2 minutes)
 
 const git = async (
 	args: string[],
@@ -30,7 +30,7 @@ const git = async (
 		{
 			cwd: options?.cwd,
 			timeout: options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-			maxBuffer: 1024 * 1024,
+			maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large repos
 			env: {
 				PATH: process.env.PATH,
 				HOME: process.env.HOME,
@@ -74,16 +74,10 @@ const runGitArchive = async (
 ) => {
 	const archivePath = path.join(outDir, "archive.tar");
 	await git(
-		[
-			"archive",
-			"--remote",
-			repo,
-			"--format=tar",
-			"--output",
-			archivePath,
-			resolvedCommit,
-		],
-		{ timeoutMs },
+		["-C", outDir, "checkout", "--quiet", "--detach", params.resolvedCommit],
+		{
+			timeoutMs: params.timeoutMs,
+		},
 	);
 	await execFileAsync("tar", ["-xf", archivePath, "-C", outDir], {
 		timeout: timeoutMs ?? DEFAULT_TIMEOUT_MS,
@@ -148,12 +142,9 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 			});
 		}
 	}
-	await git(
-		["-C", outDir, "checkout", "--force", "--detach", params.resolvedCommit],
-		{
-			timeoutMs: params.timeoutMs,
-		},
-	);
+	await git(["-C", outDir, "checkout", "--detach", params.resolvedCommit], {
+		timeoutMs: params.timeoutMs,
+	});
 };
 
 const archiveRepo = async (params: FetchParams) => {
