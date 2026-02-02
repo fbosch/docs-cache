@@ -126,16 +126,6 @@ const generateSourceToc = (
 	format: TocFormat = "compressed",
 ): string => {
 	const lines: string[] = [];
-	lines.push("---");
-	lines.push(`id: ${entry.id}`);
-	lines.push(`repository: ${entry.repo}`);
-	lines.push(`ref: ${entry.ref}`);
-	lines.push(`commit: ${entry.resolvedCommit}`);
-	if (entry.targetDir) {
-		lines.push(`targetDir: ${entry.targetDir}`);
-	}
-	lines.push("---");
-	lines.push("");
 
 	if (format === "tree") {
 		// For tree format, keep the headers for readability

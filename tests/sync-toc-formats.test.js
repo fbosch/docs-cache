@@ -70,13 +70,14 @@ test("sync writes TOC with compressed format by default", async () => {
 	// Check per-source TOC exists and uses compressed format (Vercel-style)
 	const sourceTocPath = path.join(cacheDir, "local", "TOC.md");
 	const sourceToc = await readFile(sourceTocPath, "utf8");
-	assert.ok(sourceToc.includes("repository: https://example.com/repo.git"));
 	// Compressed format should start with label and be pipe-separated
 	assert.ok(sourceToc.includes("[local Docs Index]"));
 	assert.ok(sourceToc.includes("root:{README.md}"));
 	assert.ok(sourceToc.includes("docs:{guide.md}"));
 	assert.ok(sourceToc.includes("|"));
-	// Should NOT have title or ## Files header
+	// Should NOT have frontmatter, title or ## Files header
+	assert.ok(!sourceToc.includes("---"));
+	assert.ok(!sourceToc.includes("repository:"));
 	assert.ok(!sourceToc.includes("# local - Documentation"));
 	assert.ok(!sourceToc.includes("## Files"));
 });
@@ -147,11 +148,13 @@ test("sync writes TOC with tree format when specified", async () => {
 	const sourceTocPath = path.join(cacheDir, "local", "TOC.md");
 	const sourceToc = await readFile(sourceTocPath, "utf8");
 	assert.ok(sourceToc.includes("# local - Documentation"));
-	assert.ok(sourceToc.includes("repository: https://example.com/repo.git"));
 	// Tree format should have directory structure
 	assert.ok(sourceToc.includes("- docs/"));
 	assert.ok(sourceToc.includes("  - [guide.md](./docs/guide.md)"));
 	assert.ok(sourceToc.includes("- [README.md](./README.md)"));
+	// Should NOT have frontmatter
+	assert.ok(!sourceToc.includes("---"));
+	assert.ok(!sourceToc.includes("repository:"));
 });
 
 test("sync writes TOC with compressed format via defaults.tocFormat", async () => {
@@ -216,7 +219,7 @@ test("sync writes TOC with compressed format via defaults.tocFormat", async () =
 
 	const sourceTocPath = path.join(cacheDir, "local", "TOC.md");
 	const sourceToc = await readFile(sourceTocPath, "utf8");
-	assert.ok(sourceToc.includes("# local - Documentation"));
+	assert.ok(sourceToc.includes("[local Docs Index]"));
 	assert.ok(sourceToc.includes("root:{README.md}"));
 });
 
@@ -288,6 +291,8 @@ test("sync writes TOC with tree format via defaults.tocFormat", async () => {
 	// Tree format should have directory structure
 	assert.ok(sourceToc.includes("- docs/"));
 	assert.ok(sourceToc.includes("  - [guide.md](./docs/guide.md)"));
+	// Should NOT have frontmatter
+	assert.ok(!sourceToc.includes("---"));
 });
 
 test("sync supports backward compatibility: toc=true uses compressed format", async () => {
@@ -352,7 +357,7 @@ test("sync supports backward compatibility: toc=true uses compressed format", as
 
 	const sourceTocPath = path.join(cacheDir, "local", "TOC.md");
 	const sourceToc = await readFile(sourceTocPath, "utf8");
-	assert.ok(sourceToc.includes("# local - Documentation"));
+	assert.ok(sourceToc.includes("[local Docs Index]"));
 	assert.ok(sourceToc.includes("root:{README.md}"));
 });
 
@@ -422,4 +427,6 @@ test("sync supports backward compatibility: toc as format string", async () => {
 	// Tree format should have directory structure
 	assert.ok(sourceToc.includes("- docs/"));
 	assert.ok(sourceToc.includes("  - [guide.md](./docs/guide.md)"));
+	// Should NOT have frontmatter
+	assert.ok(!sourceToc.includes("---"));
 });
