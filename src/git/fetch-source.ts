@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
+import { access, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -10,49 +11,97 @@ const execFileAsync = promisify(execFile);
 
 const DEFAULT_TIMEOUT_MS = 120000; // 120 seconds (2 minutes)
 
+// Get platform-specific cache directory
+const getCacheBaseDir = (): string => {
+	const home = homedir();
+	switch (process.platform) {
+		case "darwin":
+			return path.join(home, "Library", "Caches");
+		case "win32":
+			return process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
+		default:
+			// Linux and other Unix-like systems (XDG Base Directory)
+			return process.env.XDG_CACHE_HOME || path.join(home, ".cache");
+	}
+};
+
+// Persistent git cache directory in user's cache location
+const GIT_CACHE_DIR = path.join(getCacheBaseDir(), "docs-cache-git");
+
+// Helper to check if a path exists
+const exists = async (filePath: string): Promise<boolean> => {
+	try {
+		await access(filePath);
+		return true;
+	} catch {
+		return false;
+	}
+};
+
 const git = async (
 	args: string[],
-	options?: { cwd?: string; timeoutMs?: number },
+	options?: { cwd?: string; timeoutMs?: number; allowFileProtocol?: boolean },
 ) => {
-	await execFileAsync(
-		"git",
-		[
-			"-c",
-			"core.hooksPath=/dev/null",
-			"-c",
-			"submodule.recurse=false",
-			"-c",
-			"protocol.file.allow=never",
-			"-c",
-			"protocol.ext.allow=never",
-			...args,
-		],
-		{
-			cwd: options?.cwd,
-			timeout: options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-			maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large repos
-			env: {
-				PATH: process.env.PATH,
-				HOME: process.env.HOME,
-				USER: process.env.USER,
-				USERPROFILE: process.env.USERPROFILE,
-				TMPDIR: process.env.TMPDIR,
-				TMP: process.env.TMP,
-				TEMP: process.env.TEMP,
-				SYSTEMROOT: process.env.SYSTEMROOT,
-				WINDIR: process.env.WINDIR,
-				SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK,
-				SSH_AGENT_PID: process.env.SSH_AGENT_PID,
-				HTTP_PROXY: process.env.HTTP_PROXY,
-				HTTPS_PROXY: process.env.HTTPS_PROXY,
-				NO_PROXY: process.env.NO_PROXY,
-				GIT_TERMINAL_PROMPT: "0",
-				GIT_CONFIG_NOSYSTEM: "1",
-				GIT_CONFIG_NOGLOBAL: "1",
-				...(process.platform === "win32" ? {} : { GIT_ASKPASS: "/bin/false" }),
-			},
+	const configs = [
+		"-c",
+		"core.hooksPath=/dev/null",
+		"-c",
+		"submodule.recurse=false",
+		"-c",
+		"protocol.ext.allow=never",
+	];
+
+	// Only allow file protocol if explicitly requested (for local cache clones)
+	if (!options?.allowFileProtocol) {
+		configs.push("-c", "protocol.file.allow=never");
+	}
+
+	await execFileAsync("git", [...configs, ...args], {
+		cwd: options?.cwd,
+		timeout: options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+		maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large repos
+		env: {
+			PATH: process.env.PATH,
+			HOME: process.env.HOME,
+			USER: process.env.USER,
+			USERPROFILE: process.env.USERPROFILE,
+			TMPDIR: process.env.TMPDIR,
+			TMP: process.env.TMP,
+			TEMP: process.env.TEMP,
+			SYSTEMROOT: process.env.SYSTEMROOT,
+			WINDIR: process.env.WINDIR,
+			SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK,
+			SSH_AGENT_PID: process.env.SSH_AGENT_PID,
+			HTTP_PROXY: process.env.HTTP_PROXY,
+			HTTPS_PROXY: process.env.HTTPS_PROXY,
+			NO_PROXY: process.env.NO_PROXY,
+			GIT_TERMINAL_PROMPT: "0",
+			GIT_CONFIG_NOSYSTEM: "1",
+			GIT_CONFIG_NOGLOBAL: "1",
+			...(process.platform === "win32" ? {} : { GIT_ASKPASS: "/bin/false" }),
 		},
-	);
+	});
+};
+
+// Hash a repo URL to create a safe directory name
+const hashRepoUrl = (repo: string): string => {
+	return createHash("sha256").update(repo).digest("hex").substring(0, 16);
+};
+
+// Get the persistent cache path for a repository
+const getPersistentCachePath = (repo: string): string => {
+	const repoHash = hashRepoUrl(repo);
+	return path.join(GIT_CACHE_DIR, repoHash);
+};
+
+// Check if a git repo is valid
+const isValidGitRepo = async (repoPath: string): Promise<boolean> => {
+	try {
+		await git(["rev-parse", "--git-dir"], { cwd: repoPath });
+		return true;
+	} catch {
+		return false;
+	}
 };
 
 type FetchParams = {
@@ -74,10 +123,16 @@ const runGitArchive = async (
 ) => {
 	const archivePath = path.join(outDir, "archive.tar");
 	await git(
-		["-C", outDir, "checkout", "--quiet", "--detach", params.resolvedCommit],
-		{
-			timeoutMs: params.timeoutMs,
-		},
+		[
+			"archive",
+			"--remote",
+			repo,
+			"--format=tar",
+			"--output",
+			archivePath,
+			resolvedCommit,
+		],
+		{ timeoutMs },
 	);
 	await execFileAsync("tar", ["-xf", archivePath, "-C", outDir], {
 		timeout: timeoutMs ?? DEFAULT_TIMEOUT_MS,
@@ -142,9 +197,103 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 			});
 		}
 	}
-	await git(["-C", outDir, "checkout", "--detach", params.resolvedCommit], {
+	await git(
+		["-C", outDir, "checkout", "--quiet", "--detach", params.resolvedCommit],
+		{
+			timeoutMs: params.timeoutMs,
+		},
+	);
+};
+
+// Clone or update a repository using persistent cache
+const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
+	const cachePath = getPersistentCachePath(params.repo);
+	const cacheExists = await exists(cachePath);
+	const isCommitRef = /^[0-9a-f]{7,40}$/i.test(params.ref);
+	const useSparse = isSparseEligible(params.include);
+
+	// Ensure the git cache directory exists
+	await mkdir(GIT_CACHE_DIR, { recursive: true });
+
+	// If cache exists and is valid, try to fetch and update
+	if (cacheExists && (await isValidGitRepo(cachePath))) {
+		try {
+			// Fetch the specific ref or commit
+			const fetchArgs = ["fetch", "origin"];
+			if (!isCommitRef) {
+				// Fetch specific branch/tag
+				const refSpec =
+					params.ref === "HEAD"
+						? "HEAD"
+						: `${params.ref}:refs/remotes/origin/${params.ref}`;
+				fetchArgs.push(refSpec, "--depth", String(params.depth));
+			} else {
+				// For commit refs, fetch the default branch and hope the commit is there
+				fetchArgs.push("--depth", String(params.depth));
+			}
+
+			await git(["-C", cachePath, ...fetchArgs], {
+				timeoutMs: params.timeoutMs,
+			});
+		} catch (error) {
+			// Fetch failed, remove corrupt cache and re-clone
+			await rm(cachePath, { recursive: true, force: true });
+			await cloneRepo(params, cachePath);
+		}
+	} else {
+		// No cache or invalid - do fresh clone
+		if (cacheExists) {
+			await rm(cachePath, { recursive: true, force: true });
+		}
+		await cloneRepo(params, cachePath);
+	}
+
+	// Now copy from cache to outDir with the specific commit checked out
+	await mkdir(outDir, { recursive: true });
+
+	// Clone from local cache (much faster than from remote)
+	const localCloneArgs = [
+		"clone",
+		"--no-checkout",
+		"--filter=blob:none",
+		"--depth",
+		String(params.depth),
+		"--recurse-submodules=no",
+		"--no-tags",
+	];
+
+	if (useSparse) {
+		localCloneArgs.push("--sparse");
+	}
+
+	if (!isCommitRef) {
+		localCloneArgs.push("--single-branch");
+		if (params.ref !== "HEAD") {
+			localCloneArgs.push("--branch", params.ref);
+		}
+	}
+
+	localCloneArgs.push(cachePath, outDir);
+	await git(localCloneArgs, {
 		timeoutMs: params.timeoutMs,
+		allowFileProtocol: true,
 	});
+
+	if (useSparse) {
+		const sparsePaths = extractSparsePaths(params.include);
+		if (sparsePaths.length > 0) {
+			await git(["-C", outDir, "sparse-checkout", "set", ...sparsePaths], {
+				timeoutMs: params.timeoutMs,
+			});
+		}
+	}
+
+	await git(
+		["-C", outDir, "checkout", "--quiet", "--detach", params.resolvedCommit],
+		{
+			timeoutMs: params.timeoutMs,
+		},
+	);
 };
 
 const archiveRepo = async (params: FetchParams) => {
@@ -180,7 +329,7 @@ export const fetchSource = async (params: FetchParams) => {
 			path.join(tmpdir(), `docs-cache-${params.sourceId}-`),
 		);
 		try {
-			await cloneRepo(params, tempDir);
+			await cloneOrUpdateRepo(params, tempDir);
 			return {
 				repoDir: tempDir,
 				cleanup: async () => {
