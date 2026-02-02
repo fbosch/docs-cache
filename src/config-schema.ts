@@ -22,7 +22,6 @@ export const DefaultsSchema = z
 		maxFiles: z.number().min(1).optional(),
 		allowHosts: z.array(z.string().min(1)).min(1),
 		toc: z.union([z.boolean(), TocFormatSchema]).optional(),
-		tocFormat: TocFormatSchema.optional(),
 	})
 	.strict();
 
@@ -42,7 +41,6 @@ export const SourceSchema = z
 		maxFiles: z.number().min(1).optional(),
 		integrity: IntegritySchema.optional(),
 		toc: z.union([z.boolean(), TocFormatSchema]).optional(),
-		tocFormat: TocFormatSchema.optional(),
 	})
 	.strict();
 

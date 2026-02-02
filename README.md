@@ -19,7 +19,7 @@ Documentation is cached in a gitignored location, exposed to agent and tool targ
 - **Fast**: Local cache avoids network roundtrips after sync.
 - **Flexible**: Cache full repos or just the subdirectories you need.
 
-> **Note**: Sources are downloaded to a local cache. If you provide a `targetDir`, `docs-cache` creates a symlink or copy from the cache to that target directory. The target should be outside `.docs`.
+> **Note**: Sources are downloaded to a local cache. If you provide a `targetDir`, `docs-cache` creates a symlink or copy from the cache to that target directory.
 
 ## Usage
 
@@ -99,9 +99,7 @@ All fields in `defaults` apply to all sources unless overridden per-source.
 | `maxBytes`   | Maximum total bytes to materialize. Default: `200000000` (200 MB).                                        |
 | `maxFiles`   | Maximum total files to materialize.                                                                       |
 | `allowHosts` | Allowed Git hosts. Default: `["github.com", "gitlab.com"]`.                                               |
-| `toc`        | Generate per-source `TOC.md` listing all documentation files. Default: `true`.                            |
-
-> **Note**: Git operation timeout can be configured via the `--timeout-ms` CLI flag (default: 120000ms / 2 minutes).
+| `toc`        | Generate per-source `TOC.md`. Default: `true`. Supports `true`, `false`, or a format (`"tree"`, `"compressed"`). |
 
 ### Source options
 
@@ -124,7 +122,7 @@ All fields in `defaults` apply to all sources unless overridden per-source.
 | `required`   | Whether missing sources should fail.                             |
 | `maxBytes`   | Maximum total bytes to materialize.                              |
 | `maxFiles`   | Maximum total files to materialize.                              |
-| `toc`        | Generate per-source `TOC.md` listing all documentation files.    |
+| `toc`        | Generate per-source `TOC.md`. Supports `true`, `false`, or a format (`"tree"`, `"compressed"`). |
 
 > **Note**: Sources are always downloaded to `.docs/<id>/`. If you provide a `targetDir`, `docs-cache` will create a symlink or copy pointing from the cache to that target directory. The target should be outside `.docs`. Git operation timeout is configured via the `--timeout-ms` CLI flag, not as a per-source configuration option.
 

@@ -104,7 +104,7 @@ test("sync writes TOC with tree format when specified", async () => {
 			{
 				id: "local",
 				repo: "https://example.com/repo.git",
-				tocFormat: "tree",
+				toc: "tree",
 			},
 		],
 	};
@@ -157,7 +157,7 @@ test("sync writes TOC with tree format when specified", async () => {
 	assert.ok(!sourceToc.includes("repository:"));
 });
 
-test("sync writes TOC with compressed format via defaults.tocFormat", async () => {
+test("sync writes TOC with compressed format via defaults.toc", async () => {
 	const tmpRoot = path.join(
 		tmpdir(),
 		`docs-cache-toc-defaults-compressed-${Date.now().toString(36)}`,
@@ -174,7 +174,7 @@ test("sync writes TOC with compressed format via defaults.tocFormat", async () =
 		$schema:
 			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
 		defaults: {
-			tocFormat: "compressed",
+			toc: "compressed",
 		},
 		sources: [
 			{
@@ -223,7 +223,7 @@ test("sync writes TOC with compressed format via defaults.tocFormat", async () =
 	assert.ok(sourceToc.includes("root:{README.md}"));
 });
 
-test("sync writes TOC with tree format via defaults.tocFormat", async () => {
+test("sync writes TOC with tree format via defaults.toc", async () => {
 	const tmpRoot = path.join(
 		tmpdir(),
 		`docs-cache-toc-defaults-tree-${Date.now().toString(36)}`,
@@ -241,7 +241,7 @@ test("sync writes TOC with tree format via defaults.tocFormat", async () => {
 		$schema:
 			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
 		defaults: {
-			tocFormat: "tree",
+			toc: "tree",
 		},
 		sources: [
 			{
@@ -295,7 +295,7 @@ test("sync writes TOC with tree format via defaults.tocFormat", async () => {
 	assert.ok(!sourceToc.includes("---"));
 });
 
-test("sync supports backward compatibility: toc=true uses compressed format", async () => {
+test("sync supports toc=true using compressed format", async () => {
 	const tmpRoot = path.join(
 		tmpdir(),
 		`docs-cache-toc-backward-compat-${Date.now().toString(36)}`,

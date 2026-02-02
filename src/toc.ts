@@ -210,17 +210,13 @@ export const writeToc = async (params: {
 
 		// Determine if TOC should be generated and what format to use
 		const sourceTocConfig = source?.toc;
-		const sourceTocFormat = source?.tocFormat;
 
 		// Determine if TOC is enabled (default: true)
 		const tocEnabled = sourceTocConfig !== false;
 
 		// Determine TOC format
 		let tocFormat: TocFormat = "compressed"; // default
-		if (sourceTocFormat) {
-			tocFormat = sourceTocFormat;
-		} else if (typeof sourceTocConfig === "string") {
-			// Backward compatibility: if toc is a format string, use it
+		if (typeof sourceTocConfig === "string") {
 			tocFormat = sourceTocConfig;
 		}
 

@@ -26,7 +26,6 @@ export interface DocsCacheDefaults {
 	maxFiles?: number;
 	allowHosts: string[];
 	toc?: boolean | TocFormat;
-	tocFormat?: TocFormat;
 }
 
 export interface DocsCacheSource {
@@ -44,7 +43,6 @@ export interface DocsCacheSource {
 	maxFiles?: number;
 	integrity?: DocsCacheIntegrity;
 	toc?: boolean | TocFormat;
-	tocFormat?: TocFormat;
 }
 
 export interface DocsCacheConfig {
@@ -70,7 +68,6 @@ export interface DocsCacheResolvedSource {
 	maxFiles?: number;
 	integrity?: DocsCacheIntegrity;
 	toc?: boolean | TocFormat;
-	tocFormat?: TocFormat;
 }
 
 export const DEFAULT_CONFIG_FILENAME = "docs.config.json";
@@ -88,7 +85,7 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 		required: true,
 		maxBytes: 200000000,
 		allowHosts: ["github.com", "gitlab.com"],
-		tocFormat: "compressed",
+		toc: true,
 	},
 	sources: [],
 };
@@ -238,33 +235,6 @@ const assertIntegrity = (value: unknown, label: string): DocsCacheIntegrity => {
 	return { type, value: integrityValue };
 };
 
-const normalizeTocConfig = (
-	toc: boolean | TocFormat | undefined,
-	tocFormat: TocFormat | undefined,
-): { toc?: boolean | TocFormat; tocFormat?: TocFormat } => {
-	// If tocFormat is explicitly set, use it (and keep toc if it was set too)
-	if (tocFormat !== undefined) {
-		if (toc !== undefined) {
-			return { toc, tocFormat };
-		}
-		return { tocFormat };
-	}
-	// If toc is a format string, set tocFormat but also keep toc
-	if (typeof toc === "string") {
-		return { toc, tocFormat: toc };
-	}
-	// If toc is a boolean, keep it and set tocFormat accordingly
-	if (typeof toc === "boolean") {
-		if (toc) {
-			return { toc, tocFormat: "compressed" };
-		}
-		// When toc is explicitly false, omit tocFormat to avoid setting a format for a disabled TOC
-		return { toc };
-	}
-	// Default case - no toc or tocFormat provided
-	return {};
-};
-
 export const validateConfig = (input: unknown): DocsCacheConfig => {
 	if (!isRecord(input)) {
 		throw new Error("Config must be a JSON object.");
@@ -292,12 +262,6 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 		if (!isRecord(defaultsInput)) {
 			throw new Error("defaults must be an object.");
 		}
-
-		// Normalize toc/tocFormat config for defaults
-		const normalizedToc = normalizeTocConfig(
-			defaultsInput.toc as boolean | TocFormat | undefined,
-			defaultsInput.tocFormat as TocFormat | undefined,
-		);
 
 		defaults = {
 			ref:
@@ -336,11 +300,10 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				defaultsInput.allowHosts !== undefined
 					? assertStringArray(defaultsInput.allowHosts, "defaults.allowHosts")
 					: defaultValues.allowHosts,
-			toc: normalizedToc.toc,
-			tocFormat:
-				normalizedToc.tocFormat !== undefined
-					? normalizedToc.tocFormat
-					: defaultValues.tocFormat,
+			toc:
+				defaultsInput.toc !== undefined
+					? (defaultsInput.toc as boolean | TocFormat)
+					: defaultValues.toc,
 		};
 	} else if (targetModeOverride !== undefined) {
 		defaults = {
@@ -428,16 +391,8 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 			);
 		}
 
-		// Normalize toc/tocFormat config for this source
-		const normalizedToc = normalizeTocConfig(
-			entry.toc as boolean | TocFormat | undefined,
-			entry.tocFormat as TocFormat | undefined,
-		);
-		if (normalizedToc.toc !== undefined) {
-			source.toc = normalizedToc.toc;
-		}
-		if (normalizedToc.tocFormat !== undefined) {
-			source.tocFormat = normalizedToc.tocFormat;
+		if (entry.toc !== undefined) {
+			source.toc = entry.toc as boolean | TocFormat;
 		}
 
 		return source;
@@ -486,7 +441,6 @@ export const resolveSources = (
 		maxFiles: source.maxFiles ?? defaults.maxFiles,
 		integrity: source.integrity,
 		toc: source.toc ?? defaults.toc,
-		tocFormat: source.tocFormat ?? defaults.tocFormat,
 	}));
 };
 
