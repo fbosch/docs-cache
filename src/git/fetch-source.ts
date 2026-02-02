@@ -148,9 +148,12 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 			});
 		}
 	}
-	await git(["-C", outDir, "checkout", "--detach", params.resolvedCommit], {
-		timeoutMs: params.timeoutMs,
-	});
+	await git(
+		["-C", outDir, "checkout", "--force", "--detach", params.resolvedCommit],
+		{
+			timeoutMs: params.timeoutMs,
+		},
+	);
 };
 
 const archiveRepo = async (params: FetchParams) => {
