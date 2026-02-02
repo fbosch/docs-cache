@@ -1,5 +1,7 @@
 import { cp, mkdir, readdir, rm, symlink } from "node:fs/promises";
 import path from "node:path";
+import { MANIFEST_FILENAME } from "./manifest";
+import { DEFAULT_TOC_FILENAME } from "./paths";
 
 type TargetDeps = {
 	cp: typeof cp;
@@ -28,8 +30,16 @@ const resolveSourceDir = async (params: TargetParams, deps: TargetDeps) => {
 		return params.sourceDir;
 	}
 	const entries = await deps.readdir(params.sourceDir, { withFileTypes: true });
-	const directories = entries.filter((entry) => entry.isDirectory());
-	if (directories.length !== 1) {
+	const metaFiles = new Set([MANIFEST_FILENAME, DEFAULT_TOC_FILENAME]);
+	const nonMeta = entries.filter((entry) => {
+		if (entry.isFile() && metaFiles.has(entry.name)) {
+			return false;
+		}
+		return true;
+	});
+	const directories = nonMeta.filter((entry) => entry.isDirectory());
+	const nonMetaFiles = nonMeta.filter((entry) => entry.isFile());
+	if (directories.length !== 1 || nonMetaFiles.length > 0) {
 		return params.sourceDir;
 	}
 	return path.join(params.sourceDir, directories[0].name);

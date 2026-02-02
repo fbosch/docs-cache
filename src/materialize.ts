@@ -27,6 +27,7 @@ type MaterializeParams = {
 	exclude?: string[];
 	maxBytes: number;
 	maxFiles?: number;
+	unwrapSingleRootDir?: boolean;
 };
 
 type ManifestStats = {
@@ -69,6 +70,44 @@ const openFileNoFollow = async (filePath: string) => {
 			return await open(filePath, "r");
 		}
 		throw error;
+	}
+};
+
+const resolveUnwrapPrefix = (
+	entries: Array<{ normalized: string }>,
+	unwrapSingleRootDir?: boolean,
+) => {
+	if (!unwrapSingleRootDir || entries.length === 0) {
+		return null;
+	}
+	let prefix = "";
+	while (true) {
+		let rootDir: string | null = null;
+		for (const entry of entries) {
+			const remaining = prefix
+				? entry.normalized.replace(prefix, "")
+				: entry.normalized;
+			const parts = remaining.split("/");
+			if (parts.length < 2) {
+				return prefix || null;
+			}
+			const nextRoot = parts[0];
+			if (!rootDir) {
+				rootDir = nextRoot;
+				continue;
+			}
+			if (rootDir !== nextRoot) {
+				return prefix || null;
+			}
+		}
+		if (!rootDir) {
+			return prefix || null;
+		}
+		const nextPrefix = `${prefix}${rootDir}/`;
+		if (nextPrefix === prefix) {
+			return prefix || null;
+		}
+		prefix = nextPrefix;
 	}
 };
 
@@ -139,9 +178,16 @@ export const materializeSource = async (params: MaterializeParams) => {
 				normalized: normalizePath(relativePath),
 			}))
 			.sort((left, right) => left.normalized.localeCompare(right.normalized));
+		const unwrapPrefix = resolveUnwrapPrefix(
+			entries,
+			params.unwrapSingleRootDir,
+		);
 		const targetDirs = new Set<string>();
-		for (const { relativePath } of entries) {
-			targetDirs.add(path.dirname(relativePath));
+		for (const { relativePath, normalized } of entries) {
+			const rootPath = unwrapPrefix
+				? normalized.replace(unwrapPrefix, "")
+				: relativePath;
+			targetDirs.add(path.dirname(rootPath));
 		}
 		await Promise.all(
 			Array.from(targetDirs, (dir) =>
@@ -197,7 +243,10 @@ export const materializeSource = async (params: MaterializeParams) => {
 						if (!stats.isFile()) {
 							return null;
 						}
-						const targetPath = path.join(tempDir, entry.relativePath);
+						const normalizedPath = unwrapPrefix
+							? entry.normalized.replace(unwrapPrefix, "")
+							: entry.relativePath;
+						const targetPath = path.join(tempDir, normalizedPath);
 						ensureSafePath(tempDir, targetPath);
 						if (stats.size >= STREAM_COPY_THRESHOLD_BYTES) {
 							const reader = createReadStream(filePath, {
@@ -211,7 +260,9 @@ export const materializeSource = async (params: MaterializeParams) => {
 							await writeFile(targetPath, data);
 						}
 						return {
-							path: entry.normalized,
+							path: unwrapPrefix
+								? entry.normalized.replace(unwrapPrefix, "")
+								: entry.normalized,
 							size: stats.size,
 						};
 					} finally {

@@ -131,6 +131,12 @@ type FetchParams = {
 	timeoutMs?: number;
 };
 
+type FetchResult = {
+	repoDir: string;
+	cleanup: () => Promise<void>;
+	fromCache: boolean;
+};
+
 const runGitArchive = async (
 	repo: string,
 	resolvedCommit: string,
@@ -344,7 +350,9 @@ const archiveRepo = async (params: FetchParams) => {
 	}
 };
 
-export const fetchSource = async (params: FetchParams) => {
+export const fetchSource = async (
+	params: FetchParams,
+): Promise<FetchResult> => {
 	assertSafeSourceId(params.sourceId, "sourceId");
 	try {
 		const archiveDir = await archiveRepo(params);
@@ -353,6 +361,7 @@ export const fetchSource = async (params: FetchParams) => {
 			cleanup: async () => {
 				await removeDir(archiveDir);
 			},
+			fromCache: false,
 		};
 	} catch {
 		const tempDir = await mkdtemp(
@@ -365,6 +374,7 @@ export const fetchSource = async (params: FetchParams) => {
 				cleanup: async () => {
 					await removeDir(tempDir);
 				},
+				fromCache: true,
 			};
 		} catch (error) {
 			await removeDir(tempDir);

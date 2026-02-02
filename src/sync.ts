@@ -368,9 +368,6 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 				index += 1;
 				const { result, source } = job;
 				const lockEntry = plan.lockData?.sources?.[source.id];
-				if (!options.json) {
-					ui.step("Fetching", source.id);
-				}
 				const fetch = await runFetch({
 					sourceId: source.id,
 					repo: source.repo,
@@ -380,6 +377,12 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					include: source.include ?? defaults.include,
 					timeoutMs: options.timeoutMs,
 				});
+				if (!options.json) {
+					ui.step(
+						fetch.fromCache ? "Restoring from cache" : "Downloading repo",
+						source.id,
+					);
+				}
 				try {
 					const manifestPath = path.join(
 						plan.cacheDir,
@@ -389,6 +392,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					if (
 						result.status !== "up-to-date" &&
 						lockEntry?.manifestSha256 &&
+						lockEntry?.rulesSha256 === result.rulesSha256 &&
 						(await exists(manifestPath))
 					) {
 						const computed = await computeManifestHash({
@@ -412,6 +416,9 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 							return;
 						}
 					}
+					if (!options.json) {
+						ui.step("Building cache layout", source.id);
+					}
 					const stats = await runMaterialize({
 						sourceId: source.id,
 						repoDir: fetch.repoDir,
@@ -420,6 +427,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						exclude: source.exclude,
 						maxBytes: source.maxBytes ?? defaults.maxBytes,
 						maxFiles: source.maxFiles ?? defaults.maxFiles,
+						unwrapSingleRootDir: source.unwrapSingleRootDir,
 					});
 					if (source.targetDir) {
 						const resolvedTarget = resolveTargetDir(
