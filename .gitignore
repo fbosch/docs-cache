@@ -11,3 +11,4 @@ docs.lock
 coverage
 TODO.md
 .docs/
+benchmarks/

@@ -46,13 +46,18 @@ export const verifyCache = async (options: VerifyOptions) => {
 			let sizeMismatchCount = 0;
 			for await (const entry of streamManifestEntries(directory)) {
 				const filePath = path.join(directory, entry.path);
-				if (!(await exists(filePath))) {
-					missingCount += 1;
-					continue;
-				}
-				const info = await stat(filePath);
-				if (info.size !== entry.size) {
-					sizeMismatchCount += 1;
+				try {
+					const info = await stat(filePath);
+					if (info.size !== entry.size) {
+						sizeMismatchCount += 1;
+					}
+				} catch (error) {
+					const code = (error as NodeJS.ErrnoException).code;
+					if (code === "ENOENT" || code === "ENOTDIR") {
+						missingCount += 1;
+						continue;
+					}
+					throw error;
 				}
 			}
 			const issues: string[] = [];
@@ -74,13 +79,17 @@ export const verifyCache = async (options: VerifyOptions) => {
 				ok: issues.length === 0,
 				issues,
 			};
-		} catch (_error) {
-			return {
-				ok: false,
-				issues: [
-					label === "source" ? "missing manifest" : "missing target manifest",
-				],
-			};
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code === "ENOENT" || code === "ENOTDIR") {
+				return {
+					ok: false,
+					issues: [
+						label === "source" ? "missing manifest" : "missing target manifest",
+					],
+				};
+			}
+			throw error;
 		}
 	};
 

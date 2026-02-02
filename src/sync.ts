@@ -275,6 +275,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		const defaults = plan.defaults;
 		const runFetch = deps.fetchSource ?? fetchSource;
 		const runMaterialize = deps.materializeSource ?? materializeSource;
+		const docsPresence = new Map<string, boolean>();
 		const buildJobs = async (ids?: string[], force?: boolean) => {
 			const pick = ids?.length
 				? plan.results.filter((result) => ids.includes(result.id))
@@ -285,9 +286,16 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					if (!source) {
 						return null;
 					}
-					const docsPresent = await hasDocs(plan.cacheDir, result.id);
+					if (force) {
+						return { result, source };
+					}
+					let docsPresent = docsPresence.get(result.id);
+					if (docsPresent === undefined) {
+						docsPresent = await hasDocs(plan.cacheDir, result.id);
+						docsPresence.set(result.id, docsPresent);
+					}
 					const needsMaterialize =
-						force || result.status !== "up-to-date" || !docsPresent;
+						result.status !== "up-to-date" || !docsPresent;
 					return needsMaterialize ? { result, source } : null;
 				}),
 			);
