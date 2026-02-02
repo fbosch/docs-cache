@@ -1,6 +1,6 @@
 import { access, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { DocsCacheResolvedSource } from "./config";
+import type { DocsCacheResolvedSource, TocFormat } from "./config";
 import type { DocsCacheLock } from "./lock";
 import { DEFAULT_TOC_FILENAME, resolveTargetDir, toPosixPath } from "./paths";
 
@@ -69,7 +69,20 @@ const renderTocTree = (tree: TocTree, depth: number, lines: string[]) => {
 	}
 };
 
-const generateSourceToc = (entry: TocEntry): string => {
+const renderCompressedToc = (files: string[], lines: string[]) => {
+	// Sort files alphabetically
+	const sortedFiles = [...files].sort((a, b) => a.localeCompare(b));
+
+	// Render as a flat list with paths
+	for (const file of sortedFiles) {
+		lines.push(`- [${file}](./${file})`);
+	}
+};
+
+const generateSourceToc = (
+	entry: TocEntry,
+	format: TocFormat = "compressed",
+): string => {
 	const lines: string[] = [];
 	lines.push("---");
 	lines.push(`id: ${entry.id}`);
@@ -85,8 +98,15 @@ const generateSourceToc = (entry: TocEntry): string => {
 	lines.push("");
 	lines.push("## Files");
 	lines.push("");
-	const tree = createTocTree(entry.files);
-	renderTocTree(tree, 0, lines);
+
+	if (format === "tree") {
+		const tree = createTocTree(entry.files);
+		renderTocTree(tree, 0, lines);
+	} else {
+		// compressed format
+		renderCompressedToc(entry.files, lines);
+	}
+
 	lines.push("");
 
 	return lines.join("\n");
@@ -154,11 +174,33 @@ export const writeToc = async (params: {
 			files,
 		};
 
-		// Generate per-source TOC if the source has TOC enabled
-		const sourceToc = source?.toc ?? true;
+		// Determine if TOC should be generated and what format to use
+		const sourceTocConfig = source?.toc;
+		const sourceTocFormat = source?.tocFormat;
+
+		// Determine if TOC is enabled
+		let tocEnabled = true; // default
+		if (sourceTocConfig === false) {
+			tocEnabled = false;
+		} else if (typeof sourceTocConfig === "string") {
+			// If toc is a format string, it's enabled
+			tocEnabled = true;
+		} else if (sourceTocConfig === true || sourceTocConfig === undefined) {
+			tocEnabled = true;
+		}
+
+		// Determine TOC format
+		let tocFormat: TocFormat = "compressed"; // default
+		if (sourceTocFormat) {
+			tocFormat = sourceTocFormat;
+		} else if (typeof sourceTocConfig === "string") {
+			// Backward compatibility: if toc is a format string, use it
+			tocFormat = sourceTocConfig;
+		}
+
 		const sourceTocPath = path.join(sourceDir, DEFAULT_TOC_FILENAME);
 
-		if (sourceToc) {
+		if (tocEnabled) {
 			const result = resultsById.get(id);
 			if (result?.status === "up-to-date") {
 				try {
@@ -168,7 +210,7 @@ export const writeToc = async (params: {
 					// Missing TOC; regenerate below.
 				}
 			}
-			const sourceTocContent = generateSourceToc(entry);
+			const sourceTocContent = generateSourceToc(entry, tocFormat);
 			await writeFile(sourceTocPath, sourceTocContent, "utf8");
 		} else {
 			// Remove TOC.md if it exists but toc is disabled

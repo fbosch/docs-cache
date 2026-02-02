@@ -6,6 +6,8 @@ import { assertSafeSourceId } from "./source-id";
 
 export type CacheMode = "materialize";
 
+export type TocFormat = "tree" | "compressed";
+
 export type IntegrityType = "commit" | "manifest";
 
 export interface DocsCacheIntegrity {
@@ -23,7 +25,8 @@ export interface DocsCacheDefaults {
 	maxBytes: number;
 	maxFiles?: number;
 	allowHosts: string[];
-	toc?: boolean;
+	toc?: boolean | TocFormat;
+	tocFormat?: TocFormat;
 }
 
 export interface DocsCacheSource {
@@ -40,7 +43,8 @@ export interface DocsCacheSource {
 	maxBytes?: number;
 	maxFiles?: number;
 	integrity?: DocsCacheIntegrity;
-	toc?: boolean;
+	toc?: boolean | TocFormat;
+	tocFormat?: TocFormat;
 }
 
 export interface DocsCacheConfig {
@@ -65,7 +69,8 @@ export interface DocsCacheResolvedSource {
 	maxBytes: number;
 	maxFiles?: number;
 	integrity?: DocsCacheIntegrity;
-	toc?: boolean;
+	toc?: boolean | TocFormat;
+	tocFormat?: TocFormat;
 }
 
 export const DEFAULT_CONFIG_FILENAME = "docs.config.json";
@@ -83,7 +88,7 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 		required: true,
 		maxBytes: 200000000,
 		allowHosts: ["github.com", "gitlab.com"],
-		toc: true,
+		tocFormat: "compressed",
 	},
 	sources: [],
 };
@@ -233,6 +238,34 @@ const assertIntegrity = (value: unknown, label: string): DocsCacheIntegrity => {
 	return { type, value: integrityValue };
 };
 
+const assertTocFormat = (value: unknown, label: string): TocFormat => {
+	const format = assertString(value, label) as TocFormat;
+	if (format !== "tree" && format !== "compressed") {
+		throw new Error(`${label} must be "tree" or "compressed".`);
+	}
+	return format;
+};
+
+const normalizeTocConfig = (
+	toc: boolean | TocFormat | undefined,
+	tocFormat: TocFormat | undefined,
+): { toc?: boolean | TocFormat; tocFormat?: TocFormat } => {
+	// If tocFormat is explicitly set, use it
+	if (tocFormat !== undefined) {
+		return { tocFormat };
+	}
+	// If toc is a format string, migrate it to tocFormat
+	if (typeof toc === "string") {
+		return { tocFormat: toc };
+	}
+	// If toc is a boolean, handle backward compatibility
+	if (typeof toc === "boolean") {
+		return { toc, tocFormat: toc ? "compressed" : undefined };
+	}
+	// Default case
+	return {};
+};
+
 export const validateConfig = (input: unknown): DocsCacheConfig => {
 	if (!isRecord(input)) {
 		throw new Error("Config must be a JSON object.");
@@ -260,6 +293,13 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 		if (!isRecord(defaultsInput)) {
 			throw new Error("defaults must be an object.");
 		}
+
+		// Normalize toc/tocFormat config for defaults
+		const normalizedToc = normalizeTocConfig(
+			defaultsInput.toc as boolean | TocFormat | undefined,
+			defaultsInput.tocFormat as TocFormat | undefined,
+		);
+
 		defaults = {
 			ref:
 				defaultsInput.ref !== undefined
@@ -297,10 +337,11 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				defaultsInput.allowHosts !== undefined
 					? assertStringArray(defaultsInput.allowHosts, "defaults.allowHosts")
 					: defaultValues.allowHosts,
-			toc:
-				defaultsInput.toc !== undefined
-					? assertBoolean(defaultsInput.toc, "defaults.toc")
-					: defaultValues.toc,
+			toc: normalizedToc.toc,
+			tocFormat:
+				normalizedToc.tocFormat !== undefined
+					? normalizedToc.tocFormat
+					: defaultValues.tocFormat,
 		};
 	} else if (targetModeOverride !== undefined) {
 		defaults = {
@@ -387,9 +428,19 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				`sources[${index}].integrity`,
 			);
 		}
-		if (entry.toc !== undefined) {
-			source.toc = assertBoolean(entry.toc, `sources[${index}].toc`);
+
+		// Normalize toc/tocFormat config for this source
+		const normalizedToc = normalizeTocConfig(
+			entry.toc as boolean | TocFormat | undefined,
+			entry.tocFormat as TocFormat | undefined,
+		);
+		if (normalizedToc.toc !== undefined) {
+			source.toc = normalizedToc.toc;
 		}
+		if (normalizedToc.tocFormat !== undefined) {
+			source.tocFormat = normalizedToc.tocFormat;
+		}
+
 		return source;
 	});
 
@@ -436,6 +487,7 @@ export const resolveSources = (
 		maxFiles: source.maxFiles ?? defaults.maxFiles,
 		integrity: source.integrity,
 		toc: source.toc ?? defaults.toc,
+		tocFormat: source.tocFormat ?? defaults.tocFormat,
 	}));
 };
 

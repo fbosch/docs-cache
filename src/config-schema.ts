@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const TargetModeSchema = z.enum(["symlink", "copy"]);
 export const CacheModeSchema = z.enum(["materialize"]);
+export const TocFormatSchema = z.enum(["tree", "compressed"]);
 export const IntegritySchema = z
 	.object({
 		type: z.enum(["commit", "manifest"]),
@@ -20,7 +21,8 @@ export const DefaultsSchema = z
 		maxBytes: z.number().min(1),
 		maxFiles: z.number().min(1).optional(),
 		allowHosts: z.array(z.string().min(1)).min(1),
-		toc: z.boolean().optional(),
+		toc: z.union([z.boolean(), TocFormatSchema]).optional(),
+		tocFormat: TocFormatSchema.optional(),
 	})
 	.strict();
 
@@ -39,7 +41,8 @@ export const SourceSchema = z
 		maxBytes: z.number().min(1).optional(),
 		maxFiles: z.number().min(1).optional(),
 		integrity: IntegritySchema.optional(),
-		toc: z.boolean().optional(),
+		toc: z.union([z.boolean(), TocFormatSchema]).optional(),
+		tocFormat: TocFormatSchema.optional(),
 	})
 	.strict();
 
