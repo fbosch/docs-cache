@@ -1,6 +1,5 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { resolveTargetDir } from "../paths";
 import type {
 	CacheMode,
 	DocsCacheConfig,
@@ -9,8 +8,9 @@ import type {
 	DocsCacheResolvedSource,
 	DocsCacheSource,
 	TocFormat,
-} from "./config-schema";
-import { ConfigSchema } from "./config-schema";
+} from "#config/schema";
+import { ConfigSchema } from "#config/schema";
+import { resolveTargetDir } from "#core/paths";
 
 export type {
 	CacheMode,

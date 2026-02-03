@@ -1,9 +1,13 @@
 import { access, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { symbols, ui } from "./cli/ui";
-import type { DocsCacheResolvedSource, TocFormat } from "./config";
-import type { DocsCacheLock } from "./lock";
-import { DEFAULT_TOC_FILENAME, resolveTargetDir, toPosixPath } from "./paths";
+import type { DocsCacheLock } from "#cache/lock";
+import { symbols, ui } from "#cli/ui";
+import type { DocsCacheResolvedSource, TocFormat } from "#config";
+import {
+	DEFAULT_TOC_FILENAME,
+	resolveTargetDir,
+	toPosixPath,
+} from "#core/paths";
 
 type TocEntry = {
 	id: string;

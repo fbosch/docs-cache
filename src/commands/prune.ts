@@ -1,7 +1,7 @@
 import { access, readdir, rm } from "node:fs/promises";
 import path from "node:path";
-import { DEFAULT_CACHE_DIR, loadConfig } from "../config";
-import { resolveCacheDir } from "../paths";
+import { DEFAULT_CACHE_DIR, loadConfig } from "#config";
+import { resolveCacheDir } from "#core/paths";
 
 type PruneOptions = {
 	configPath?: string;

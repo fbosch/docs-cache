@@ -1,13 +1,13 @@
 import { rm } from "node:fs/promises";
-import type { DocsCacheConfig } from "../config";
+import type { DocsCacheConfig } from "#config";
 import {
 	mergeConfigBase,
 	readConfigAtPath,
 	resolveConfigTarget,
 	writeConfigFile,
-} from "../config/config-io";
-import { resolveTargetDir } from "../paths";
-import { resolveRepoInput } from "../resolve-repo";
+} from "#config/io";
+import { resolveTargetDir } from "#core/paths";
+import { resolveRepoInput } from "#git/resolve-repo";
 
 const resolveIdsToRemove = (ids: string[], config: DocsCacheConfig) => {
 	const sourcesById = new Map(

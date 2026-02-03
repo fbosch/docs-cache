@@ -8,7 +8,7 @@ import {
 	stripDefaultConfigValues,
 	validateConfig,
 	writeConfig,
-} from "./index";
+} from "#config";
 
 const PACKAGE_JSON = "package.json";
 const SCHEMA_URL =

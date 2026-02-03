@@ -1,6 +1,6 @@
 import pc from "picocolors";
-import { createLiveOutput, type LiveOutput } from "./live-output";
-import { symbols } from "./ui";
+import { createLiveOutput, type LiveOutput } from "#cli/live-output";
+import { symbols } from "#cli/ui";
 
 type TaskState = "pending" | "running" | "success" | "warn" | "error";
 

@@ -1,10 +1,10 @@
 import { access, stat } from "node:fs/promises";
 import path from "node:path";
-import { symbols, ui } from "../cli/ui";
-import { DEFAULT_CACHE_DIR, loadConfig } from "../config";
-import { getErrnoCode } from "../errors";
-import { streamManifestEntries } from "../manifest";
-import { resolveCacheDir, resolveTargetDir } from "../paths";
+import { streamManifestEntries } from "#cache/manifest";
+import { symbols, ui } from "#cli/ui";
+import { DEFAULT_CACHE_DIR, loadConfig } from "#config";
+import { getErrnoCode } from "#core/errors";
+import { resolveCacheDir, resolveTargetDir } from "#core/paths";
 
 type VerifyOptions = {
 	configPath?: string;

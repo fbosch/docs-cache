@@ -12,8 +12,8 @@ import {
 	type DocsCacheConfig,
 	stripDefaultConfigValues,
 	writeConfig,
-} from "../config";
-import { ensureGitignoreEntry, getGitignoreStatus } from "../gitignore";
+} from "#config";
+import { ensureGitignoreEntry, getGitignoreStatus } from "#core/gitignore";
 
 type InitOptions = {
 	cacheDirOverride?: string;

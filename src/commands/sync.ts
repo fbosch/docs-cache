@@ -2,26 +2,26 @@ import { createHash } from "node:crypto";
 import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import pc from "picocolors";
-import { TaskReporter } from "../cli/task-reporter";
-import { isSilentMode, symbols, ui } from "../cli/ui";
+import type { DocsCacheLock } from "#cache/lock";
+import { readLock, resolveLockPath, writeLock } from "#cache/lock";
+import { MANIFEST_FILENAME } from "#cache/manifest";
+import { computeManifestHash, materializeSource } from "#cache/materialize";
+import { applyTargetDir } from "#cache/targets";
+import { writeToc } from "#cache/toc";
+import { TaskReporter } from "#cli/task-reporter";
+import { isSilentMode, symbols, ui } from "#cli/ui";
+import { verifyCache } from "#commands/verify";
 import {
 	DEFAULT_CACHE_DIR,
 	DEFAULT_CONFIG,
 	type DocsCacheDefaults,
 	type DocsCacheResolvedSource,
 	loadConfig,
-} from "../config";
-import type { SyncOptions, SyncResult } from "../config/sync-types";
-import { fetchSource } from "../git/fetch-source";
-import { resolveRemoteCommit } from "../git/resolve-remote";
-import type { DocsCacheLock } from "../lock";
-import { readLock, resolveLockPath, writeLock } from "../lock";
-import { MANIFEST_FILENAME } from "../manifest";
-import { computeManifestHash, materializeSource } from "../materialize";
-import { resolveCacheDir, resolveTargetDir } from "../paths";
-import { applyTargetDir } from "../targets";
-import { writeToc } from "../toc";
-import { verifyCache } from "./verify";
+} from "#config";
+import type { SyncOptions, SyncResult } from "#config/sync-types";
+import { resolveCacheDir, resolveTargetDir } from "#core/paths";
+import { fetchSource } from "#git/fetch-source";
+import { resolveRemoteCommit } from "#git/resolve-remote";
 
 type SyncDeps = {
 	resolveRemoteCommit?: typeof resolveRemoteCommit;

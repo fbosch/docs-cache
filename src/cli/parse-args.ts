@@ -1,7 +1,7 @@
 import process from "node:process";
 
 import cac from "cac";
-import { ExitCode } from "./exit-code";
+import { ExitCode } from "#cli/exit-code";
 import type { AddEntry, CliCommand, CliOptions } from "./types";
 
 const COMMANDS = [

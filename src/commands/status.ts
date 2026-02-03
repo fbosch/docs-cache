@@ -1,9 +1,9 @@
 import { access } from "node:fs/promises";
 import pc from "picocolors";
-import { symbols, ui } from "../cli/ui";
-import { DEFAULT_CACHE_DIR, loadConfig } from "../config";
-import { DEFAULT_LOCK_FILENAME, readLock, resolveLockPath } from "../lock";
-import { getCacheLayout, resolveCacheDir } from "../paths";
+import { DEFAULT_LOCK_FILENAME, readLock, resolveLockPath } from "#cache/lock";
+import { symbols, ui } from "#cli/ui";
+import { DEFAULT_CACHE_DIR, loadConfig } from "#config";
+import { getCacheLayout, resolveCacheDir } from "#core/paths";
 
 type StatusOptions = {
 	configPath?: string;

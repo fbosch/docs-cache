@@ -9,6 +9,7 @@
 		"declaration": true,
 		"declarationMap": true,
 		"sourceMap": true,
+		"rootDir": ".",
 		"outDir": "dist",
 		"resolveJsonModule": true,
 		"skipLibCheck": true

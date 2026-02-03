@@ -6,9 +6,9 @@ import { pathToFileURL } from "node:url";
 
 import { execa } from "execa";
 
-import { getErrnoCode } from "../errors";
-import { assertSafeSourceId } from "../source-id";
-import { exists, resolveGitCacheDir } from "./cache-dir";
+import { getErrnoCode } from "#core/errors";
+import { assertSafeSourceId } from "#core/source-id";
+import { exists, resolveGitCacheDir } from "#git/cache-dir";
 
 const DEFAULT_TIMEOUT_MS = 120000; // 120 seconds (2 minutes)
 const DEFAULT_GIT_DEPTH = 1;

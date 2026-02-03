@@ -14,11 +14,11 @@ import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import fg from "fast-glob";
-import { symbols, ui } from "./cli/ui";
-import { getErrnoCode } from "./errors";
-import { MANIFEST_FILENAME } from "./manifest";
-import { getCacheLayout, toPosixPath } from "./paths";
-import { assertSafeSourceId } from "./source-id";
+import { MANIFEST_FILENAME } from "#cache/manifest";
+import { symbols, ui } from "#cli/ui";
+import { getErrnoCode } from "#core/errors";
+import { getCacheLayout, toPosixPath } from "#core/paths";
+import { assertSafeSourceId } from "#core/source-id";
 
 type MaterializeParams = {
 	sourceId: string;

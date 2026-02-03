@@ -1,6 +1,6 @@
 import path from "node:path";
 import pc from "picocolors";
-import { toPosixPath } from "../paths";
+import { toPosixPath } from "#core/paths";
 
 export const symbols = {
 	error: pc.red("✖"),
