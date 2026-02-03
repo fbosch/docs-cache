@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-const fixturePath = new URL("./fixtures/docs.lock", import.meta.url);
 const distPath = new URL("../dist/lock.mjs", import.meta.url);
 
 const loadLockModule = async () => {
@@ -22,6 +21,10 @@ test("lock fixture is valid", async (t) => {
 		t.skip("lock module not built yet");
 		return;
 	}
+	const fixturePath = new URL(
+		`./fixtures/${module.DEFAULT_LOCK_FILENAME}`,
+		import.meta.url,
+	);
 	const raw = await readFile(fixturePath, "utf8");
 	const parsed = JSON.parse(raw.toString());
 	const lock = module.validateLock(parsed);

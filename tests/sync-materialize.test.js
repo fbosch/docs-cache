@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { runSync } from "../dist/api.mjs";
+import { DEFAULT_LOCK_FILENAME, runSync } from "../dist/api.mjs";
 
 const exists = async (target) => {
 	try {
@@ -73,7 +73,10 @@ test("sync materializes via mocked fetch", async () => {
 	);
 
 	assert.equal(await exists(path.join(cacheDir, "local")), true);
-	const lockRaw = await readFile(path.join(tmpRoot, "docs.lock"), "utf8");
+	const lockRaw = await readFile(
+		path.join(tmpRoot, DEFAULT_LOCK_FILENAME),
+		"utf8",
+	);
 	const lock = JSON.parse(lockRaw);
 	assert.equal(lock.sources.local.resolvedCommit, "abc123");
 	assert.equal(lock.sources.local.fileCount, 1);
@@ -105,7 +108,7 @@ test("sync re-materializes when docs missing even if commit unchanged", async ()
 	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 
 	await writeFile(
-		path.join(tmpRoot, "docs.lock"),
+		path.join(tmpRoot, DEFAULT_LOCK_FILENAME),
 		JSON.stringify({
 			version: 1,
 			generatedAt: new Date().toISOString(),

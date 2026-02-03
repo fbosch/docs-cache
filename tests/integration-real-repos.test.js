@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { runSync } from "../dist/api.mjs";
+import { DEFAULT_LOCK_FILENAME, runSync } from "../dist/api.mjs";
 
 const shouldRun = () => process.env.DOCS_CACHE_INTEGRATION === "1";
 
@@ -48,7 +48,10 @@ test("integration syncs a real repository", async (t) => {
 			offline: false,
 			failOnMiss: false,
 		});
-		const lockRaw = await readFile(path.join(tmpRoot, "docs.lock"), "utf8");
+		const lockRaw = await readFile(
+			path.join(tmpRoot, DEFAULT_LOCK_FILENAME),
+			"utf8",
+		);
 		const lock = JSON.parse(lockRaw);
 		assert.ok(lock.sources.gitignore);
 	} finally {
@@ -103,7 +106,10 @@ test("integration clears partial clone cache before sync", async (t) => {
 			offline: false,
 			failOnMiss: false,
 		});
-		const lockRaw = await readFile(path.join(tmpRoot, "docs.lock"), "utf8");
+		const lockRaw = await readFile(
+			path.join(tmpRoot, DEFAULT_LOCK_FILENAME),
+			"utf8",
+		);
 		const lock = JSON.parse(lockRaw);
 		assert.ok(lock.sources.gitignore);
 		const configRaw = await readFile(

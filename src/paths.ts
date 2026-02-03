@@ -1,6 +1,5 @@
 import path from "node:path";
 
-export const DEFAULT_LOCK_FILENAME = "docs.lock";
 export const DEFAULT_TOC_FILENAME = "TOC.md";
 
 export const toPosixPath = (value: string) => value.replace(/\\/g, "/");

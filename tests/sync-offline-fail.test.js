@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { runSync } from "../dist/api.mjs";
+import { DEFAULT_LOCK_FILENAME, runSync } from "../dist/api.mjs";
 
 test("sync fails on missing required sources when failOnMiss true", async () => {
 	const tmpRoot = path.join(
@@ -58,7 +58,7 @@ test("sync offline uses lock entries without resolving remotes", async () => {
 	await mkdir(tmpRoot, { recursive: true });
 	const cacheDir = path.join(tmpRoot, ".docs");
 	const configPath = path.join(tmpRoot, "docs.config.json");
-	const lockPath = path.join(tmpRoot, "docs.lock");
+	const lockPath = path.join(tmpRoot, DEFAULT_LOCK_FILENAME);
 
 	const config = {
 		$schema:
@@ -128,7 +128,7 @@ test("sync offline fails when lock exists but cache missing", async () => {
 	await mkdir(tmpRoot, { recursive: true });
 	const cacheDir = path.join(tmpRoot, ".docs");
 	const configPath = path.join(tmpRoot, "docs.config.json");
-	const lockPath = path.join(tmpRoot, "docs.lock");
+	const lockPath = path.join(tmpRoot, DEFAULT_LOCK_FILENAME);
 
 	const config = {
 		$schema:

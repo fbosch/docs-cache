@@ -5,6 +5,7 @@ export { loadConfig } from "./config";
 export { redactRepoUrl } from "./git/redact";
 export { enforceHostAllowlist, parseLsRemote } from "./git/resolve-remote";
 export { initConfig } from "./init";
+export { DEFAULT_LOCK_FILENAME } from "./lock";
 export { pruneCache } from "./prune";
 export { removeSources } from "./remove";
 export { resolveRepoInput } from "./resolve-repo";
