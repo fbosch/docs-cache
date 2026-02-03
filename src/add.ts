@@ -38,7 +38,14 @@ const loadPackageConfig = async (configPath: string) => {
 	};
 };
 
-const resolveConfigTarget = async (configPath?: string) => {
+type ConfigTarget = {
+	resolvedPath: string;
+	mode: "package" | "config";
+};
+
+const resolveConfigTarget = async (
+	configPath?: string,
+): Promise<ConfigTarget> => {
 	if (configPath) {
 		const resolvedPath = resolveConfigPath(configPath);
 		return {
@@ -60,36 +67,42 @@ const resolveConfigTarget = async (configPath?: string) => {
 	return { resolvedPath: defaultPath, mode: "config" };
 };
 
-export const addSources = async (params: {
-	configPath?: string;
-	entries: Array<{ id?: string; repo: string; targetDir?: string }>;
-}) => {
-	const target = await resolveConfigTarget(params.configPath);
-	const resolvedPath = target.resolvedPath;
-	let config = DEFAULT_CONFIG;
-	let rawConfig: DocsCacheConfig | null = null;
-	let rawPackage: Record<string, unknown> | null = null;
-	let hadDocsCacheConfig = false;
-	if (await exists(resolvedPath)) {
-		if (target.mode === "package") {
-			const pkg = await loadPackageConfig(resolvedPath);
-			rawPackage = pkg.parsed;
-			rawConfig = pkg.config;
-			config = rawConfig ?? DEFAULT_CONFIG;
-			hadDocsCacheConfig = Boolean(rawConfig);
-		} else {
-			const raw = await readFile(resolvedPath, "utf8");
-			rawConfig = JSON.parse(raw.toString());
-			config = validateConfig(rawConfig);
-			hadDocsCacheConfig = true;
-		}
+const readConfigAtPath = async (target: ConfigTarget) => {
+	if (!(await exists(target.resolvedPath))) {
+		return {
+			config: DEFAULT_CONFIG,
+			rawConfig: null,
+			rawPackage: null,
+			hadDocsCacheConfig: false,
+		};
 	}
+	if (target.mode === "package") {
+		const pkg = await loadPackageConfig(target.resolvedPath);
+		return {
+			config: pkg.config ?? DEFAULT_CONFIG,
+			rawConfig: pkg.config,
+			rawPackage: pkg.parsed,
+			hadDocsCacheConfig: Boolean(pkg.config),
+		};
+	}
+	const raw = await readFile(target.resolvedPath, "utf8");
+	const rawConfig = JSON.parse(raw.toString());
+	return {
+		config: validateConfig(rawConfig),
+		rawConfig,
+		rawPackage: null,
+		hadDocsCacheConfig: true,
+	};
+};
 
-	const schema =
-		"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json";
+const buildNewSources = (
+	entries: Array<{ id?: string; repo: string; targetDir?: string }>,
+	config: DocsCacheConfig,
+	resolvedPath: string,
+) => {
 	const existingIds = new Set(config.sources.map((source) => source.id));
 	const skipped: string[] = [];
-	const newSources = params.entries
+	const newSources = entries
 		.map((entry) => {
 			const resolved = resolveRepoInput(entry.repo);
 			const sourceId = entry.id || resolved.inferredId;
@@ -118,33 +131,83 @@ export const addSources = async (params: {
 		targetDir?: string;
 		ref?: string;
 	}>;
+	return { newSources, skipped };
+};
+
+const buildNextConfig = (
+	config: DocsCacheConfig,
+	newSources: DocsCacheConfig["sources"],
+) => {
+	const schema =
+		"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json";
+	const nextConfig: DocsCacheConfig = {
+		$schema: config.$schema ?? schema,
+		sources: [...config.sources, ...newSources],
+	};
+	if (config.cacheDir) {
+		nextConfig.cacheDir = config.cacheDir;
+	}
+	if (config.defaults) {
+		nextConfig.defaults = config.defaults;
+	}
+	return nextConfig;
+};
+
+const writeConfigFile = async (params: {
+	mode: "package" | "config";
+	resolvedPath: string;
+	config: DocsCacheConfig;
+	rawPackage: Record<string, unknown> | null;
+}) => {
+	const { mode, resolvedPath, config, rawPackage } = params;
+	if (mode === "package") {
+		const pkg = rawPackage ?? {};
+		pkg["docs-cache"] = stripDefaultConfigValues(config);
+		await writeFile(resolvedPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+		return;
+	}
+	await writeConfig(resolvedPath, config);
+};
+
+const ensureGitignore = async (
+	resolvedPath: string,
+	cacheDir: string,
+	shouldWrite: boolean,
+) => {
+	if (!shouldWrite) {
+		return null;
+	}
+	return ensureGitignoreEntry(path.dirname(resolvedPath), cacheDir);
+};
+
+export const addSources = async (params: {
+	configPath?: string;
+	entries: Array<{ id?: string; repo: string; targetDir?: string }>;
+}) => {
+	const target = await resolveConfigTarget(params.configPath);
+	const resolvedPath = target.resolvedPath;
+	const { config, rawConfig, rawPackage, hadDocsCacheConfig } =
+		await readConfigAtPath(target);
+	const { newSources, skipped } = buildNewSources(
+		params.entries,
+		config,
+		resolvedPath,
+	);
 	if (newSources.length === 0) {
 		throw new Error("All sources already exist in config.");
 	}
-	const nextConfig: DocsCacheConfig = {
-		$schema: schema,
-		sources: [...config.sources, ...newSources],
-	};
-	if (rawConfig?.cacheDir) {
-		nextConfig.cacheDir = rawConfig.cacheDir;
-	}
-	if (rawConfig?.defaults) {
-		nextConfig.defaults = rawConfig.defaults;
-	}
-
-	if (target.mode === "package") {
-		const pkg = rawPackage ?? {};
-		pkg["docs-cache"] = stripDefaultConfigValues(nextConfig);
-		await writeFile(resolvedPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
-	} else {
-		await writeConfig(resolvedPath, nextConfig);
-	}
-	const gitignoreResult = !hadDocsCacheConfig
-		? await ensureGitignoreEntry(
-				path.dirname(resolvedPath),
-				rawConfig?.cacheDir ?? DEFAULT_CACHE_DIR,
-			)
-		: null;
+	const nextConfig = buildNextConfig(rawConfig ?? config, newSources);
+	await writeConfigFile({
+		mode: target.mode,
+		resolvedPath,
+		config: nextConfig,
+		rawPackage,
+	});
+	const gitignoreResult = await ensureGitignore(
+		resolvedPath,
+		rawConfig?.cacheDir ?? DEFAULT_CACHE_DIR,
+		!hadDocsCacheConfig,
+	);
 
 	return {
 		configPath: resolvedPath,
