@@ -398,6 +398,7 @@ test("defaults with all fields specified", async () => {
 			required: false,
 			maxBytes: 1000000,
 			maxFiles: 100,
+			ignoreHidden: true,
 			allowHosts: ["github.com"],
 			toc: true,
 		},
@@ -411,6 +412,7 @@ test("defaults with all fields specified", async () => {
 	assert.equal(config.defaults.required, false);
 	assert.equal(config.defaults.maxBytes, 1000000);
 	assert.equal(config.defaults.maxFiles, 100);
+	assert.equal(config.defaults.ignoreHidden, true);
 	assert.deepEqual(config.defaults.allowHosts, ["github.com"]);
 	assert.deepEqual(config.defaults.exclude, ["**/.cache/**"]);
 	assert.equal(config.defaults.toc, true);

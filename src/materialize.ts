@@ -28,6 +28,7 @@ type MaterializeParams = {
 	exclude?: string[];
 	maxBytes: number;
 	maxFiles?: number;
+	ignoreHidden?: boolean;
 	unwrapSingleRootDir?: boolean;
 };
 
@@ -39,6 +40,7 @@ type ResolvedMaterializeParams = {
 	exclude: string[];
 	maxBytes: number;
 	maxFiles?: number;
+	ignoreHidden: boolean;
 	unwrapSingleRootDir: boolean;
 };
 
@@ -128,6 +130,7 @@ const resolveMaterializeParams = (
 ): ResolvedMaterializeParams => ({
 	...params,
 	exclude: params.exclude ?? [],
+	ignoreHidden: params.ignoreHidden ?? false,
 	unwrapSingleRootDir: params.unwrapSingleRootDir ?? false,
 });
 
@@ -186,9 +189,14 @@ export const materializeSource = async (params: MaterializeParams) => {
 	};
 
 	try {
+		const ignorePatterns = [
+			".git/**",
+			...(resolved.ignoreHidden ? [".*", "**/.*"] : []),
+			...resolved.exclude,
+		];
 		const files = await fg(resolved.include, {
 			cwd: resolved.repoDir,
-			ignore: [".git/**", ...resolved.exclude],
+			ignore: ignorePatterns,
 			dot: true,
 			onlyFiles: true,
 			followSymbolicLinks: false,
@@ -387,7 +395,11 @@ export const computeManifestHash = async (
 	assertSafeSourceId(params.sourceId, "sourceId");
 	const files = await fg(params.include, {
 		cwd: params.repoDir,
-		ignore: [".git/**", ...(params.exclude ?? [])],
+		ignore: [
+			".git/**",
+			...(params.ignoreHidden ? [".*", "**/.*"] : []),
+			...(params.exclude ?? []),
+		],
 		dot: true,
 		onlyFiles: true,
 		followSymbolicLinks: false,

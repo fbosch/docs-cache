@@ -116,6 +116,7 @@ const RULES_HASH_KEYS = [
 	"exclude",
 	"maxBytes",
 	"maxFiles",
+	"ignoreHidden",
 	"unwrapSingleRootDir",
 ] as const satisfies ReadonlyArray<RulesHashKey>;
 
@@ -425,6 +426,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 							exclude: source.exclude,
 							maxBytes: source.maxBytes ?? defaults.maxBytes,
 							maxFiles: source.maxFiles ?? defaults.maxFiles,
+							ignoreHidden: source.ignoreHidden ?? defaults.ignoreHidden,
 						});
 						if (computed.manifestSha256 === lockEntry.manifestSha256) {
 							result.bytes = computed.bytes;
@@ -449,6 +451,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						exclude: source.exclude,
 						maxBytes: source.maxBytes ?? defaults.maxBytes,
 						maxFiles: source.maxFiles ?? defaults.maxFiles,
+						ignoreHidden: source.ignoreHidden ?? defaults.ignoreHidden,
 						unwrapSingleRootDir: source.unwrapSingleRootDir,
 					});
 					if (source.targetDir) {
