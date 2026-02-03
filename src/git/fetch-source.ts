@@ -6,6 +6,8 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
+import { execa } from "execa";
+
 import { getErrnoCode } from "../errors";
 import { assertSafeSourceId } from "../source-id";
 import { exists, resolveGitCacheDir } from "./cache-dir";
@@ -21,6 +23,11 @@ const git = async (
 	args: string[],
 	options?: { cwd?: string; timeoutMs?: number; allowFileProtocol?: boolean },
 ) => {
+	const pathValue = process.env.PATH ?? process.env.Path;
+	const pathExtValue =
+		process.env.PATHEXT ??
+		(process.platform === "win32" ? ".COM;.EXE;.BAT;.CMD" : undefined);
+
 	const configs = [
 		"-c",
 		"core.hooksPath=/dev/null",
@@ -39,14 +46,14 @@ const git = async (
 		configs.push("-c", "protocol.file.allow=never");
 	}
 
-	await execFileAsync("git", [...configs, ...args], {
+	await execa("git", [...configs, ...args], {
 		cwd: options?.cwd,
 		timeout: options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
 		maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large repos
 		env: {
-			PATH: process.env.PATH,
-			Path: process.env.Path,
-			PATHEXT: process.env.PATHEXT,
+			...process.env,
+			...(pathValue ? { PATH: pathValue, Path: pathValue } : {}),
+			...(pathExtValue ? { PATHEXT: pathExtValue } : {}),
 			HOME: process.env.HOME,
 			USER: process.env.USER,
 			USERPROFILE: process.env.USERPROFILE,
