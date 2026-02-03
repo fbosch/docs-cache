@@ -5,6 +5,7 @@ import type {
 	DocsCacheConfig,
 	DocsCacheDefaults,
 	DocsCacheIntegrity,
+	DocsCacheResolvedSource,
 	DocsCacheSource,
 	TocFormat,
 } from "./config-schema";
@@ -16,27 +17,10 @@ export type {
 	DocsCacheConfig,
 	DocsCacheDefaults,
 	DocsCacheIntegrity,
+	DocsCacheResolvedSource,
 	DocsCacheSource,
 	TocFormat,
 };
-
-export interface DocsCacheResolvedSource {
-	id: string;
-	repo: string;
-	targetDir?: string;
-	targetMode?: "symlink" | "copy";
-	ref: string;
-	mode: CacheMode;
-	include?: string[];
-	exclude?: string[];
-	required: boolean;
-	maxBytes: number;
-	maxFiles?: number;
-	ignoreHidden: boolean;
-	integrity?: DocsCacheIntegrity;
-	toc?: boolean | TocFormat;
-	unwrapSingleRootDir?: boolean;
-}
 
 export const DEFAULT_CONFIG_FILENAME = "docs.config.json";
 export const DEFAULT_CACHE_DIR = ".docs";
@@ -58,7 +42,7 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 		unwrapSingleRootDir: false,
 	},
 	sources: [],
-};
+} as const;
 
 const isEqualStringArray = (left?: string[], right?: string[]) => {
 	if (!left || !right) {
@@ -144,32 +128,14 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 	const defaultValues = DEFAULT_CONFIG.defaults as DocsCacheDefaults;
 	const targetModeOverride = configInput.targetMode;
 	const defaultsInput = configInput.defaults;
-	let defaults: DocsCacheDefaults = defaultValues;
-	if (defaultsInput !== undefined) {
-		defaults = {
-			ref: defaultsInput.ref ?? defaultValues.ref,
-			mode: defaultsInput.mode ?? defaultValues.mode,
-			include: defaultsInput.include ?? defaultValues.include,
-			exclude: defaultsInput.exclude ?? defaultValues.exclude,
-			targetMode:
-				defaultsInput.targetMode ??
-				targetModeOverride ??
-				defaultValues.targetMode,
-			required: defaultsInput.required ?? defaultValues.required,
-			maxBytes: defaultsInput.maxBytes ?? defaultValues.maxBytes,
-			maxFiles: defaultsInput.maxFiles ?? defaultValues.maxFiles,
-			ignoreHidden: defaultsInput.ignoreHidden ?? defaultValues.ignoreHidden,
-			allowHosts: defaultsInput.allowHosts ?? defaultValues.allowHosts,
-			toc: defaultsInput.toc ?? defaultValues.toc,
-			unwrapSingleRootDir:
-				defaultsInput.unwrapSingleRootDir ?? defaultValues.unwrapSingleRootDir,
-		};
-	} else if (targetModeOverride !== undefined) {
-		defaults = {
-			...defaultValues,
-			targetMode: targetModeOverride,
-		};
-	}
+	const defaults: DocsCacheDefaults = {
+		...defaultValues,
+		...(defaultsInput ?? {}),
+		targetMode:
+			defaultsInput?.targetMode ??
+			targetModeOverride ??
+			defaultValues.targetMode,
+	};
 
 	return {
 		cacheDir,
@@ -184,23 +150,17 @@ export const resolveSources = (
 ): DocsCacheResolvedSource[] => {
 	const defaults = (config.defaults ??
 		DEFAULT_CONFIG.defaults) as DocsCacheDefaults;
+	const { allowHosts: _allowHosts, ...defaultValues } = defaults;
 	return config.sources.map((source) => ({
-		id: source.id,
-		repo: source.repo,
-		targetDir: source.targetDir,
-		targetMode: source.targetMode ?? defaults.targetMode,
-		ref: source.ref ?? defaults.ref,
-		mode: source.mode ?? defaults.mode,
-		include: source.include ?? defaults.include,
-		exclude: source.exclude ?? defaults.exclude,
-		required: source.required ?? defaults.required,
-		maxBytes: source.maxBytes ?? defaults.maxBytes,
-		maxFiles: source.maxFiles ?? defaults.maxFiles,
-		ignoreHidden: source.ignoreHidden ?? defaults.ignoreHidden,
-		integrity: source.integrity,
-		toc: source.toc ?? defaults.toc,
+		...defaultValues,
+		...source,
+		targetMode: source.targetMode ?? defaultValues.targetMode,
+		include: source.include ?? defaultValues.include,
+		exclude: source.exclude ?? defaultValues.exclude,
+		maxFiles: source.maxFiles ?? defaultValues.maxFiles,
+		toc: source.toc ?? defaultValues.toc,
 		unwrapSingleRootDir:
-			source.unwrapSingleRootDir ?? defaults.unwrapSingleRootDir,
+			source.unwrapSingleRootDir ?? defaultValues.unwrapSingleRootDir,
 	}));
 };
 

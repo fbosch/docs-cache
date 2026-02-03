@@ -58,14 +58,6 @@
 				"ignoreHidden": {
 					"type": "boolean"
 				},
-				"allowHosts": {
-					"minItems": 1,
-					"type": "array",
-					"items": {
-						"type": "string",
-						"minLength": 1
-					}
-				},
 				"toc": {
 					"anyOf": [
 						{
@@ -79,6 +71,14 @@
 				},
 				"unwrapSingleRootDir": {
 					"type": "boolean"
+				},
+				"allowHosts": {
+					"minItems": 1,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
 				}
 			},
 			"additionalProperties": false
@@ -88,22 +88,6 @@
 			"items": {
 				"type": "object",
 				"properties": {
-					"id": {
-						"type": "string",
-						"minLength": 1
-					},
-					"repo": {
-						"type": "string",
-						"minLength": 1
-					},
-					"targetDir": {
-						"type": "string",
-						"minLength": 1
-					},
-					"targetMode": {
-						"type": "string",
-						"enum": ["symlink", "copy"]
-					},
 					"ref": {
 						"type": "string",
 						"minLength": 1
@@ -113,6 +97,7 @@
 						"enum": ["materialize"]
 					},
 					"include": {
+						"minItems": 1,
 						"type": "array",
 						"items": {
 							"type": "string",
@@ -125,6 +110,10 @@
 							"type": "string",
 							"minLength": 1
 						}
+					},
+					"targetMode": {
+						"type": "string",
+						"enum": ["symlink", "copy"]
 					},
 					"required": {
 						"type": "boolean"
@@ -139,6 +128,32 @@
 					},
 					"ignoreHidden": {
 						"type": "boolean"
+					},
+					"toc": {
+						"anyOf": [
+							{
+								"type": "boolean"
+							},
+							{
+								"type": "string",
+								"enum": ["tree", "compressed"]
+							}
+						]
+					},
+					"unwrapSingleRootDir": {
+						"type": "boolean"
+					},
+					"id": {
+						"type": "string",
+						"minLength": 1
+					},
+					"repo": {
+						"type": "string",
+						"minLength": 1
+					},
+					"targetDir": {
+						"type": "string",
+						"minLength": 1
 					},
 					"integrity": {
 						"type": "object",
@@ -160,20 +175,6 @@
 						},
 						"required": ["type", "value"],
 						"additionalProperties": false
-					},
-					"toc": {
-						"anyOf": [
-							{
-								"type": "boolean"
-							},
-							{
-								"type": "string",
-								"enum": ["tree", "compressed"]
-							}
-						]
-					},
-					"unwrapSingleRootDir": {
-						"type": "boolean"
 					}
 				},
 				"required": ["id", "repo"],

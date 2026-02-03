@@ -57,6 +57,10 @@ export const SourceSchema = CommonOptionsSchema.partial()
 	})
 	.strict();
 
+export const ResolvedSourceSchema = SourceSchema.extend(
+	CommonOptionsSchema.shape,
+).strict();
+
 export const ConfigSchema = z
 	.object({
 		$schema: z.string().min(1).optional(),
@@ -87,6 +91,7 @@ export const ConfigSchema = z
 
 export type DocsCacheDefaults = z.infer<typeof DefaultsSchema>;
 export type DocsCacheSource = z.infer<typeof SourceSchema>;
+export type DocsCacheResolvedSource = z.infer<typeof ResolvedSourceSchema>;
 export type DocsCacheConfig = z.infer<typeof ConfigSchema>;
 export type DocsCacheIntegrity = z.infer<typeof IntegritySchema>;
 export type CacheMode = z.infer<typeof CacheModeSchema>;
