@@ -9,6 +9,7 @@ export type CliOptions = {
 	json: boolean;
 	timeoutMs?: number;
 	silent: boolean;
+	verbose: boolean;
 };
 
 export type AddEntry = {

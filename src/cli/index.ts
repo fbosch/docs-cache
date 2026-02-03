@@ -4,7 +4,7 @@ import pc from "picocolors";
 import { ExitCode } from "./exit-code";
 import { parseArgs } from "./parse-args";
 import type { CliCommand } from "./types";
-import { setSilentMode, symbols, ui } from "./ui";
+import { setSilentMode, setVerboseMode, symbols, ui } from "./ui";
 
 export const CLI_NAME = "docs-cache";
 
@@ -32,6 +32,7 @@ Global options:
   --json
   --timeout-ms <n>
   --silent
+  --verbose
 
 Add options:
   --source <repo>
@@ -73,6 +74,7 @@ const runCommand = async (parsed: CliCommand) => {
 				failOnMiss: options.failOnMiss,
 				sourceFilter: result.sources.map((source) => source.id),
 				timeoutMs: options.timeoutMs,
+				verbose: options.verbose,
 			});
 		} else if (!options.json) {
 			ui.line(`${symbols.warn} Offline: skipped sync`);
@@ -240,6 +242,7 @@ const runCommand = async (parsed: CliCommand) => {
 			offline: options.offline,
 			failOnMiss: options.failOnMiss,
 			timeoutMs: options.timeoutMs,
+			verbose: options.verbose,
 		});
 		if (options.json) {
 			process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
@@ -303,6 +306,7 @@ export async function main(): Promise<void> {
 
 		// Set silent mode if the flag is present
 		setSilentMode(parsed.options.silent);
+		setVerboseMode(parsed.options.verbose);
 
 		if (parsed.help) {
 			printHelp();

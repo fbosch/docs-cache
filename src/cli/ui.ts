@@ -10,9 +10,14 @@ export const symbols = {
 };
 
 let _silentMode = false;
+let _verboseMode = false;
 
 export const setSilentMode = (silent: boolean) => {
 	_silentMode = silent;
+};
+
+export const setVerboseMode = (verbose: boolean) => {
+	_verboseMode = verbose;
 };
 
 export const ui = {
@@ -53,5 +58,10 @@ export const ui = {
 		process.stdout.write(
 			`  ${icon} ${action} ${pc.bold(subject)}${details ? ` ${pc.dim(details)}` : ""}\n`,
 		);
+	},
+
+	debug: (text: string) => {
+		if (_silentMode || !_verboseMode) return;
+		process.stdout.write(`${pc.dim("•")} ${pc.dim(text)}\n`);
 	},
 };

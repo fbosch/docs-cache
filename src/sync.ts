@@ -27,6 +27,7 @@ type SyncOptions = {
 	lockOnly: boolean;
 	offline: boolean;
 	failOnMiss: boolean;
+	verbose?: boolean;
 	concurrency?: number;
 	sourceFilter?: string[];
 	timeoutMs?: number;
@@ -204,6 +205,7 @@ export const getSyncPlan = async (
 				ref: source.ref,
 				allowHosts: defaults.allowHosts,
 				timeoutMs: options.timeoutMs,
+				logger: options.verbose && !options.json ? ui.debug : undefined,
 			});
 			const upToDate =
 				lockEntry?.resolvedCommit === resolved.resolvedCommit &&
@@ -399,6 +401,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					cacheDir: plan.cacheDir,
 					include: source.include ?? defaults.include,
 					timeoutMs: options.timeoutMs,
+					logger: options.verbose && !options.json ? ui.debug : undefined,
 				});
 				if (!options.json) {
 					ui.step(

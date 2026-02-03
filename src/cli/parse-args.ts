@@ -152,6 +152,7 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 			.option("--json", "Output JSON")
 			.option("--timeout-ms <n>", "Network timeout in milliseconds")
 			.option("--silent", "Suppress non-error output")
+			.option("--verbose", "Enable verbose logging")
 			.help();
 
 		cli
@@ -194,6 +195,7 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 				? Number(result.options.timeoutMs)
 				: undefined,
 			silent: Boolean(result.options.silent),
+			verbose: Boolean(result.options.verbose),
 		};
 
 		if (options.concurrency !== undefined && options.concurrency < 1) {

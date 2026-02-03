@@ -21,7 +21,12 @@ const DEFAULT_RM_BACKOFF_MS = 100;
 
 const git = async (
 	args: string[],
-	options?: { cwd?: string; timeoutMs?: number; allowFileProtocol?: boolean },
+	options?: {
+		cwd?: string;
+		timeoutMs?: number;
+		allowFileProtocol?: boolean;
+		logger?: (message: string) => void;
+	},
 ) => {
 	const pathValue = process.env.PATH ?? process.env.Path;
 	const pathExtValue =
@@ -46,10 +51,12 @@ const git = async (
 		configs.push("-c", "protocol.file.allow=never");
 	}
 
+	options?.logger?.(`git ${[...configs, ...args].join(" ")}`);
 	await execa("git", [...configs, ...args], {
 		cwd: options?.cwd,
 		timeout: options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
 		maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large repos
+		stdio: options?.logger ? "inherit" : "pipe",
 		env: {
 			...process.env,
 			...(pathValue ? { PATH: pathValue, Path: pathValue } : {}),
@@ -134,12 +141,17 @@ const isPartialClone = async (repoPath: string) => {
 const ensureCommitAvailable = async (
 	repoPath: string,
 	commit: string,
-	options?: { timeoutMs?: number; allowFileProtocol?: boolean },
+	options?: {
+		timeoutMs?: number;
+		allowFileProtocol?: boolean;
+		logger?: (message: string) => void;
+	},
 ) => {
 	try {
 		await git(["-C", repoPath, "cat-file", "-e", `${commit}^{commit}`], {
 			timeoutMs: options?.timeoutMs,
 			allowFileProtocol: options?.allowFileProtocol,
+			logger: options?.logger,
 		});
 		return;
 	} catch {
@@ -148,6 +160,7 @@ const ensureCommitAvailable = async (
 	await git(["-C", repoPath, "fetch", "origin", commit], {
 		timeoutMs: options?.timeoutMs,
 		allowFileProtocol: options?.allowFileProtocol,
+		logger: options?.logger,
 	});
 };
 
@@ -159,6 +172,7 @@ type FetchParams = {
 	cacheDir: string;
 	include?: string[];
 	timeoutMs?: number;
+	logger?: (message: string) => void;
 };
 
 type FetchResult = {
@@ -172,6 +186,7 @@ const runGitArchive = async (
 	resolvedCommit: string,
 	outDir: string,
 	timeoutMs?: number,
+	logger?: (message: string) => void,
 ) => {
 	const archivePath = path.join(outDir, "archive.tar");
 	await git(
@@ -184,7 +199,7 @@ const runGitArchive = async (
 			archivePath,
 			resolvedCommit,
 		],
-		{ timeoutMs },
+		{ timeoutMs, logger },
 	);
 	await execFileAsync("tar", ["-xf", archivePath, "-C", outDir], {
 		timeout: timeoutMs ?? DEFAULT_TIMEOUT_MS,
@@ -243,15 +258,17 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 		}
 	}
 	cloneArgs.push(params.repo, outDir);
-	await git(cloneArgs, { timeoutMs: params.timeoutMs });
+	await git(cloneArgs, { timeoutMs: params.timeoutMs, logger: params.logger });
 	await ensureCommitAvailable(outDir, params.resolvedCommit, {
 		timeoutMs: params.timeoutMs,
+		logger: params.logger,
 	});
 	if (useSparse) {
 		const sparsePaths = extractSparsePaths(params.include);
 		if (sparsePaths.length > 0) {
 			await git(["-C", outDir, "sparse-checkout", "set", ...sparsePaths], {
 				timeoutMs: params.timeoutMs,
+				logger: params.logger,
 			});
 		}
 	}
@@ -259,6 +276,7 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 		["-C", outDir, "checkout", "--quiet", "--detach", params.resolvedCommit],
 		{
 			timeoutMs: params.timeoutMs,
+			logger: params.logger,
 		},
 	);
 };
@@ -297,9 +315,11 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 
 				await git(["-C", cachePath, ...fetchArgs], {
 					timeoutMs: params.timeoutMs,
+					logger: params.logger,
 				});
 				await ensureCommitAvailable(cachePath, params.resolvedCommit, {
 					timeoutMs: params.timeoutMs,
+					logger: params.logger,
 				});
 			} catch (_error) {
 				// Fetch failed, remove corrupt cache and re-clone
@@ -347,6 +367,7 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 	await git(localCloneArgs, {
 		timeoutMs: params.timeoutMs,
 		allowFileProtocol: true,
+		logger: params.logger,
 	});
 
 	if (useSparse) {
@@ -355,6 +376,7 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 			await git(["-C", outDir, "sparse-checkout", "set", ...sparsePaths], {
 				timeoutMs: params.timeoutMs,
 				allowFileProtocol: true,
+				logger: params.logger,
 			});
 		}
 	}
@@ -362,6 +384,7 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 	await ensureCommitAvailable(outDir, params.resolvedCommit, {
 		timeoutMs: params.timeoutMs,
 		allowFileProtocol: true,
+		logger: params.logger,
 	});
 
 	await git(
@@ -369,6 +392,7 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 		{
 			timeoutMs: params.timeoutMs,
 			allowFileProtocol: true,
+			logger: params.logger,
 		},
 	);
 };
@@ -383,6 +407,7 @@ const archiveRepo = async (params: FetchParams) => {
 			params.resolvedCommit,
 			tempDir,
 			params.timeoutMs,
+			params.logger,
 		);
 		return tempDir;
 	} catch (error) {

@@ -12,6 +12,7 @@ type ResolveRemoteParams = {
 	ref: string;
 	allowHosts: string[];
 	timeoutMs?: number;
+	logger?: (message: string) => void;
 };
 
 const BLOCKED_PROTOCOLS = new Set(["file:", "ftp:", "data:", "javascript:"]);
@@ -81,6 +82,8 @@ export const parseLsRemote = (stdout: string) => {
 export const resolveRemoteCommit = async (params: ResolveRemoteParams) => {
 	enforceHostAllowlist(params.repo, params.allowHosts);
 
+	const repoLabel = redactRepoUrl(params.repo);
+	params.logger?.(`git ls-remote ${repoLabel} ${params.ref}`);
 	const { stdout } = await execFileAsync(
 		"git",
 		["ls-remote", params.repo, params.ref],
