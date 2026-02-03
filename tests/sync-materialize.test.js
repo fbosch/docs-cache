@@ -82,6 +82,130 @@ test("sync materializes via mocked fetch", async () => {
 	assert.equal(lock.sources.local.fileCount, 1);
 });
 
+test("sync warns when include matches no files", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-sync-miss-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const repoDir = path.join(tmpRoot, "repo");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	await mkdir(repoDir, { recursive: true });
+	await writeFile(path.join(repoDir, "README.md"), "hello", "utf8");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+				include: ["docs/**/*.md"],
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+
+	const warnings = [];
+	const originalWrite = process.stdout.write.bind(process.stdout);
+	process.stdout.write = (chunk) => {
+		const text = chunk instanceof Uint8Array ? chunk.toString() : chunk;
+		if (text.includes("No files matched include patterns")) {
+			warnings.push(text);
+		}
+		return originalWrite(chunk);
+	};
+
+	try {
+		await runSync(
+			{
+				configPath,
+				cacheDirOverride: cacheDir,
+				json: false,
+				lockOnly: false,
+				offline: false,
+				failOnMiss: false,
+			},
+			{
+				resolveRemoteCommit: async () => ({
+					repo: "https://example.com/repo.git",
+					ref: "HEAD",
+					resolvedCommit: "abc123",
+				}),
+				fetchSource: async () => ({
+					repoDir,
+					cleanup: async () => undefined,
+				}),
+			},
+		);
+	} finally {
+		process.stdout.write = originalWrite;
+	}
+
+	assert.ok(warnings.length > 0, "expected include mismatch warning");
+});
+
+test("sync decodes percent-encoded include patterns", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-sync-encoded-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const repoDir = path.join(tmpRoot, "repo");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	const encodedDir = "Design%20Notes";
+	const decodedDir = "Design Notes";
+	await mkdir(path.join(repoDir, decodedDir), { recursive: true });
+	await writeFile(path.join(repoDir, decodedDir, "README.md"), "hello", "utf8");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+				include: [`${encodedDir}/**/*.md`],
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
+		},
+		{
+			resolveRemoteCommit: async () => ({
+				repo: "https://example.com/repo.git",
+				ref: "HEAD",
+				resolvedCommit: "abc123",
+			}),
+			fetchSource: async () => ({
+				repoDir,
+				cleanup: async () => undefined,
+			}),
+		},
+	);
+
+	const materializedPath = path.join(
+		cacheDir,
+		"local",
+		decodedDir,
+		"README.md",
+	);
+	assert.equal(await readFile(materializedPath, "utf8"), "hello");
+});
+
 test("sync re-materializes when docs missing even if commit unchanged", async () => {
 	const tmpRoot = path.join(
 		tmpdir(),

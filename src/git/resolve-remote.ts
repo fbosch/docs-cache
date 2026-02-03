@@ -12,6 +12,7 @@ type ResolveRemoteParams = {
 	ref: string;
 	allowHosts: string[];
 	timeoutMs?: number;
+	logger?: (message: string) => void;
 };
 
 const BLOCKED_PROTOCOLS = new Set(["file:", "ftp:", "data:", "javascript:"]);
@@ -34,14 +35,9 @@ const assertAllowedProtocol = (repo: string) => {
 
 const parseRepoHost = (repo: string) => {
 	assertAllowedProtocol(repo);
-	if (repo.startsWith("git@")) {
-		const atIndex = repo.indexOf("@");
-		const colonIndex = repo.indexOf(":", atIndex + 1);
-		if (colonIndex === -1) {
-			return null;
-		}
-		const host = repo.slice(atIndex + 1, colonIndex);
-		return host || null;
+	const scpMatch = repo.match(/^[^@]+@([^:]+):/);
+	if (scpMatch) {
+		return scpMatch[1] || null;
 	}
 
 	try {
@@ -64,7 +60,10 @@ export const enforceHostAllowlist = (repo: string, allowHosts: string[]) => {
 	}
 	const normalizedHost = host.toLowerCase();
 	const allowed = allowHosts.map((entry) => entry.toLowerCase());
-	if (!allowed.includes(normalizedHost)) {
+	const isAllowed = allowed.some(
+		(entry) => normalizedHost === entry || normalizedHost.endsWith(`.${entry}`),
+	);
+	if (!isAllowed) {
 		throw new Error(
 			`Host '${host}' is not in allowHosts for '${redactRepoUrl(repo)}'.`,
 		);
@@ -83,6 +82,8 @@ export const parseLsRemote = (stdout: string) => {
 export const resolveRemoteCommit = async (params: ResolveRemoteParams) => {
 	enforceHostAllowlist(params.repo, params.allowHosts);
 
+	const repoLabel = redactRepoUrl(params.repo);
+	params.logger?.(`git ls-remote ${repoLabel} ${params.ref}`);
 	const { stdout } = await execFileAsync(
 		"git",
 		["ls-remote", params.repo, params.ref],

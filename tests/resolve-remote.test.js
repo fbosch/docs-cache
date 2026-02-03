@@ -25,3 +25,20 @@ test("enforceHostAllowlist rejects disallowed host", () => {
 		/allowHosts/i,
 	);
 });
+
+test("enforceHostAllowlist allows subdomain for allowHosts entry", () => {
+	assert.doesNotThrow(() =>
+		enforceHostAllowlist("https://acme.visualstudio.com/repo.git", [
+			"visualstudio.com",
+		]),
+	);
+});
+
+test("enforceHostAllowlist allows scp-style ssh", () => {
+	assert.doesNotThrow(() =>
+		enforceHostAllowlist(
+			"user@vs-ssh.visualstudio.com:v3/org/project/repo.git",
+			["visualstudio.com"],
+		),
+	);
+});

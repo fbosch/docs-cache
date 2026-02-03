@@ -4,7 +4,7 @@ import pc from "picocolors";
 import { ExitCode } from "./exit-code";
 import { parseArgs } from "./parse-args";
 import type { CliCommand } from "./types";
-import { setSilentMode, symbols, ui } from "./ui";
+import { setSilentMode, setVerboseMode, symbols, ui } from "./ui";
 
 export const CLI_NAME = "docs-cache";
 
@@ -23,18 +23,22 @@ Commands:
   init        Create a new config interactively
 
 Global options:
-  --source <repo> (add only)
-  --target <dir> (add only)
   --config <path>
   --cache-dir <path>
   --offline
   --fail-on-miss
   --lock-only
-  --target-dir <path> (add only)
   --concurrency <n>
   --json
   --timeout-ms <n>
   --silent
+  --verbose
+
+Add options:
+  --source <repo>
+  --target <dir>
+  --target-dir <path>
+  --id <id>
 `;
 
 const printHelp = () => {
@@ -45,70 +49,20 @@ const printError = (message: string) => {
 	process.stderr.write(`${symbols.error} ${message}\n`);
 };
 
-const parseAddEntries = (rawArgs: string[]) => {
-	const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
-	const tail = commandIndex === -1 ? [] : rawArgs.slice(commandIndex + 1);
-	const entries: Array<{ repo: string; targetDir?: string }> = [];
-	let lastIndex = -1;
-	const skipNextFor = new Set([
-		"--config",
-		"--cache-dir",
-		"--concurrency",
-		"--timeout-ms",
-	]);
-	for (let index = 0; index < tail.length; index += 1) {
-		const arg = tail[index];
-		if (arg === "--source") {
-			const next = tail[index + 1];
-			if (!next || next.startsWith("-")) {
-				throw new Error("--source expects a value.");
-			}
-			entries.push({ repo: next });
-			lastIndex = entries.length - 1;
-			index += 1;
-			continue;
-		}
-		if (arg === "--target" || arg === "--target-dir") {
-			const next = tail[index + 1];
-			if (!next || next.startsWith("-")) {
-				throw new Error("--target expects a value.");
-			}
-			if (lastIndex === -1) {
-				throw new Error("--target must follow a --source entry.");
-			}
-			entries[lastIndex].targetDir = next;
-			index += 1;
-			continue;
-		}
-		if (skipNextFor.has(arg)) {
-			index += 1;
-			continue;
-		}
-		if (arg.startsWith("--")) {
-			continue;
-		}
-		entries.push({ repo: arg });
-		lastIndex = entries.length - 1;
-	}
-	return entries;
-};
-
-const runCommand = async (parsed: CliCommand, rawArgs: string[]) => {
+const runCommand = async (parsed: CliCommand) => {
 	const command = parsed.command;
 	const options = parsed.options;
-	const positionals = parsed.args;
 	if (command === "add") {
 		const { addSources } = await import("../add");
 		const { runSync } = await import("../sync");
-		const entries = parseAddEntries(rawArgs);
-		if (entries.length === 0) {
+		if (parsed.entries.length === 0) {
 			throw new Error(
 				"Usage: docs-cache add [--source <repo> --target <dir>] <repo...>",
 			);
 		}
 		const result = await addSources({
 			configPath: options.config,
-			entries,
+			entries: parsed.entries,
 		});
 		if (!options.offline) {
 			await runSync({
@@ -120,6 +74,7 @@ const runCommand = async (parsed: CliCommand, rawArgs: string[]) => {
 				failOnMiss: options.failOnMiss,
 				sourceFilter: result.sources.map((source) => source.id),
 				timeoutMs: options.timeoutMs,
+				verbose: options.verbose,
 			});
 		} else if (!options.json) {
 			ui.line(`${symbols.warn} Offline: skipped sync`);
@@ -159,12 +114,12 @@ const runCommand = async (parsed: CliCommand, rawArgs: string[]) => {
 	if (command === "remove") {
 		const { removeSources } = await import("../remove");
 		const { pruneCache } = await import("../prune");
-		if (positionals.length === 0) {
+		if (parsed.ids.length === 0) {
 			throw new Error("Usage: docs-cache remove <id...>");
 		}
 		const result = await removeSources({
 			configPath: options.config,
-			ids: positionals,
+			ids: parsed.ids,
 		});
 		if (options.json) {
 			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -287,6 +242,7 @@ const runCommand = async (parsed: CliCommand, rawArgs: string[]) => {
 			offline: options.offline,
 			failOnMiss: options.failOnMiss,
 			timeoutMs: options.timeoutMs,
+			verbose: options.verbose,
 		});
 		if (options.json) {
 			process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
@@ -347,10 +303,10 @@ export async function main(): Promise<void> {
 		process.on("unhandledRejection", errorHandler);
 
 		const parsed = parseArgs();
-		const _rawArgs = parsed.rawArgs;
 
 		// Set silent mode if the flag is present
 		setSilentMode(parsed.options.silent);
+		setVerboseMode(parsed.options.verbose);
 
 		if (parsed.help) {
 			printHelp();
@@ -372,13 +328,7 @@ export async function main(): Promise<void> {
 			process.exit(ExitCode.InvalidArgument);
 		}
 
-		if (parsed.command !== "add" && parsed.options.targetDir) {
-			printError(`${CLI_NAME}: --target-dir is only valid for add.`);
-			printHelp();
-			process.exit(ExitCode.InvalidArgument);
-		}
-
-		await runCommand(parsed.parsed, parsed.rawArgs);
+		await runCommand(parsed.parsed);
 	} catch (error) {
 		errorHandler(error as Error);
 	}

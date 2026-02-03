@@ -117,6 +117,23 @@ test("parseArgs handles --silent flag", async (t) => {
 	assert.equal(result.options.silent, true);
 });
 
+test("parseArgs handles --verbose flag", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs([
+		"node",
+		"docs-cache",
+		"status",
+		"--verbose",
+	]);
+
+	assert.equal(result.command, "status");
+	assert.equal(result.options.verbose, true);
+});
+
 test("parseArgs accepts clean-cache command", async (t) => {
 	const module = await loadCliModule();
 	if (!module) {

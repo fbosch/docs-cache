@@ -1,5 +1,6 @@
 import { access, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { symbols, ui } from "./cli/ui";
 import type { DocsCacheResolvedSource, TocFormat } from "./config";
 import type { DocsCacheLock } from "./lock";
 import { DEFAULT_TOC_FILENAME, resolveTargetDir, toPosixPath } from "./paths";
@@ -232,7 +233,18 @@ export const writeToc = async (params: {
 					// Missing TOC; regenerate below.
 				}
 			}
+			let existingContent: string | null = null;
+			try {
+				existingContent = await readFile(sourceTocPath, "utf8");
+			} catch {
+				existingContent = null;
+			}
 			const sourceTocContent = generateSourceToc(entry, tocFormat);
+			if (existingContent !== null && existingContent !== sourceTocContent) {
+				ui.line(
+					`${symbols.warn} Overwriting existing ${DEFAULT_TOC_FILENAME} for ${id}`,
+				);
+			}
 			await writeFile(sourceTocPath, sourceTocContent, "utf8");
 		} else {
 			// Remove TOC.md if it exists but toc is disabled

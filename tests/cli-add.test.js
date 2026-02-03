@@ -48,6 +48,51 @@ test("add supports multiple github shorthands", async () => {
 	);
 });
 
+test("add supports explicit ids", async () => {
+	const tmpPath = path.join(tmpdir(), `docs-config-${Date.now()}-id.json`);
+	await execFileAsync("node", [
+		"bin/docs-cache.mjs",
+		"add",
+		"--offline",
+		"--id",
+		"ux-design",
+		"https://github.com/fbosch/docs-cache.git",
+		"--config",
+		tmpPath,
+	]);
+
+	const raw = await readFile(tmpPath, "utf8");
+	const config = JSON.parse(raw);
+	assert.equal(config.sources[0].id, "ux-design");
+	assert.equal(
+		config.sources[0].repo,
+		"https://github.com/fbosch/docs-cache.git",
+	);
+});
+
+test("add supports explicit ids for multiple sources", async () => {
+	const tmpPath = path.join(tmpdir(), `docs-config-${Date.now()}-ids.json`);
+	await execFileAsync("node", [
+		"bin/docs-cache.mjs",
+		"add",
+		"--offline",
+		"--id",
+		"ux-nixos",
+		"fbosch/nixos",
+		"--id",
+		"ux-dotfiles",
+		"fbosch/dotfiles",
+		"--config",
+		tmpPath,
+	]);
+
+	const raw = await readFile(tmpPath, "utf8");
+	const config = JSON.parse(raw);
+	assert.equal(config.sources.length, 2);
+	assert.equal(config.sources[0].id, "ux-nixos");
+	assert.equal(config.sources[1].id, "ux-dotfiles");
+});
+
 test("add skips existing sources", async () => {
 	const tmpPath = path.join(tmpdir(), `docs-config-${Date.now()}-skip.json`);
 	await execFileAsync("node", [

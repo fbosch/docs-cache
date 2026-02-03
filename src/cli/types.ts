@@ -5,21 +5,27 @@ export type CliOptions = {
 	failOnMiss: boolean;
 	lockOnly: boolean;
 	prune: boolean;
-	targetDir?: string;
 	concurrency?: number;
 	json: boolean;
 	timeoutMs?: number;
 	silent: boolean;
+	verbose: boolean;
+};
+
+export type AddEntry = {
+	id?: string;
+	repo: string;
+	targetDir?: string;
 };
 
 export type CliCommand =
-	| { command: "add"; args: string[]; options: CliOptions }
-	| { command: "remove"; args: string[]; options: CliOptions }
-	| { command: "sync"; args: string[]; options: CliOptions }
-	| { command: "status"; args: string[]; options: CliOptions }
-	| { command: "clean"; args: string[]; options: CliOptions }
-	| { command: "clean-cache"; args: string[]; options: CliOptions }
-	| { command: "prune"; args: string[]; options: CliOptions }
-	| { command: "verify"; args: string[]; options: CliOptions }
-	| { command: "init"; args: string[]; options: CliOptions }
-	| { command: null; args: string[]; options: CliOptions };
+	| { command: "add"; entries: AddEntry[]; options: CliOptions }
+	| { command: "remove"; ids: string[]; options: CliOptions }
+	| { command: "sync"; options: CliOptions }
+	| { command: "status"; options: CliOptions }
+	| { command: "clean"; options: CliOptions }
+	| { command: "clean-cache"; options: CliOptions }
+	| { command: "prune"; options: CliOptions }
+	| { command: "verify"; options: CliOptions }
+	| { command: "init"; options: CliOptions }
+	| { command: null; options: CliOptions };

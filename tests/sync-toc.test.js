@@ -422,3 +422,78 @@ test("sync does not rewrite TOC.md when commit matches", async () => {
 		"TOC.md should not be rewritten when commit matches",
 	);
 });
+
+test("sync warns when overwriting existing TOC.md", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-toc-overwrite-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const repoDir = path.join(tmpRoot, "repo");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	await mkdir(repoDir, { recursive: true });
+	await writeFile(path.join(repoDir, "README.md"), "hello", "utf8");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+
+	const warnings = [];
+	const originalWrite = process.stdout.write.bind(process.stdout);
+	process.stdout.write = (chunk) => {
+		const text = chunk instanceof Uint8Array ? chunk.toString() : chunk;
+		if (text.includes("Overwriting existing TOC.md")) {
+			warnings.push(text);
+		}
+		return originalWrite(chunk);
+	};
+
+	try {
+		await runSync(
+			{
+				configPath,
+				cacheDirOverride: cacheDir,
+				json: false,
+				lockOnly: false,
+				offline: false,
+				failOnMiss: false,
+			},
+			{
+				resolveRemoteCommit: async () => ({
+					repo: "https://example.com/repo.git",
+					ref: "HEAD",
+					resolvedCommit: "abc123",
+				}),
+				fetchSource: async () => ({
+					repoDir,
+					cleanup: async () => undefined,
+				}),
+				materializeSource: async ({ cacheDir: cacheRoot, sourceId }) => {
+					const outDir = path.join(cacheRoot, sourceId);
+					await mkdir(outDir, { recursive: true });
+					await writeFile(
+						path.join(outDir, ".manifest.jsonl"),
+						`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
+					);
+					await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
+					await writeFile(path.join(outDir, "TOC.md"), "old toc", "utf8");
+					return { bytes: 5, fileCount: 1 };
+				},
+			},
+		);
+	} finally {
+		process.stdout.write = originalWrite;
+	}
+
+	assert.ok(warnings.length > 0, "expected overwrite warning for TOC.md");
+});
