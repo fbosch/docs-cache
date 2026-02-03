@@ -20,6 +20,10 @@ export const setVerboseMode = (verbose: boolean) => {
 	_verboseMode = verbose;
 };
 
+export const isSilentMode = () => _silentMode;
+
+export const isVerboseMode = () => _verboseMode;
+
 export const ui = {
 	// Formatters
 	path: (value: string) => {

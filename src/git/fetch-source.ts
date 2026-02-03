@@ -22,6 +22,9 @@ const git = async (
 		timeoutMs?: number;
 		allowFileProtocol?: boolean;
 		logger?: (message: string) => void;
+		progressLogger?: (message: string) => void;
+		progressThrottleMs?: number;
+		forceProgress?: boolean;
 	},
 ) => {
 	const pathValue = process.env.PATH ?? process.env.Path;
@@ -48,6 +51,9 @@ const git = async (
 	}
 
 	const commandArgs = [...configs, ...args];
+	if (options?.forceProgress) {
+		commandArgs.push("--progress");
+	}
 	const commandLabel = `git ${commandArgs.join(" ")}`;
 	options?.logger?.(commandLabel);
 	const subprocess = execa("git", commandArgs, {
@@ -79,7 +85,8 @@ const git = async (
 			...(process.platform === "win32" ? {} : { GIT_ASKPASS: "/bin/false" }),
 		},
 	});
-	if (options?.logger) {
+	if (options?.logger || options?.progressLogger) {
+		let lastProgressAt = 0;
 		const forward = (stream: NodeJS.ReadableStream | null) => {
 			if (!stream) return;
 			stream.on("data", (chunk) => {
@@ -88,6 +95,26 @@ const git = async (
 				for (const line of text.split(/\r?\n/)) {
 					if (!line) continue;
 					options.logger?.(`${commandLabel} | ${line}`);
+					if (options?.progressLogger) {
+						const isProgressLine =
+							line.includes("Receiving objects") ||
+							line.includes("Resolving deltas") ||
+							line.includes("Compressing objects") ||
+							line.includes("Updating files") ||
+							line.includes("Counting objects");
+						if (isProgressLine) {
+							const now = Date.now();
+							const throttleMs = options.progressThrottleMs ?? 120;
+							const shouldEmit =
+								now - lastProgressAt >= throttleMs ||
+								line.includes("100%") ||
+								line.includes("done");
+							if (shouldEmit) {
+								lastProgressAt = now;
+								options.progressLogger(line);
+							}
+						}
+					}
 				}
 			});
 		};
@@ -188,6 +215,7 @@ type FetchParams = {
 	include?: string[];
 	timeoutMs?: number;
 	logger?: (message: string) => void;
+	progressLogger?: (message: string) => void;
 };
 
 type FetchResult = {
@@ -246,7 +274,12 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 		}
 	}
 	cloneArgs.push(params.repo, outDir);
-	await git(cloneArgs, { timeoutMs: params.timeoutMs, logger: params.logger });
+	await git(cloneArgs, {
+		timeoutMs: params.timeoutMs,
+		logger: params.logger,
+		progressLogger: params.progressLogger,
+		forceProgress: Boolean(params.progressLogger),
+	});
 	await ensureCommitAvailable(outDir, params.resolvedCommit, {
 		timeoutMs: params.timeoutMs,
 		logger: params.logger,
@@ -305,6 +338,8 @@ const cloneOrUpdateRepo = async (
 				await git(["-C", cachePath, ...fetchArgs], {
 					timeoutMs: params.timeoutMs,
 					logger: params.logger,
+					progressLogger: params.progressLogger,
+					forceProgress: Boolean(params.progressLogger),
 				});
 				await ensureCommitAvailable(cachePath, params.resolvedCommit, {
 					timeoutMs: params.timeoutMs,
@@ -355,6 +390,8 @@ const cloneOrUpdateRepo = async (
 		timeoutMs: params.timeoutMs,
 		allowFileProtocol: true,
 		logger: params.logger,
+		progressLogger: params.progressLogger,
+		forceProgress: Boolean(params.progressLogger),
 	});
 
 	if (useSparse) {

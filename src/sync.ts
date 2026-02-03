@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import pc from "picocolors";
-import { symbols, ui } from "./cli/ui";
+import { TaskReporter } from "./cli/task-reporter";
+import { isSilentMode, symbols, ui } from "./cli/ui";
 import {
 	DEFAULT_CACHE_DIR,
 	DEFAULT_CONFIG,
@@ -309,6 +310,10 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 	let warningCount = 0;
 	const plan = await getSyncPlan(options, deps);
 	await mkdir(plan.cacheDir, { recursive: true });
+
+	const useLiveOutput =
+		!options.json && !isSilentMode() && process.stdout.isTTY;
+	const reporter = useLiveOutput ? new TaskReporter() : null;
 	const previous = plan.lockData;
 	const requiredMissing = plan.results.filter((result) => {
 		const source = plan.sources.find((entry) => entry.id === result.id);
@@ -393,6 +398,20 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 				index += 1;
 				const { result, source } = job;
 				const lockEntry = plan.lockData?.sources?.[source.id];
+				const logDebug =
+					options.verbose && !options.json
+						? reporter
+							? (msg: string) => reporter.debug(msg)
+							: ui.debug
+						: undefined;
+				const logProgress = reporter
+					? (msg: string) => reporter.debug(`${source.id}: ${msg}`)
+					: undefined;
+
+				if (reporter) {
+					reporter.start(source.id);
+				}
+
 				const fetch = await runFetch({
 					sourceId: source.id,
 					repo: source.repo,
@@ -401,9 +420,14 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					cacheDir: plan.cacheDir,
 					include: source.include ?? defaults.include,
 					timeoutMs: options.timeoutMs,
-					logger: options.verbose && !options.json ? ui.debug : undefined,
+					logger: logDebug,
+					progressLogger: logProgress,
 				});
-				if (!options.json) {
+				if (reporter) {
+					reporter.debug(
+						`${source.id}: ${fetch.fromCache ? "restored from cache" : "downloaded"}`,
+					);
+				} else if (!options.json) {
 					ui.step(
 						fetch.fromCache ? "Restoring from cache" : "Downloading repo",
 						source.id,
@@ -436,14 +460,18 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 							result.fileCount = computed.fileCount;
 							result.manifestSha256 = computed.manifestSha256;
 							result.status = "up-to-date";
-							if (!options.json) {
+							if (reporter) {
+								reporter.success(source.id, "no content changes");
+							} else if (!options.json) {
 								ui.item(symbols.success, source.id, "no content changes");
 							}
 							await runNext();
 							return;
 						}
 					}
-					if (!options.json) {
+					if (reporter) {
+						reporter.debug(`${source.id}: materializing`);
+					} else if (!options.json) {
 						ui.step("Materializing", source.id);
 					}
 					const stats = await runMaterialize({
@@ -457,6 +485,9 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						ignoreHidden: source.ignoreHidden ?? defaults.ignoreHidden,
 						unwrapSingleRootDir: source.unwrapSingleRootDir,
 						json: options.json,
+						progressLogger: reporter
+							? (msg: string) => reporter.debug(`${source.id}: ${msg}`)
+							: undefined,
 					});
 					if (source.targetDir) {
 						const resolvedTarget = resolveTargetDir(
@@ -474,7 +505,9 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					result.bytes = stats.bytes;
 					result.fileCount = stats.fileCount;
 					result.manifestSha256 = stats.manifestSha256;
-					if (!options.json) {
+					if (reporter) {
+						reporter.success(source.id, `synced ${stats.fileCount} files`);
+					} else if (!options.json) {
 						ui.item(
 							symbols.success,
 							source.id,
@@ -523,7 +556,11 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 				const stillFailed = retryReport.results.filter((result) => !result.ok);
 				if (stillFailed.length > 0) {
 					warningCount += 1;
-					if (!options.json) {
+					if (reporter) {
+						for (const failed of stillFailed) {
+							reporter.warn(failed.id, failed.issues.join("; "));
+						}
+					} else if (!options.json) {
 						const details = stillFailed
 							.map((result) => `${result.id} (${result.issues.join("; ")})`)
 							.join(", ");
@@ -537,7 +574,18 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 	}
 	const lock = await buildLock(plan, previous);
 	await writeLock(plan.lockPath, lock);
-	if (!options.json) {
+	if (reporter) {
+		const totalBytes = plan.results.reduce(
+			(sum, result) => sum + (result.bytes ?? 0),
+			0,
+		);
+		const totalFiles = plan.results.reduce(
+			(sum, result) => sum + (result.fileCount ?? 0),
+			0,
+		);
+		const summary = `${symbols.info} ${formatBytes(totalBytes)} · ${totalFiles} files`;
+		reporter.finish(summary);
+	} else if (!options.json) {
 		const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1_000_000;
 		const totalBytes = plan.results.reduce(
 			(sum, result) => sum + (result.bytes ?? 0),
