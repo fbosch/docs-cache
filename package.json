@@ -4,31 +4,31 @@
 	"type": "module",
 	"imports": {
 		"#cache/*": {
-			"types": "./src/cache/*.ts",
+			"types": "./dist/esm/cache/*.d.ts",
 			"default": "./dist/esm/cache/*.mjs"
 		},
 		"#cli/*": {
-			"types": "./src/cli/*.ts",
+			"types": "./dist/esm/cli/*.d.ts",
 			"default": "./dist/esm/cli/*.mjs"
 		},
 		"#commands/*": {
-			"types": "./src/commands/*.ts",
+			"types": "./dist/esm/commands/*.d.ts",
 			"default": "./dist/esm/commands/*.mjs"
 		},
 		"#core/*": {
-			"types": "./src/*.ts",
+			"types": "./dist/esm/*.d.ts",
 			"default": "./dist/esm/*.mjs"
 		},
 		"#config": {
-			"types": "./src/config/index.ts",
+			"types": "./dist/esm/config/index.d.ts",
 			"default": "./dist/esm/config/index.mjs"
 		},
 		"#config/*": {
-			"types": "./src/config/*.ts",
+			"types": "./dist/esm/config/*.d.ts",
 			"default": "./dist/esm/config/*.mjs"
 		},
 		"#git/*": {
-			"types": "./src/git/*.ts",
+			"types": "./dist/esm/git/*.d.ts",
 			"default": "./dist/esm/git/*.mjs"
 		}
 	},
@@ -65,6 +65,7 @@
 		"bin",
 		"dist/cli.mjs",
 		"dist/esm/**/*.mjs",
+		"dist/esm/**/*.d.ts",
 		"dist/lock.mjs",
 		"dist/shared/*.mjs",
 		"README.md",
