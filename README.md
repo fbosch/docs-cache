@@ -54,20 +54,21 @@ npx docs-cache clean
 
 ## Configuration
 
-`docs.config.json` at project root (or `docs-cache` inside `package.json`):
+`docs.config.json` at project root (or a `docs-cache` field in `package.json`):
 
-```json
+```jsonc
 {
   "$schema": "https://github.com/fbosch/docs-cache/blob/master/docs.config.schema.json",
   "sources": [
     {
       "id": "framework",
       "repo": "https://github.com/framework/core.git",
-      "ref": "main",
-      "targetDir": "./agents/skills/framework-skill/references",
-      "include": ["guide/**"]
-    }
-  ]
+      "ref": "main", // or specific commit hash
+      "targetDir": "./agents/skills/framework-skill/references", // symlink/copy target
+      "include": ["guide/**"], // file globs to include from the source
+      "toc": true, // defaults to "compressed" (for agents)
+    },
+  ],
 }
 ```
 
@@ -88,19 +89,19 @@ npx docs-cache clean
 
 These fields can be set in `defaults` and are inherited by every source unless overridden per-source.
 
-| Field                 | Details                                                                                                          |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `ref`                 | Branch, tag, or commit. Default: `"HEAD"`.                                                                       |
-| `mode`                | Cache mode. Default: `"materialize"`.                                                                            |
-| `include`             | Glob patterns to copy. Default: `["**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}"]`.                          |
-| `exclude`             | Glob patterns to skip. Default: `[]`.                                                                            |
-| `targetMode`          | How to link or copy from the cache to the destination. Default: `"symlink"` on Unix, `"copy"` on Windows.        |
-| `required`            | Whether missing sources should fail. Default: `true`.                                                            |
-| `maxBytes`            | Maximum total bytes to materialize. Default: `200000000` (200 MB).                                               |
-| `maxFiles`            | Maximum total files to materialize.                                                                              |
-| `allowHosts`          | Allowed Git hosts. Default: `["github.com", "gitlab.com"]`.                                                      |
-| `toc`                 | Generate per-source `TOC.md`. Default: `true`. Supports `true`, `false`, or a format (`"tree"`, `"compressed"`). |
-| `unwrapSingleRootDir` | If the materialized output is nested under a single directory, unwrap it (recursively). Default: `false`.        |
+| Field                 | Details                                                                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ref`                 | Branch, tag, or commit. Default: `"HEAD"`.                                                                                                              |
+| `mode`                | Cache mode. Default: `"materialize"`.                                                                                                                   |
+| `include`             | Glob patterns to copy. Default: `["**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}"]`.                                                                 |
+| `exclude`             | Glob patterns to skip. Default: `[]`.                                                                                                                   |
+| `targetMode`          | How to link or copy from the cache to the destination. Default: `"symlink"` on Unix, `"copy"` on Windows.                                               |
+| `required`            | Whether missing sources should fail. Default: `true`.                                                                                                   |
+| `maxBytes`            | Maximum total bytes to materialize. Default: `200000000` (200 MB).                                                                                      |
+| `maxFiles`            | Maximum total files to materialize.                                                                                                                     |
+| `allowHosts`          | Allowed Git hosts. Default: `["github.com", "gitlab.com"]`.                                                                                             |
+| `toc`                 | Generate per-source `TOC.md`. Default: `true`. Supports `true`, `false`, or a format: `"tree"` (human readable), `"compressed"` (optimized for agents). |
+| `unwrapSingleRootDir` | If the materialized output is nested under a single directory, unwrap it (recursively). Default: `false`.                                               |
 
 ### Source options
 
@@ -117,7 +118,7 @@ These fields can be set in `defaults` and are inherited by every source unless o
 | ----------- | ---------------------------------------------------------------- |
 | `targetDir` | Path where files should be symlinked/copied to, outside `.docs`. |
 
-> **Note**: Sources are always downloaded to `.docs/<id>/`. If you provide a `targetDir`, `docs-cache` will create a symlink or copy pointing from the cache to that target directory. The target should be outside `.docs`. Git operation timeout is configured via the `--timeout-ms` CLI flag, not as a per-source configuration option.
+> **Note**: Sources are always downloaded to `.docs/<id>/`. If you provide a `targetDir`; `docs-cache` will create a symlink or copy pointing from the cache to that target directory.
 
 </details>
 
