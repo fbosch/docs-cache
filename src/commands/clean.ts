@@ -1,6 +1,6 @@
 import { access, rm } from "node:fs/promises";
-import { DEFAULT_CACHE_DIR, loadConfig } from "./config";
-import { resolveCacheDir } from "./paths";
+import { DEFAULT_CACHE_DIR, loadConfig } from "../config";
+import { resolveCacheDir } from "../paths";
 
 type CleanOptions = {
 	configPath?: string;

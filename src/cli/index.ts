@@ -51,8 +51,8 @@ const printError = (message: string) => {
 
 const runAdd = async (parsed: Extract<CliCommand, { command: "add" }>) => {
 	const options = parsed.options;
-	const { addSources } = await import("../add");
-	const { runSync } = await import("../sync");
+	const { addSources } = await import("../commands/add");
+	const { runSync } = await import("../commands/sync");
 	if (parsed.entries.length === 0) {
 		throw new Error(
 			"Usage: docs-cache add [--source <repo> --target <dir>] <repo...>",
@@ -111,8 +111,8 @@ const runRemove = async (
 	parsed: Extract<CliCommand, { command: "remove" }>,
 ) => {
 	const options = parsed.options;
-	const { removeSources } = await import("../remove");
-	const { pruneCache } = await import("../prune");
+	const { removeSources } = await import("../commands/remove");
+	const { pruneCache } = await import("../commands/prune");
 	if (parsed.ids.length === 0) {
 		throw new Error("Usage: docs-cache remove <id...>");
 	}
@@ -158,7 +158,7 @@ const runStatus = async (
 	parsed: Extract<CliCommand, { command: "status" }>,
 ) => {
 	const options = parsed.options;
-	const { getStatus, printStatus } = await import("../status");
+	const { getStatus, printStatus } = await import("../commands/status");
 	const status = await getStatus({
 		configPath: options.config,
 		cacheDirOverride: options.cacheDir,
@@ -173,7 +173,7 @@ const runStatus = async (
 
 const runClean = async (parsed: Extract<CliCommand, { command: "clean" }>) => {
 	const options = parsed.options;
-	const { cleanCache } = await import("../clean");
+	const { cleanCache } = await import("../commands/clean");
 	const result = await cleanCache({
 		configPath: options.config,
 		cacheDirOverride: options.cacheDir,
@@ -196,7 +196,7 @@ const runCleanCache = async (
 	parsed: Extract<CliCommand, { command: "clean-cache" }>,
 ) => {
 	const options = parsed.options;
-	const { cleanGitCache } = await import("../clean-git-cache");
+	const { cleanGitCache } = await import("../commands/clean-git-cache");
 	const result = await cleanGitCache();
 	if (options.json) {
 		process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -224,7 +224,7 @@ const runCleanCache = async (
 
 const runPrune = async (parsed: Extract<CliCommand, { command: "prune" }>) => {
 	const options = parsed.options;
-	const { pruneCache } = await import("../prune");
+	const { pruneCache } = await import("../commands/prune");
 	const result = await pruneCache({
 		configPath: options.config,
 		cacheDirOverride: options.cacheDir,
@@ -247,7 +247,7 @@ const runSyncCommand = async (
 	parsed: Extract<CliCommand, { command: "sync" }>,
 ) => {
 	const options = parsed.options;
-	const { printSyncPlan, runSync } = await import("../sync");
+	const { printSyncPlan, runSync } = await import("../commands/sync");
 	const plan = await runSync({
 		configPath: options.config,
 		cacheDirOverride: options.cacheDir,
@@ -269,7 +269,7 @@ const runVerify = async (
 	parsed: Extract<CliCommand, { command: "verify" }>,
 ) => {
 	const options = parsed.options;
-	const { printVerify, verifyCache } = await import("../verify");
+	const { printVerify, verifyCache } = await import("../commands/verify");
 	const report = await verifyCache({
 		configPath: options.config,
 		cacheDirOverride: options.cacheDir,
@@ -287,7 +287,7 @@ const runVerify = async (
 
 const runInit = async (parsed: Extract<CliCommand, { command: "init" }>) => {
 	const options = parsed.options;
-	const { initConfig } = await import("../init");
+	const { initConfig } = await import("../commands/init");
 	if (options.config) {
 		throw new Error("Init does not accept --config. Use the project root.");
 	}

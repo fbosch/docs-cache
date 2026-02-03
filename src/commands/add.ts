@@ -1,15 +1,15 @@
 import path from "node:path";
-import { DEFAULT_CACHE_DIR, type DocsCacheConfig } from "./config";
+import { DEFAULT_CACHE_DIR, type DocsCacheConfig } from "../config";
 import {
 	mergeConfigBase,
 	readConfigAtPath,
 	resolveConfigTarget,
 	writeConfigFile,
-} from "./config-io";
-import { ensureGitignoreEntry } from "./gitignore";
-import { resolveTargetDir } from "./paths";
-import { resolveRepoInput } from "./resolve-repo";
-import { assertSafeSourceId } from "./source-id";
+} from "../config/config-io";
+import { ensureGitignoreEntry } from "../gitignore";
+import { resolveTargetDir } from "../paths";
+import { resolveRepoInput } from "../resolve-repo";
+import { assertSafeSourceId } from "../source-id";
 
 const buildNewSources = (
 	entries: Array<{ id?: string; repo: string; targetDir?: string }>,

@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { assertSafeSourceId } from "./source-id";
+import { assertSafeSourceId } from "../source-id";
 
 export const TargetModeSchema = z.enum(["symlink", "copy"]);
 export const CacheModeSchema = z.enum(["materialize"]);

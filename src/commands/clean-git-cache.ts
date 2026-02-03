@@ -1,7 +1,7 @@
 import { readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { exists, resolveGitCacheDir } from "./git/cache-dir";
+import { exists, resolveGitCacheDir } from "../git/cache-dir";
 
 const getDirSize = async (dirPath: string): Promise<number> => {
 	try {
