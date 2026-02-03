@@ -15,6 +15,7 @@ export const DefaultsSchema = z
 		ref: z.string().min(1),
 		mode: CacheModeSchema,
 		include: z.array(z.string().min(1)).min(1),
+		exclude: z.array(z.string().min(1)).optional(),
 		targetMode: TargetModeSchema.optional(),
 		required: z.boolean(),
 		maxBytes: z.number().min(1),

@@ -176,7 +176,7 @@ export const getSyncPlan = async (
 		filteredSources.map(async (source) => {
 			const lockEntry = lockData?.sources?.[source.id];
 			const include = source.include ?? defaults.include;
-			const exclude = source.exclude;
+			const exclude = source.exclude ?? defaults.exclude;
 			const rulesSha256 = computeRulesHash({
 				...source,
 				include,
@@ -439,7 +439,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						}
 					}
 					if (!options.json) {
-						ui.step("Building cache layout", source.id);
+						ui.step("Materializing", source.id);
 					}
 					const stats = await runMaterialize({
 						sourceId: source.id,

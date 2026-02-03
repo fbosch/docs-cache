@@ -33,6 +33,13 @@
 						"minLength": 1
 					}
 				},
+				"exclude": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
 				"targetMode": {
 					"type": "string",
 					"enum": ["symlink", "copy"]
@@ -56,9 +63,6 @@
 						"minLength": 1
 					}
 				},
-				"unwrapSingleRootDir": {
-					"type": "boolean"
-				},
 				"toc": {
 					"anyOf": [
 						{
@@ -70,9 +74,8 @@
 						}
 					]
 				},
-				"tocFormat": {
-					"type": "string",
-					"enum": ["tree", "compressed"]
+				"unwrapSingleRootDir": {
+					"type": "boolean"
 				}
 			},
 			"additionalProperties": false
@@ -162,10 +165,6 @@
 								"enum": ["tree", "compressed"]
 							}
 						]
-					},
-					"tocFormat": {
-						"type": "string",
-						"enum": ["tree", "compressed"]
 					},
 					"unwrapSingleRootDir": {
 						"type": "boolean"
