@@ -32,6 +32,12 @@ const ADD_ONLY_OPTIONS = new Set([
 	"--target-dir",
 	"--id",
 ]);
+const POSITIONAL_SKIP_OPTIONS = new Set([
+	"--config",
+	"--cache-dir",
+	"--concurrency",
+	"--timeout-ms",
+]);
 
 const parseAddEntries = (rawArgs: string[]): AddEntry[] => {
 	const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
@@ -116,6 +122,24 @@ const parseAddEntries = (rawArgs: string[]): AddEntry[] => {
 		throw new Error("--id must be followed by a source.");
 	}
 	return entries;
+};
+
+const parsePositionals = (rawArgs: string[]) => {
+	const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
+	const tail = commandIndex === -1 ? [] : rawArgs.slice(commandIndex + 1);
+	const positionals: string[] = [];
+	for (let index = 0; index < tail.length; index += 1) {
+		const arg = tail[index];
+		if (POSITIONAL_SKIP_OPTIONS.has(arg)) {
+			index += 1;
+			continue;
+		}
+		if (arg.startsWith("--")) {
+			continue;
+		}
+		positionals.push(arg);
+	}
+	return positionals;
 };
 
 const assertAddOnlyOptions = (command: Command | null, rawArgs: string[]) => {
@@ -206,11 +230,26 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 		}
 
 		assertAddOnlyOptions(command ?? null, rawArgs);
-		const positionals = result.args.slice(1);
+		let addEntries: AddEntry[] | null = null;
+		const positionals = (() => {
+			switch (command ?? null) {
+				case "add":
+					addEntries = parseAddEntries(rawArgs);
+					return addEntries.map((entry) => entry.repo);
+				case "remove":
+					return parsePositionals(rawArgs);
+				default:
+					return parsePositionals(rawArgs);
+			}
+		})();
 		let parsed: CliCommand;
 		switch (command ?? null) {
 			case "add":
-				parsed = { command: "add", entries: parseAddEntries(rawArgs), options };
+				parsed = {
+					command: "add",
+					entries: addEntries ?? parseAddEntries(rawArgs),
+					options,
+				};
 				break;
 			case "remove":
 				parsed = { command: "remove", ids: positionals, options };

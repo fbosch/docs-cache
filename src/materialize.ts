@@ -30,6 +30,7 @@ type MaterializeParams = {
 	maxFiles?: number;
 	ignoreHidden?: boolean;
 	unwrapSingleRootDir?: boolean;
+	json?: boolean;
 };
 
 type ResolvedMaterializeParams = {
@@ -42,6 +43,7 @@ type ResolvedMaterializeParams = {
 	maxFiles?: number;
 	ignoreHidden: boolean;
 	unwrapSingleRootDir: boolean;
+	json: boolean;
 };
 
 type ManifestStats = {
@@ -170,6 +172,7 @@ const resolveMaterializeParams = (
 	exclude: params.exclude ?? [],
 	ignoreHidden: params.ignoreHidden ?? false,
 	unwrapSingleRootDir: params.unwrapSingleRootDir ?? false,
+	json: params.json ?? false,
 });
 
 const acquireLock = async (lockPath: string, timeoutMs = 5000) => {
@@ -240,7 +243,7 @@ export const materializeSource = async (params: MaterializeParams) => {
 			onlyFiles: true,
 			followSymbolicLinks: false,
 		});
-		if (includePatterns.length > 0 && files.length === 0) {
+		if (!resolved.json && includePatterns.length > 0 && files.length === 0) {
 			ui.line(
 				`${symbols.warn} No files matched include patterns for ${resolved.sourceId}: ${includePatterns.join(", ")}`,
 			);

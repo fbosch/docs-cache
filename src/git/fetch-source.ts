@@ -47,12 +47,15 @@ const git = async (
 		configs.push("-c", "protocol.file.allow=never");
 	}
 
-	options?.logger?.(`git ${[...configs, ...args].join(" ")}`);
-	await execa("git", [...configs, ...args], {
+	const commandArgs = [...configs, ...args];
+	const commandLabel = `git ${commandArgs.join(" ")}`;
+	options?.logger?.(commandLabel);
+	const subprocess = execa("git", commandArgs, {
 		cwd: options?.cwd,
 		timeout: options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
 		maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large repos
-		stdio: options?.logger ? "inherit" : "pipe",
+		stdout: "pipe",
+		stderr: "pipe",
 		env: {
 			...process.env,
 			...(pathValue ? { PATH: pathValue, Path: pathValue } : {}),
@@ -76,6 +79,22 @@ const git = async (
 			...(process.platform === "win32" ? {} : { GIT_ASKPASS: "/bin/false" }),
 		},
 	});
+	if (options?.logger) {
+		const forward = (stream: NodeJS.ReadableStream | null) => {
+			if (!stream) return;
+			stream.on("data", (chunk) => {
+				const text =
+					chunk instanceof Buffer ? chunk.toString("utf8") : String(chunk);
+				for (const line of text.split(/\r?\n/)) {
+					if (!line) continue;
+					options.logger?.(`${commandLabel} | ${line}`);
+				}
+			});
+		};
+		forward(subprocess.stdout);
+		forward(subprocess.stderr);
+	}
+	await subprocess;
 };
 
 const removeDir = async (dirPath: string, retries = DEFAULT_RM_RETRIES) => {
@@ -251,34 +270,35 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 };
 
 // Clone or update a repository using persistent cache
-const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
+const cloneOrUpdateRepo = async (
+	params: FetchParams,
+	outDir: string,
+): Promise<{ usedCache: boolean }> => {
 	const cachePath = getPersistentCachePath(params.repo);
 	const cacheExists = await exists(cachePath);
+	const cacheValid = cacheExists && (await isValidGitRepo(cachePath));
 	const isCommitRef = /^[0-9a-f]{7,40}$/i.test(params.ref);
 	const useSparse = isSparseEligible(params.include);
+	let usedCache = cacheValid;
 
 	const cacheRoot = resolveGitCacheDir();
-	// Ensure the git cache directory exists
 	await mkdir(cacheRoot, { recursive: true });
 
-	// If cache exists and is valid, try to fetch and update
-	if (cacheExists && (await isValidGitRepo(cachePath))) {
+	if (cacheValid) {
 		if (await isPartialClone(cachePath)) {
 			await removeDir(cachePath);
 			await cloneRepo(params, cachePath);
+			usedCache = false;
 		} else {
 			try {
-				// Fetch the specific ref or commit
 				const fetchArgs = ["fetch", "origin"];
 				if (!isCommitRef) {
-					// Fetch specific branch/tag
 					const refSpec =
 						params.ref === "HEAD"
 							? "HEAD"
 							: `${params.ref}:refs/remotes/origin/${params.ref}`;
 					fetchArgs.push(refSpec, "--depth", String(DEFAULT_GIT_DEPTH));
 				} else {
-					// For commit refs, fetch the default branch and hope the commit is there
 					fetchArgs.push("--depth", String(DEFAULT_GIT_DEPTH));
 				}
 
@@ -291,23 +311,21 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 					logger: params.logger,
 				});
 			} catch (_error) {
-				// Fetch failed, remove corrupt cache and re-clone
 				await removeDir(cachePath);
 				await cloneRepo(params, cachePath);
+				usedCache = false;
 			}
 		}
 	} else {
-		// No cache or invalid - do fresh clone
 		if (cacheExists) {
 			await removeDir(cachePath);
 		}
 		await cloneRepo(params, cachePath);
+		usedCache = false;
 	}
 
-	// Now copy from cache to outDir with the specific commit checked out
 	await mkdir(outDir, { recursive: true });
 
-	// Clone from local cache (much faster than from remote)
 	const localCloneArgs = [
 		"clone",
 		"--no-checkout",
@@ -364,6 +382,8 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 			logger: params.logger,
 		},
 	);
+
+	return { usedCache };
 };
 
 export const fetchSource = async (
@@ -374,13 +394,13 @@ export const fetchSource = async (
 		path.join(tmpdir(), `docs-cache-${params.sourceId}-`),
 	);
 	try {
-		await cloneOrUpdateRepo(params, tempDir);
+		const { usedCache } = await cloneOrUpdateRepo(params, tempDir);
 		return {
 			repoDir: tempDir,
 			cleanup: async () => {
 				await removeDir(tempDir);
 			},
-			fromCache: true,
+			fromCache: usedCache,
 		};
 	} catch (error) {
 		await removeDir(tempDir);

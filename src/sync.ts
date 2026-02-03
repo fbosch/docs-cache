@@ -456,6 +456,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						maxFiles: source.maxFiles ?? defaults.maxFiles,
 						ignoreHidden: source.ignoreHidden ?? defaults.ignoreHidden,
 						unwrapSingleRootDir: source.unwrapSingleRootDir,
+						json: options.json,
 					});
 					if (source.targetDir) {
 						const resolvedTarget = resolveTargetDir(
