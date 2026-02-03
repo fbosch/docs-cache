@@ -14,7 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import fg from "fast-glob";
-
+import { symbols, ui } from "./cli/ui";
 import { getErrnoCode } from "./errors";
 import { MANIFEST_FILENAME } from "./manifest";
 import { getCacheLayout, toPosixPath } from "./paths";
@@ -51,6 +51,44 @@ type ManifestStats = {
 };
 
 const normalizePath = (value: string) => toPosixPath(value);
+
+const escapeParens = (value: string) => {
+	let output = "";
+	let escaped = false;
+	for (const char of value) {
+		if (escaped) {
+			output += char;
+			escaped = false;
+			continue;
+		}
+		if (char === "\\") {
+			output += char;
+			escaped = true;
+			continue;
+		}
+		if (char === "(" || char === ")") {
+			output += `\\${char}`;
+			continue;
+		}
+		output += char;
+	}
+	return output;
+};
+
+const normalizeIncludePatterns = (patterns: string[]) => {
+	return patterns.map((pattern) => {
+		let decoded = pattern;
+		if (pattern.includes("%")) {
+			try {
+				decoded = decodeURIComponent(pattern);
+			} catch {
+				decoded = pattern;
+			}
+		}
+		const hasExtGlob = /(^|[^\\])[@!+?*]\(/.test(decoded);
+		return hasExtGlob ? decoded : escapeParens(decoded);
+	});
+};
 
 const STREAM_COPY_THRESHOLD_MB = Number(
 	process.env.DOCS_CACHE_STREAM_THRESHOLD_MB ?? "2",
@@ -194,13 +232,19 @@ export const materializeSource = async (params: MaterializeParams) => {
 			...(resolved.ignoreHidden ? [".*", "**/.*", "**/.*/**"] : []),
 			...resolved.exclude,
 		];
-		const files = await fg(resolved.include, {
+		const includePatterns = normalizeIncludePatterns(resolved.include);
+		const files = await fg(includePatterns, {
 			cwd: resolved.repoDir,
 			ignore: ignorePatterns,
 			dot: true,
 			onlyFiles: true,
 			followSymbolicLinks: false,
 		});
+		if (includePatterns.length > 0 && files.length === 0) {
+			ui.line(
+				`${symbols.warn} No files matched include patterns for ${resolved.sourceId}: ${includePatterns.join(", ")}`,
+			);
+		}
 		const entries = files
 			.map((relativePath) => ({
 				relativePath,
@@ -393,7 +437,8 @@ export const computeManifestHash = async (
 	params: MaterializeParams,
 ): Promise<ManifestStats> => {
 	assertSafeSourceId(params.sourceId, "sourceId");
-	const files = await fg(params.include, {
+	const includePatterns = normalizeIncludePatterns(params.include);
+	const files = await fg(includePatterns, {
 		cwd: params.repoDir,
 		ignore: [
 			".git/**",
