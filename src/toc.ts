@@ -225,14 +225,6 @@ export const writeToc = async (params: {
 
 		if (tocEnabled) {
 			const result = resultsById.get(id);
-			if (result?.status === "up-to-date") {
-				try {
-					await access(sourceTocPath);
-					continue;
-				} catch {
-					// Missing TOC; regenerate below.
-				}
-			}
 			let existingContent: string | null = null;
 			try {
 				existingContent = await readFile(sourceTocPath, "utf8");
@@ -240,6 +232,12 @@ export const writeToc = async (params: {
 				existingContent = null;
 			}
 			const sourceTocContent = generateSourceToc(entry, tocFormat);
+			if (
+				result?.status === "up-to-date" &&
+				existingContent === sourceTocContent
+			) {
+				continue;
+			}
 			if (existingContent !== null && existingContent !== sourceTocContent) {
 				ui.line(
 					`${symbols.warn} Overwriting existing ${DEFAULT_TOC_FILENAME} for ${id}`,

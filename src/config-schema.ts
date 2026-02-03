@@ -1,4 +1,5 @@
-import { z } from "zod";
+import * as z from "zod";
+import { assertSafeSourceId } from "./source-id";
 
 export const TargetModeSchema = z.enum(["symlink", "copy"]);
 export const CacheModeSchema = z.enum(["materialize"]);
@@ -29,13 +30,29 @@ export const DefaultsSchema = z
 
 export const SourceSchema = z
 	.object({
-		id: z.string().min(1),
+		id: z
+			.string()
+			.min(1)
+			.superRefine((value, ctx) => {
+				try {
+					assertSafeSourceId(value, "id");
+				} catch (error) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message:
+							error instanceof Error ? error.message : "Invalid source id.",
+					});
+				}
+			}),
 		repo: z.string().min(1),
 		targetDir: z.string().min(1).optional(),
 		targetMode: TargetModeSchema.optional(),
 		ref: z.string().min(1).optional(),
 		mode: CacheModeSchema.optional(),
-		include: z.array(z.string().min(1)).optional(),
+		include: z
+			.array(z.string().min(1))
+			.min(1, { message: "include must be a non-empty array" })
+			.optional(),
 		exclude: z.array(z.string().min(1)).optional(),
 		required: z.boolean().optional(),
 		maxBytes: z.number().min(1).optional(),
@@ -55,4 +72,29 @@ export const ConfigSchema = z
 		defaults: DefaultsSchema.partial().optional(),
 		sources: z.array(SourceSchema),
 	})
-	.strict();
+	.strict()
+	.superRefine((value, ctx) => {
+		const seen = new Set<string>();
+		const duplicates = new Set<string>();
+		value.sources.forEach((source) => {
+			if (seen.has(source.id)) {
+				duplicates.add(source.id);
+			} else {
+				seen.add(source.id);
+			}
+		});
+		if (duplicates.size > 0) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["sources"],
+				message: `Duplicate source IDs found: ${Array.from(duplicates).join(", ")}.`,
+			});
+		}
+	});
+
+export type DocsCacheDefaults = z.infer<typeof DefaultsSchema>;
+export type DocsCacheSource = z.infer<typeof SourceSchema>;
+export type DocsCacheConfig = z.infer<typeof ConfigSchema>;
+export type DocsCacheIntegrity = z.infer<typeof IntegritySchema>;
+export type CacheMode = z.infer<typeof CacheModeSchema>;
+export type TocFormat = z.infer<typeof TocFormatSchema>;

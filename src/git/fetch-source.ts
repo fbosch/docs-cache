@@ -355,6 +355,15 @@ const addWorktreeFromCache = async (
 		{
 			timeoutMs: params.timeoutMs,
 			logger: params.logger,
+			allowFileProtocol: true,
+		},
+	);
+	await git(
+		["-C", outDir, "checkout", "--quiet", "--detach", params.resolvedCommit],
+		{
+			timeoutMs: params.timeoutMs,
+			logger: params.logger,
+			allowFileProtocol: true,
 		},
 	);
 	if (isSparseEligible(params.include)) {
@@ -363,6 +372,7 @@ const addWorktreeFromCache = async (
 			await git(["-C", outDir, "sparse-checkout", "set", ...sparsePaths], {
 				timeoutMs: params.timeoutMs,
 				logger: params.logger,
+				allowFileProtocol: true,
 			});
 		}
 	}
@@ -373,6 +383,7 @@ const addWorktreeFromCache = async (
 				await git(["-C", cachePath, "worktree", "remove", "--force", outDir], {
 					timeoutMs: params.timeoutMs,
 					logger: params.logger,
+					allowFileProtocol: true,
 				});
 			} catch {
 				// fall back to removing the directory directly
@@ -437,13 +448,13 @@ const cloneOrUpdateRepo = async (
 						logger: params.logger,
 						progressLogger: params.progressLogger,
 						forceProgress: Boolean(params.progressLogger),
+						allowFileProtocol: true,
 					});
 					await ensureCommitAvailable(cachePath, params.resolvedCommit, {
 						timeoutMs: params.timeoutMs,
 						logger: params.logger,
 						offline: params.offline,
 					});
-					worktreeUsed = true;
 				} else {
 					worktreeUsed = true;
 				}

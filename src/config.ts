@@ -1,60 +1,24 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type {
+	CacheMode,
+	DocsCacheConfig,
+	DocsCacheDefaults,
+	DocsCacheIntegrity,
+	DocsCacheSource,
+	TocFormat,
+} from "./config-schema";
 import { ConfigSchema } from "./config-schema";
 import { resolveTargetDir } from "./paths";
-import { assertSafeSourceId } from "./source-id";
 
-export type CacheMode = "materialize";
-
-export type TocFormat = "tree" | "compressed";
-
-export type IntegrityType = "commit" | "manifest";
-
-export interface DocsCacheIntegrity {
-	type: IntegrityType;
-	value: string | null;
-}
-
-export interface DocsCacheDefaults {
-	ref: string;
-	mode: CacheMode;
-	include: string[];
-	exclude?: string[];
-	targetMode?: "symlink" | "copy";
-	required: boolean;
-	maxBytes: number;
-	maxFiles?: number;
-	ignoreHidden: boolean;
-	allowHosts: string[];
-	toc?: boolean | TocFormat;
-	unwrapSingleRootDir?: boolean;
-}
-
-export interface DocsCacheSource {
-	id: string;
-	repo: string;
-	targetDir?: string;
-	targetMode?: "symlink" | "copy";
-	ref?: string;
-	mode?: CacheMode;
-	include?: string[];
-	exclude?: string[];
-	required?: boolean;
-	maxBytes?: number;
-	maxFiles?: number;
-	ignoreHidden?: boolean;
-	integrity?: DocsCacheIntegrity;
-	toc?: boolean | TocFormat;
-	unwrapSingleRootDir?: boolean;
-}
-
-export interface DocsCacheConfig {
-	$schema?: string;
-	cacheDir?: string;
-	targetMode?: "symlink" | "copy";
-	defaults?: Partial<DocsCacheDefaults>;
-	sources: DocsCacheSource[];
-}
+export type {
+	CacheMode,
+	DocsCacheConfig,
+	DocsCacheDefaults,
+	DocsCacheIntegrity,
+	DocsCacheSource,
+	TocFormat,
+};
 
 export interface DocsCacheResolvedSource {
 	id: string;
@@ -164,85 +128,8 @@ export const stripDefaultConfigValues = (
 	return next;
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value);
-
-const assertString = (value: unknown, label: string): string => {
-	if (typeof value !== "string" || value.length === 0) {
-		throw new Error(`${label} must be a non-empty string.`);
-	}
-	return value;
-};
-
-const assertBoolean = (value: unknown, label: string): boolean => {
-	if (typeof value !== "boolean") {
-		throw new Error(`${label} must be a boolean.`);
-	}
-	return value;
-};
-
-const assertNumber = (value: unknown, label: string): number => {
-	if (typeof value !== "number" || Number.isNaN(value)) {
-		throw new Error(`${label} must be a number.`);
-	}
-	return value;
-};
-
-const assertPositiveNumber = (value: unknown, label: string): number => {
-	const numberValue = assertNumber(value, label);
-	if (numberValue < 1) {
-		throw new Error(`${label} must be greater than zero.`);
-	}
-	return numberValue;
-};
-
-const assertStringArray = (value: unknown, label: string): string[] => {
-	if (!Array.isArray(value) || value.length === 0) {
-		throw new Error(`${label} must be a non-empty array of strings.`);
-	}
-	for (const entry of value) {
-		if (typeof entry !== "string" || entry.length === 0) {
-			throw new Error(`${label} must contain non-empty strings.`);
-		}
-	}
-	return value as string[];
-};
-
-const assertTargetMode = (
-	value: unknown,
-	label: string,
-): "symlink" | "copy" => {
-	const mode = assertString(value, label) as "symlink" | "copy";
-	if (mode !== "symlink" && mode !== "copy") {
-		throw new Error(`${label} must be "symlink" or "copy".`);
-	}
-	return mode;
-};
-
-const assertMode = (value: unknown, label: string): CacheMode => {
-	if (value !== "materialize") {
-		throw new Error(`${label} must be "materialize".`);
-	}
-	return value;
-};
-
-const assertIntegrity = (value: unknown, label: string): DocsCacheIntegrity => {
-	if (!isRecord(value)) {
-		throw new Error(`${label} must be an object.`);
-	}
-	const type = value.type;
-	if (type !== "commit" && type !== "manifest") {
-		throw new Error(`${label}.type must be "commit" or "manifest".`);
-	}
-	const integrityValue = value.value;
-	if (typeof integrityValue !== "string" && integrityValue !== null) {
-		throw new Error(`${label}.value must be a string or null.`);
-	}
-	return { type, value: integrityValue };
-};
-
 export const validateConfig = (input: unknown): DocsCacheConfig => {
-	if (!isRecord(input)) {
+	if (typeof input !== "object" || input === null || Array.isArray(input)) {
 		throw new Error("Config must be a JSON object.");
 	}
 	const parsed = ConfigSchema.safeParse(input);
@@ -253,75 +140,29 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 		throw new Error(`Config does not match schema: ${details}.`);
 	}
 	const configInput = parsed.data;
-
-	const cacheDir = configInput.cacheDir
-		? assertString(configInput.cacheDir, "cacheDir")
-		: DEFAULT_CACHE_DIR;
-
-	const defaultsInput = configInput.defaults;
-	const targetModeOverride =
-		configInput.targetMode !== undefined
-			? assertTargetMode(configInput.targetMode, "targetMode")
-			: undefined;
+	const cacheDir = configInput.cacheDir ?? DEFAULT_CACHE_DIR;
 	const defaultValues = DEFAULT_CONFIG.defaults as DocsCacheDefaults;
+	const targetModeOverride = configInput.targetMode;
+	const defaultsInput = configInput.defaults;
 	let defaults: DocsCacheDefaults = defaultValues;
 	if (defaultsInput !== undefined) {
-		if (!isRecord(defaultsInput)) {
-			throw new Error("defaults must be an object.");
-		}
-
 		defaults = {
-			ref:
-				defaultsInput.ref !== undefined
-					? assertString(defaultsInput.ref, "defaults.ref")
-					: defaultValues.ref,
-			mode:
-				defaultsInput.mode !== undefined
-					? assertMode(defaultsInput.mode, "defaults.mode")
-					: defaultValues.mode,
-			include:
-				defaultsInput.include !== undefined
-					? assertStringArray(defaultsInput.include, "defaults.include")
-					: defaultValues.include,
-			exclude:
-				defaultsInput.exclude !== undefined
-					? assertStringArray(defaultsInput.exclude, "defaults.exclude")
-					: defaultValues.exclude,
+			ref: defaultsInput.ref ?? defaultValues.ref,
+			mode: defaultsInput.mode ?? defaultValues.mode,
+			include: defaultsInput.include ?? defaultValues.include,
+			exclude: defaultsInput.exclude ?? defaultValues.exclude,
 			targetMode:
-				defaultsInput.targetMode !== undefined
-					? assertTargetMode(defaultsInput.targetMode, "defaults.targetMode")
-					: (targetModeOverride ?? defaultValues.targetMode),
-			required:
-				defaultsInput.required !== undefined
-					? assertBoolean(defaultsInput.required, "defaults.required")
-					: defaultValues.required,
-			maxBytes:
-				defaultsInput.maxBytes !== undefined
-					? assertPositiveNumber(defaultsInput.maxBytes, "defaults.maxBytes")
-					: defaultValues.maxBytes,
-			maxFiles:
-				defaultsInput.maxFiles !== undefined
-					? assertPositiveNumber(defaultsInput.maxFiles, "defaults.maxFiles")
-					: defaultValues.maxFiles,
-			ignoreHidden:
-				defaultsInput.ignoreHidden !== undefined
-					? assertBoolean(defaultsInput.ignoreHidden, "defaults.ignoreHidden")
-					: defaultValues.ignoreHidden,
-			allowHosts:
-				defaultsInput.allowHosts !== undefined
-					? assertStringArray(defaultsInput.allowHosts, "defaults.allowHosts")
-					: defaultValues.allowHosts,
-			toc:
-				defaultsInput.toc !== undefined
-					? (defaultsInput.toc as boolean | TocFormat)
-					: defaultValues.toc,
+				defaultsInput.targetMode ??
+				targetModeOverride ??
+				defaultValues.targetMode,
+			required: defaultsInput.required ?? defaultValues.required,
+			maxBytes: defaultsInput.maxBytes ?? defaultValues.maxBytes,
+			maxFiles: defaultsInput.maxFiles ?? defaultValues.maxFiles,
+			ignoreHidden: defaultsInput.ignoreHidden ?? defaultValues.ignoreHidden,
+			allowHosts: defaultsInput.allowHosts ?? defaultValues.allowHosts,
+			toc: defaultsInput.toc ?? defaultValues.toc,
 			unwrapSingleRootDir:
-				defaultsInput.unwrapSingleRootDir !== undefined
-					? assertBoolean(
-							defaultsInput.unwrapSingleRootDir,
-							"defaults.unwrapSingleRootDir",
-						)
-					: defaultValues.unwrapSingleRootDir,
+				defaultsInput.unwrapSingleRootDir ?? defaultValues.unwrapSingleRootDir,
 		};
 	} else if (targetModeOverride !== undefined) {
 		defaults = {
@@ -330,114 +171,11 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 		};
 	}
 
-	const sources = configInput.sources.map((entry, index) => {
-		if (!isRecord(entry)) {
-			throw new Error(`sources[${index}] must be an object.`);
-		}
-		const source: DocsCacheSource = {
-			id: assertSafeSourceId(entry.id, `sources[${index}].id`),
-			repo: assertString(entry.repo, `sources[${index}].repo`),
-		};
-		if (entry.targetDir !== undefined) {
-			source.targetDir = assertString(
-				entry.targetDir,
-				`sources[${index}].targetDir`,
-			);
-		}
-		if (entry.targetMode !== undefined) {
-			const targetMode = assertString(
-				entry.targetMode,
-				`sources[${index}].targetMode`,
-			);
-			if (targetMode !== "symlink" && targetMode !== "copy") {
-				throw new Error(
-					`sources[${index}].targetMode must be "symlink" or "copy".`,
-				);
-			}
-			source.targetMode = targetMode;
-		}
-		if (entry.ref !== undefined) {
-			source.ref = assertString(entry.ref, `sources[${index}].ref`);
-		}
-		if (entry.mode !== undefined) {
-			source.mode = assertMode(entry.mode, `sources[${index}].mode`);
-		}
-		if (entry.include !== undefined) {
-			source.include = assertStringArray(
-				entry.include,
-				`sources[${index}].include`,
-			);
-		}
-		if (entry.exclude !== undefined) {
-			source.exclude = assertStringArray(
-				entry.exclude,
-				`sources[${index}].exclude`,
-			);
-		}
-		if (entry.required !== undefined) {
-			source.required = assertBoolean(
-				entry.required,
-				`sources[${index}].required`,
-			);
-		}
-		if (entry.maxBytes !== undefined) {
-			source.maxBytes = assertPositiveNumber(
-				entry.maxBytes,
-				`sources[${index}].maxBytes`,
-			);
-		}
-		if (entry.maxFiles !== undefined) {
-			source.maxFiles = assertPositiveNumber(
-				entry.maxFiles,
-				`sources[${index}].maxFiles`,
-			);
-		}
-		if (entry.ignoreHidden !== undefined) {
-			source.ignoreHidden = assertBoolean(
-				entry.ignoreHidden,
-				`sources[${index}].ignoreHidden`,
-			);
-		}
-		if (entry.integrity !== undefined) {
-			source.integrity = assertIntegrity(
-				entry.integrity,
-				`sources[${index}].integrity`,
-			);
-		}
-
-		if (entry.toc !== undefined) {
-			source.toc = entry.toc as boolean | TocFormat;
-		}
-		if (entry.unwrapSingleRootDir !== undefined) {
-			source.unwrapSingleRootDir = assertBoolean(
-				entry.unwrapSingleRootDir,
-				`sources[${index}].unwrapSingleRootDir`,
-			);
-		}
-
-		return source;
-	});
-
-	// Validate unique source IDs
-	const idSet = new Set<string>();
-	const duplicates: string[] = [];
-	for (const source of sources) {
-		if (idSet.has(source.id)) {
-			duplicates.push(source.id);
-		}
-		idSet.add(source.id);
-	}
-	if (duplicates.length > 0) {
-		throw new Error(
-			`Duplicate source IDs found: ${duplicates.join(", ")}. Each source must have a unique ID.`,
-		);
-	}
-
 	return {
 		cacheDir,
 		targetMode: targetModeOverride,
 		defaults,
-		sources,
+		sources: configInput.sources as DocsCacheSource[],
 	};
 };
 
