@@ -206,7 +206,7 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 		}
 
 		assertAddOnlyOptions(command ?? null, rawArgs);
-		const positionals = [...result.args];
+		const positionals = result.args.slice(1);
 		let parsed: CliCommand;
 		switch (command ?? null) {
 			case "add":
