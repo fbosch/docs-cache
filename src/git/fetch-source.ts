@@ -1,18 +1,14 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { promisify } from "node:util";
 
 import { execa } from "execa";
 
 import { getErrnoCode } from "../errors";
 import { assertSafeSourceId } from "../source-id";
 import { exists, resolveGitCacheDir } from "./cache-dir";
-
-const execFileAsync = promisify(execFile);
 
 const DEFAULT_TIMEOUT_MS = 120000; // 120 seconds (2 minutes)
 const DEFAULT_GIT_DEPTH = 1;
@@ -179,33 +175,6 @@ type FetchResult = {
 	repoDir: string;
 	cleanup: () => Promise<void>;
 	fromCache: boolean;
-};
-
-const runGitArchive = async (
-	repo: string,
-	resolvedCommit: string,
-	outDir: string,
-	timeoutMs?: number,
-	logger?: (message: string) => void,
-) => {
-	const archivePath = path.join(outDir, "archive.tar");
-	await git(
-		[
-			"archive",
-			"--remote",
-			repo,
-			"--format=tar",
-			"--output",
-			archivePath,
-			resolvedCommit,
-		],
-		{ timeoutMs, logger },
-	);
-	await execFileAsync("tar", ["-xf", archivePath, "-C", outDir], {
-		timeout: timeoutMs ?? DEFAULT_TIMEOUT_MS,
-		maxBuffer: 1024 * 1024,
-	});
-	await rm(archivePath, { force: true });
 };
 
 const isSparseEligible = (include?: string[]) => {
@@ -397,54 +366,24 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 	);
 };
 
-const archiveRepo = async (params: FetchParams) => {
-	const tempDir = await mkdtemp(
-		path.join(tmpdir(), `docs-cache-${params.sourceId}-`),
-	);
-	try {
-		await runGitArchive(
-			params.repo,
-			params.resolvedCommit,
-			tempDir,
-			params.timeoutMs,
-			params.logger,
-		);
-		return tempDir;
-	} catch (error) {
-		await removeDir(tempDir);
-		throw error;
-	}
-};
-
 export const fetchSource = async (
 	params: FetchParams,
 ): Promise<FetchResult> => {
 	assertSafeSourceId(params.sourceId, "sourceId");
+	const tempDir = await mkdtemp(
+		path.join(tmpdir(), `docs-cache-${params.sourceId}-`),
+	);
 	try {
-		const archiveDir = await archiveRepo(params);
+		await cloneOrUpdateRepo(params, tempDir);
 		return {
-			repoDir: archiveDir,
+			repoDir: tempDir,
 			cleanup: async () => {
-				await removeDir(archiveDir);
+				await removeDir(tempDir);
 			},
-			fromCache: false,
+			fromCache: true,
 		};
-	} catch {
-		const tempDir = await mkdtemp(
-			path.join(tmpdir(), `docs-cache-${params.sourceId}-`),
-		);
-		try {
-			await cloneOrUpdateRepo(params, tempDir);
-			return {
-				repoDir: tempDir,
-				cleanup: async () => {
-					await removeDir(tempDir);
-				},
-				fromCache: true,
-			};
-		} catch (error) {
-			await removeDir(tempDir);
-			throw error;
-		}
+	} catch (error) {
+		await removeDir(tempDir);
+		throw error;
 	}
 };
