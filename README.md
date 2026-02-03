@@ -89,19 +89,20 @@ npx docs-cache clean
 
 These fields can be set in `defaults` and are inherited by every source unless overridden per-source.
 
-| Field                 | Details                                                                                                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ref`                 | Branch, tag, or commit. Default: `"HEAD"`.                                                                                                              |
-| `mode`                | Cache mode. Default: `"materialize"`.                                                                                                                   |
-| `include`             | Glob patterns to copy. Default: `["**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}"]`.                                                                 |
-| `exclude`             | Glob patterns to skip. Default: `[]`.                                                                                                                   |
-| `targetMode`          | How to link or copy from the cache to the destination. Default: `"symlink"` on Unix, `"copy"` on Windows.                                               |
-| `required`            | Whether missing sources should fail. Default: `true`.                                                                                                   |
-| `maxBytes`            | Maximum total bytes to materialize. Default: `200000000` (200 MB).                                                                                      |
-| `maxFiles`            | Maximum total files to materialize.                                                                                                                     |
-| `allowHosts`          | Allowed Git hosts. Default: `["github.com", "gitlab.com"]`.                                                                                             |
-| `toc`                 | Generate per-source `TOC.md`. Default: `true`. Supports `true`, `false`, or a format: `"tree"` (human readable), `"compressed"` (optimized for agents). |
-| `unwrapSingleRootDir` | If the materialized output is nested under a single directory, unwrap it (recursively). Default: `false`.                                               |
+| Field                 | Details                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `ref`                 | Branch, tag, or commit. Default: `"HEAD"`.                                                                                      |
+| `mode`                | Cache mode. Default: `"materialize"`.                                                                                           |
+| `include`             | Glob patterns to copy. Default: `["**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}"]`.                                         |
+| `exclude`             | Glob patterns to skip. Default: `[]`.                                                                                           |
+| `targetMode`          | How to link or copy from the cache to the destination. Default: `"symlink"` on Unix, `"copy"` on Windows.                       |
+| `required`            | Whether missing sources should fail. Default: `true`.                                                                           |
+| `maxBytes`            | Maximum total bytes to materialize. Default: `200000000` (200 MB).                                                              |
+| `maxFiles`            | Maximum total files to materialize.                                                                                             |
+| `ignoreHidden`        | Skip hidden files and directories (dotfiles). Default: `false`.                                                                 |
+| `allowHosts`          | Allowed Git hosts. Default: `["github.com", "gitlab.com"]`.                                                                     |
+| `toc`                 | Generate per-source `TOC.md`. Default: `true`. Supports `true`, `false`, or a format: `"tree"` (human readable), `"compressed"` |
+| `unwrapSingleRootDir` | If the materialized output is nested under a single directory, unwrap it (recursively). Default: `false`.                       |
 
 ### Source options
 

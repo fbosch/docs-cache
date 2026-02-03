@@ -55,6 +55,9 @@
 					"type": "number",
 					"minimum": 1
 				},
+				"ignoreHidden": {
+					"type": "boolean"
+				},
 				"allowHosts": {
 					"minItems": 1,
 					"type": "array",
@@ -133,6 +136,9 @@
 					"maxFiles": {
 						"type": "number",
 						"minimum": 1
+					},
+					"ignoreHidden": {
+						"type": "boolean"
 					},
 					"integrity": {
 						"type": "object",

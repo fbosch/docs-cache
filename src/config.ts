@@ -24,6 +24,7 @@ export interface DocsCacheDefaults {
 	required: boolean;
 	maxBytes: number;
 	maxFiles?: number;
+	ignoreHidden: boolean;
 	allowHosts: string[];
 	toc?: boolean | TocFormat;
 	unwrapSingleRootDir?: boolean;
@@ -41,6 +42,7 @@ export interface DocsCacheSource {
 	required?: boolean;
 	maxBytes?: number;
 	maxFiles?: number;
+	ignoreHidden?: boolean;
 	integrity?: DocsCacheIntegrity;
 	toc?: boolean | TocFormat;
 	unwrapSingleRootDir?: boolean;
@@ -66,6 +68,7 @@ export interface DocsCacheResolvedSource {
 	required: boolean;
 	maxBytes: number;
 	maxFiles?: number;
+	ignoreHidden: boolean;
 	integrity?: DocsCacheIntegrity;
 	toc?: boolean | TocFormat;
 	unwrapSingleRootDir?: boolean;
@@ -85,6 +88,7 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 		targetMode: DEFAULT_TARGET_MODE,
 		required: true,
 		maxBytes: 200000000,
+		ignoreHidden: false,
 		allowHosts: ["github.com", "gitlab.com"],
 		toc: true,
 		unwrapSingleRootDir: false,
@@ -299,6 +303,10 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				defaultsInput.maxFiles !== undefined
 					? assertPositiveNumber(defaultsInput.maxFiles, "defaults.maxFiles")
 					: defaultValues.maxFiles,
+			ignoreHidden:
+				defaultsInput.ignoreHidden !== undefined
+					? assertBoolean(defaultsInput.ignoreHidden, "defaults.ignoreHidden")
+					: defaultValues.ignoreHidden,
 			allowHosts:
 				defaultsInput.allowHosts !== undefined
 					? assertStringArray(defaultsInput.allowHosts, "defaults.allowHosts")
@@ -384,6 +392,12 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				`sources[${index}].maxFiles`,
 			);
 		}
+		if (entry.ignoreHidden !== undefined) {
+			source.ignoreHidden = assertBoolean(
+				entry.ignoreHidden,
+				`sources[${index}].ignoreHidden`,
+			);
+		}
 		if (entry.integrity !== undefined) {
 			source.integrity = assertIntegrity(
 				entry.integrity,
@@ -444,6 +458,7 @@ export const resolveSources = (
 		required: source.required ?? defaults.required,
 		maxBytes: source.maxBytes ?? defaults.maxBytes,
 		maxFiles: source.maxFiles ?? defaults.maxFiles,
+		ignoreHidden: source.ignoreHidden ?? defaults.ignoreHidden,
 		integrity: source.integrity,
 		toc: source.toc ?? defaults.toc,
 		unwrapSingleRootDir:
