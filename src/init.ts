@@ -37,15 +37,12 @@ const exists = async (target: string) => {
 	}
 };
 
-export const initConfig = async (
-	options: InitOptions,
-	deps: PromptDeps = {},
-) => {
-	const confirm = deps.confirm ?? clackConfirm;
-	const isCancel = deps.isCancel ?? clackIsCancel;
-	const select = deps.select ?? clackSelect;
-	const text = deps.text ?? clackText;
-	const cwd = options.cwd ?? process.cwd();
+const readJson = async (filePath: string) => {
+	const raw = await readFile(filePath, "utf8");
+	return JSON.parse(raw) as Record<string, unknown>;
+};
+
+const findExistingConfigPaths = async (cwd: string) => {
 	const defaultConfigPath = path.resolve(cwd, DEFAULT_CONFIG_FILENAME);
 	const packagePath = path.resolve(cwd, "package.json");
 	const existingConfigPaths: string[] = [];
@@ -53,38 +50,48 @@ export const initConfig = async (
 		existingConfigPaths.push(defaultConfigPath);
 	}
 	if (await exists(packagePath)) {
-		const raw = await readFile(packagePath, "utf8");
-		const parsed = JSON.parse(raw) as Record<string, unknown>;
+		const parsed = await readJson(packagePath);
 		if (parsed["docs-cache"]) {
 			existingConfigPaths.push(packagePath);
 		}
 	}
-	if (existingConfigPaths.length > 0) {
-		throw new Error(
-			`Config already exists at ${existingConfigPaths.join(", ")}. Init aborted.`,
-		);
+	return { existingConfigPaths, defaultConfigPath, packagePath };
+};
+
+const selectConfigPath = async (
+	packagePath: string,
+	defaultConfigPath: string,
+	select: typeof clackSelect,
+	isCancel: typeof clackIsCancel,
+) => {
+	if (!(await exists(packagePath))) {
+		return defaultConfigPath;
 	}
-	let usePackageConfig = false;
-	if (await exists(packagePath)) {
-		const raw = await readFile(packagePath, "utf8");
-		const parsed = JSON.parse(raw) as Record<string, unknown>;
-		if (!parsed["docs-cache"]) {
-			const locationAnswer = await select({
-				message: "Config location",
-				options: [
-					{ value: "config", label: "docs.config.json" },
-					{ value: "package", label: "package.json" },
-				],
-				initialValue: "config",
-			});
-			if (isCancel(locationAnswer)) {
-				throw new Error("Init cancelled.");
-			}
-			usePackageConfig = locationAnswer === "package";
-		}
+	const parsed = await readJson(packagePath);
+	if (parsed["docs-cache"]) {
+		return defaultConfigPath;
 	}
-	const configPath = usePackageConfig ? packagePath : defaultConfigPath;
-	const cacheDir = options.cacheDirOverride ?? DEFAULT_CACHE_DIR;
+	const locationAnswer = await select({
+		message: "Config location",
+		options: [
+			{ value: "config", label: "docs.config.json" },
+			{ value: "package", label: "package.json" },
+		],
+		initialValue: "config",
+	});
+	if (isCancel(locationAnswer)) {
+		throw new Error("Init cancelled.");
+	}
+	return locationAnswer === "package" ? packagePath : defaultConfigPath;
+};
+
+const promptInitAnswers = async (
+	cacheDir: string,
+	cwd: string,
+	confirm: typeof clackConfirm,
+	text: typeof clackText,
+	isCancel: typeof clackIsCancel,
+) => {
 	const cacheDirAnswer = await text({
 		message: "Cache directory",
 		initialValue: cacheDir,
@@ -113,88 +120,111 @@ export const initConfig = async (
 		}
 		gitignoreAnswer = reply;
 	}
-
-	const answers = {
-		configPath,
-		cacheDir: cacheDirAnswer,
+	return {
+		cacheDir: cacheDirValue,
 		toc: tocAnswer,
 		gitignore: gitignoreAnswer,
-	} as {
-		configPath: string;
-		cacheDir: string;
-		toc: boolean;
-		gitignore: boolean;
 	};
+};
 
-	const resolvedConfigPath = path.resolve(cwd, answers.configPath);
-	if (path.basename(resolvedConfigPath) === "package.json") {
-		const raw = await readFile(resolvedConfigPath, "utf8");
-		const pkg = JSON.parse(raw) as Record<string, unknown>;
-		if (pkg["docs-cache"]) {
-			throw new Error(
-				`docs-cache config already exists in ${resolvedConfigPath}.`,
-			);
-		}
-		const baseConfig: DocsCacheConfig = {
-			$schema:
-				"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
-			sources: [],
-		};
-		const resolvedCacheDir = answers.cacheDir || DEFAULT_CACHE_DIR;
-		if (resolvedCacheDir !== DEFAULT_CACHE_DIR) {
-			baseConfig.cacheDir = resolvedCacheDir;
-		}
-		// Since TOC defaults to true, only set it explicitly if user chose false
-		if (!answers.toc) {
-			baseConfig.defaults = { toc: false };
-		}
-		pkg["docs-cache"] = stripDefaultConfigValues(baseConfig);
-		await writeFile(
-			resolvedConfigPath,
-			`${JSON.stringify(pkg, null, 2)}\n`,
-			"utf8",
-		);
-		const gitignoreResult = answers.gitignore
-			? await ensureGitignoreEntry(
-					path.dirname(resolvedConfigPath),
-					resolvedCacheDir,
-				)
-			: null;
-		return {
-			configPath: resolvedConfigPath,
-			created: true,
-			gitignoreUpdated: gitignoreResult?.updated ?? false,
-			gitignorePath: gitignoreResult?.gitignorePath ?? null,
-		};
-	}
-	if (await exists(resolvedConfigPath)) {
-		throw new Error(`Config already exists at ${resolvedConfigPath}.`);
-	}
+const buildBaseConfig = (cacheDir: string, toc: boolean): DocsCacheConfig => {
 	const config: DocsCacheConfig = {
 		$schema:
 			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
 		sources: [],
 	};
-	const resolvedCacheDir = answers.cacheDir || DEFAULT_CACHE_DIR;
-	if (resolvedCacheDir !== DEFAULT_CACHE_DIR) {
-		config.cacheDir = resolvedCacheDir;
+	if (cacheDir !== DEFAULT_CACHE_DIR) {
+		config.cacheDir = cacheDir;
 	}
-	// Since TOC defaults to true, only set it explicitly if user chose false
-	if (!answers.toc) {
+	if (!toc) {
 		config.defaults = { toc: false };
 	}
+	return config;
+};
 
-	await writeConfig(resolvedConfigPath, config);
-	const gitignoreResult = answers.gitignore
+const writePackageConfig = async (
+	configPath: string,
+	config: DocsCacheConfig,
+	gitignore: boolean,
+) => {
+	const raw = await readFile(configPath, "utf8");
+	const pkg = JSON.parse(raw) as Record<string, unknown>;
+	if (pkg["docs-cache"]) {
+		throw new Error(`docs-cache config already exists in ${configPath}.`);
+	}
+	pkg["docs-cache"] = stripDefaultConfigValues(config);
+	await writeFile(configPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+	const gitignoreResult = gitignore
 		? await ensureGitignoreEntry(
-				path.dirname(resolvedConfigPath),
-				resolvedCacheDir,
+				path.dirname(configPath),
+				config.cacheDir ?? DEFAULT_CACHE_DIR,
 			)
 		: null;
 	return {
-		configPath: resolvedConfigPath,
+		configPath,
 		created: true,
 		gitignoreUpdated: gitignoreResult?.updated ?? false,
 		gitignorePath: gitignoreResult?.gitignorePath ?? null,
 	};
+};
+
+const writeStandaloneConfig = async (
+	configPath: string,
+	config: DocsCacheConfig,
+	gitignore: boolean,
+) => {
+	await writeConfig(configPath, config);
+	const gitignoreResult = gitignore
+		? await ensureGitignoreEntry(
+				path.dirname(configPath),
+				config.cacheDir ?? DEFAULT_CACHE_DIR,
+			)
+		: null;
+	return {
+		configPath,
+		created: true,
+		gitignoreUpdated: gitignoreResult?.updated ?? false,
+		gitignorePath: gitignoreResult?.gitignorePath ?? null,
+	};
+};
+
+export const initConfig = async (
+	options: InitOptions,
+	deps: PromptDeps = {},
+) => {
+	const confirm = deps.confirm ?? clackConfirm;
+	const isCancel = deps.isCancel ?? clackIsCancel;
+	const select = deps.select ?? clackSelect;
+	const text = deps.text ?? clackText;
+	const cwd = options.cwd ?? process.cwd();
+	const { existingConfigPaths, defaultConfigPath, packagePath } =
+		await findExistingConfigPaths(cwd);
+	if (existingConfigPaths.length > 0) {
+		throw new Error(
+			`Config already exists at ${existingConfigPaths.join(", ")}. Init aborted.`,
+		);
+	}
+	const configPath = await selectConfigPath(
+		packagePath,
+		defaultConfigPath,
+		select,
+		isCancel,
+	);
+	const cacheDir = options.cacheDirOverride ?? DEFAULT_CACHE_DIR;
+	const answers = await promptInitAnswers(
+		cacheDir,
+		cwd,
+		confirm,
+		text,
+		isCancel,
+	);
+	const resolvedConfigPath = path.resolve(cwd, configPath);
+	const config = buildBaseConfig(answers.cacheDir, answers.toc);
+	if (path.basename(resolvedConfigPath) === "package.json") {
+		return writePackageConfig(resolvedConfigPath, config, answers.gitignore);
+	}
+	if (await exists(resolvedConfigPath)) {
+		throw new Error(`Config already exists at ${resolvedConfigPath}.`);
+	}
+	return writeStandaloneConfig(resolvedConfigPath, config, answers.gitignore);
 };

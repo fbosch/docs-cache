@@ -38,6 +38,7 @@ pnpm.
 
 - Use `node:` specifiers for built-in modules.
 - Keep modules small and single-purpose; prefer focused helpers in `src/`.
+- Prefer early returns to reduce nested control flow.
 - Place shared types in `src/types/` and import them via `import type`.
 - Use `index.ts` barrels for public entrypoints.
 
