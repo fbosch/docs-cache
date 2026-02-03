@@ -3,13 +3,34 @@
 	"private": false,
 	"type": "module",
 	"imports": {
-		"#cache/*": "./src/cache/*.ts",
-		"#cli/*": "./src/cli/*.ts",
-		"#commands/*": "./src/commands/*.ts",
-		"#core/*": "./src/*.ts",
-		"#config": "./src/config/index.ts",
-		"#config/*": "./src/config/*.ts",
-		"#git/*": "./src/git/*.ts"
+		"#cache/*": {
+			"types": "./src/cache/*.ts",
+			"default": "./dist/esm/cache/*.mjs"
+		},
+		"#cli/*": {
+			"types": "./src/cli/*.ts",
+			"default": "./dist/esm/cli/*.mjs"
+		},
+		"#commands/*": {
+			"types": "./src/commands/*.ts",
+			"default": "./dist/esm/commands/*.mjs"
+		},
+		"#core/*": {
+			"types": "./src/*.ts",
+			"default": "./dist/esm/*.mjs"
+		},
+		"#config": {
+			"types": "./src/config/index.ts",
+			"default": "./dist/esm/config/index.mjs"
+		},
+		"#config/*": {
+			"types": "./src/config/*.ts",
+			"default": "./dist/esm/config/*.mjs"
+		},
+		"#git/*": {
+			"types": "./src/git/*.ts",
+			"default": "./dist/esm/git/*.mjs"
+		}
 	},
 	"version": "0.4.3",
 	"packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748",
@@ -43,7 +64,7 @@
 	"files": [
 		"bin",
 		"dist/cli.mjs",
-		"dist/chunks/*.mjs",
+		"dist/esm/**/*.mjs",
 		"dist/lock.mjs",
 		"dist/shared/*.mjs",
 		"README.md",
