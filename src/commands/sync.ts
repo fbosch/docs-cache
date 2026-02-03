@@ -825,8 +825,9 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 	const plan = await getSyncPlan(options, deps);
 	await mkdir(plan.cacheDir, { recursive: true });
 
+	const isTestRunner = process.argv.includes("--test");
 	const useLiveOutput =
-		!options.json && !isSilentMode() && process.stdout.isTTY;
+		!options.json && !isSilentMode() && process.stdout.isTTY && !isTestRunner;
 	const reporter = useLiveOutput ? new TaskReporter() : null;
 	const previous = plan.lockData;
 	const requiredMissing = plan.results.filter((result) => {
