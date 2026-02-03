@@ -45,6 +45,8 @@ const git = async (
 		maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large repos
 		env: {
 			PATH: process.env.PATH,
+			Path: process.env.Path,
+			PATHEXT: process.env.PATHEXT,
 			HOME: process.env.HOME,
 			USER: process.env.USER,
 			USERPROFILE: process.env.USERPROFILE,
