@@ -45,89 +45,110 @@ const ADD_ONLY_OPTIONS_WITH_VALUES = new Set([
 	"--target-dir",
 ]);
 
+const ADD_ENTRY_SKIP_OPTIONS = new Set([
+	"--config",
+	"--cache-dir",
+	"--concurrency",
+	"--timeout-ms",
+]);
+
+type AddParseState = {
+	entries: AddEntry[];
+	lastIndex: number;
+	pendingId: string | null;
+	lastWasRepoAdded: boolean;
+};
+
+const getArgValue = (arg: string, next: string | undefined, flag: string) => {
+	const rawValue = arg === flag ? next : arg.slice(flag.length + 1);
+	if (!rawValue || rawValue.startsWith("-")) {
+		throw new Error(`${flag} expects a value.`);
+	}
+	return rawValue;
+};
+
+const addEntry = (state: AddParseState, repo: string) => {
+	state.entries.push({
+		repo,
+		...(state.pendingId ? { id: state.pendingId } : {}),
+	});
+	state.lastIndex = state.entries.length - 1;
+	state.pendingId = null;
+	state.lastWasRepoAdded = true;
+};
+
+const applyPendingId = (state: AddParseState, value: string) => {
+	const canApply =
+		state.lastWasRepoAdded &&
+		state.lastIndex !== -1 &&
+		state.entries[state.lastIndex]?.id === undefined &&
+		state.pendingId === null;
+	if (!canApply) {
+		if (state.pendingId !== null) {
+			throw new Error("--id must be followed by a source.");
+		}
+		state.pendingId = value;
+		state.lastWasRepoAdded = false;
+		return;
+	}
+	state.entries[state.lastIndex].id = value;
+	state.lastWasRepoAdded = false;
+};
+
+const setTarget = (state: AddParseState, targetDir: string) => {
+	if (state.lastIndex === -1) {
+		throw new Error("--target must follow a --source entry.");
+	}
+	state.entries[state.lastIndex].targetDir = targetDir;
+	state.lastWasRepoAdded = false;
+};
+
 const parseAddEntries = (rawArgs: string[]): AddEntry[] => {
 	const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
 	const tail = commandIndex === -1 ? [] : rawArgs.slice(commandIndex + 1);
-	const entries: AddEntry[] = [];
-	let lastIndex = -1;
-	let pendingId: string | null = null;
-	let lastWasRepoAdded = false;
-	const skipNextFor = new Set([
-		"--config",
-		"--cache-dir",
-		"--concurrency",
-		"--timeout-ms",
-	]);
+	const state: AddParseState = {
+		entries: [],
+		lastIndex: -1,
+		pendingId: null,
+		lastWasRepoAdded: false,
+	};
 	for (let index = 0; index < tail.length; index += 1) {
 		const arg = tail[index];
 		if (arg === "--id" || arg.startsWith("--id=")) {
-			const rawValue = arg === "--id" ? tail[index + 1] : arg.slice(5);
-			if (!rawValue || rawValue.startsWith("-")) {
-				throw new Error("--id expects a value.");
-			}
+			const value = getArgValue(arg, tail[index + 1], "--id");
 			if (arg === "--id") {
 				index += 1;
 			}
-			if (
-				lastWasRepoAdded &&
-				lastIndex !== -1 &&
-				entries[lastIndex]?.id === undefined &&
-				pendingId === null
-			) {
-				entries[lastIndex].id = rawValue;
-				lastWasRepoAdded = false;
-				continue;
-			}
-			if (pendingId !== null) {
-				throw new Error("--id must be followed by a source.");
-			}
-			pendingId = rawValue;
-			lastWasRepoAdded = false;
+			applyPendingId(state, value);
 			continue;
 		}
 		if (arg === "--source") {
-			const next = tail[index + 1];
-			if (!next || next.startsWith("-")) {
-				throw new Error("--source expects a value.");
-			}
-			entries.push({ repo: next, ...(pendingId ? { id: pendingId } : {}) });
-			lastIndex = entries.length - 1;
-			pendingId = null;
-			lastWasRepoAdded = true;
+			const value = getArgValue(arg, tail[index + 1], "--source");
+			addEntry(state, value);
 			index += 1;
 			continue;
 		}
 		if (arg === "--target" || arg === "--target-dir") {
-			const next = tail[index + 1];
-			if (!next || next.startsWith("-")) {
-				throw new Error("--target expects a value.");
-			}
-			if (lastIndex === -1) {
-				throw new Error("--target must follow a --source entry.");
-			}
-			entries[lastIndex].targetDir = next;
+			const value = getArgValue(arg, tail[index + 1], arg);
+			setTarget(state, value);
 			index += 1;
-			lastWasRepoAdded = false;
 			continue;
 		}
-		if (skipNextFor.has(arg)) {
+		if (ADD_ENTRY_SKIP_OPTIONS.has(arg)) {
 			index += 1;
-			lastWasRepoAdded = false;
+			state.lastWasRepoAdded = false;
 			continue;
 		}
 		if (arg.startsWith("--")) {
-			lastWasRepoAdded = false;
+			state.lastWasRepoAdded = false;
 			continue;
 		}
-		entries.push({ repo: arg, ...(pendingId ? { id: pendingId } : {}) });
-		lastIndex = entries.length - 1;
-		pendingId = null;
-		lastWasRepoAdded = true;
+		addEntry(state, arg);
 	}
-	if (pendingId !== null) {
+	if (state.pendingId !== null) {
 		throw new Error("--id must be followed by a source.");
 	}
-	return entries;
+	return state.entries;
 };
 
 const parsePositionals = (rawArgs: string[]) => {
