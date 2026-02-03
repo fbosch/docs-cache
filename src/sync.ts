@@ -244,6 +244,22 @@ const loadToolVersion = async () => {
 	}
 };
 
+const buildLockSource = (
+	result: SyncResult,
+	prior: DocsCacheLock["sources"][string] | undefined,
+	now: string,
+) => ({
+	repo: result.repo,
+	ref: result.ref,
+	resolvedCommit: result.resolvedCommit,
+	bytes: result.bytes ?? prior?.bytes ?? 0,
+	fileCount: result.fileCount ?? prior?.fileCount ?? 0,
+	manifestSha256:
+		result.manifestSha256 ?? prior?.manifestSha256 ?? result.resolvedCommit,
+	rulesSha256: result.rulesSha256 ?? prior?.rulesSha256,
+	updatedAt: now,
+});
+
 const buildLock = async (
 	plan: Awaited<ReturnType<typeof getSyncPlan>>,
 	previous: Awaited<ReturnType<typeof readLock>> | null,
@@ -253,17 +269,7 @@ const buildLock = async (
 	const sources = { ...(previous?.sources ?? {}) };
 	for (const result of plan.results) {
 		const prior = sources[result.id];
-		sources[result.id] = {
-			repo: result.repo,
-			ref: result.ref,
-			resolvedCommit: result.resolvedCommit,
-			bytes: result.bytes ?? prior?.bytes ?? 0,
-			fileCount: result.fileCount ?? prior?.fileCount ?? 0,
-			manifestSha256:
-				result.manifestSha256 ?? prior?.manifestSha256 ?? result.resolvedCommit,
-			rulesSha256: result.rulesSha256 ?? prior?.rulesSha256,
-			updatedAt: now,
-		};
+		sources[result.id] = buildLockSource(result, prior, now);
 	}
 	return {
 		version: 1 as const,
@@ -277,6 +283,38 @@ type SyncPlan = Awaited<ReturnType<typeof getSyncPlan>>;
 type SyncJob = {
 	result: SyncResult;
 	source: SyncPlan["sources"][number];
+};
+
+const buildSyncResultBase = (params: {
+	source: DocsCacheResolvedSource;
+	lockEntry: DocsCacheLock["sources"][string] | undefined;
+	defaults: DocsCacheDefaults;
+	resolvedCommit: string;
+	rulesSha256: string;
+	repo?: string;
+	ref?: string;
+}) => {
+	const {
+		source,
+		lockEntry,
+		defaults,
+		resolvedCommit,
+		rulesSha256,
+		repo,
+		ref,
+	} = params;
+	return {
+		id: source.id,
+		repo: repo ?? lockEntry?.repo ?? source.repo,
+		ref: ref ?? lockEntry?.ref ?? source.ref ?? defaults.ref,
+		resolvedCommit,
+		lockCommit: lockEntry?.resolvedCommit ?? null,
+		lockRulesSha256: lockEntry?.rulesSha256,
+		bytes: lockEntry?.bytes,
+		fileCount: lockEntry?.fileCount,
+		manifestSha256: lockEntry?.manifestSha256,
+		rulesSha256,
+	};
 };
 
 const computeRulesSha = (
@@ -301,18 +339,17 @@ const buildOfflineResult = async (params: {
 }): Promise<SyncResult> => {
 	const { source, lockEntry, defaults, resolvedCacheDir, rulesSha256 } = params;
 	const docsPresent = await hasDocs(resolvedCacheDir, source.id);
-	return {
-		id: source.id,
-		repo: lockEntry?.repo ?? source.repo,
-		ref: lockEntry?.ref ?? source.ref ?? defaults.ref,
-		resolvedCommit: lockEntry?.resolvedCommit ?? "offline",
-		lockCommit: lockEntry?.resolvedCommit ?? null,
-		lockRulesSha256: lockEntry?.rulesSha256,
-		status: lockEntry && docsPresent ? "up-to-date" : "missing",
-		bytes: lockEntry?.bytes,
-		fileCount: lockEntry?.fileCount,
-		manifestSha256: lockEntry?.manifestSha256,
+	const resolvedCommit = lockEntry?.resolvedCommit ?? "offline";
+	const base = buildSyncResultBase({
+		source,
+		lockEntry,
+		defaults,
+		resolvedCommit,
 		rulesSha256,
+	});
+	return {
+		...base,
+		status: lockEntry && docsPresent ? "up-to-date" : "missing",
 	};
 };
 
@@ -340,19 +377,16 @@ const buildOnlineResult = async (params: {
 	if (lockEntry) {
 		status = upToDate ? "up-to-date" : "changed";
 	}
-	return {
-		id: source.id,
+	const base = buildSyncResultBase({
+		source,
+		lockEntry,
+		defaults,
+		resolvedCommit: resolved.resolvedCommit,
+		rulesSha256,
 		repo: resolved.repo,
 		ref: resolved.ref,
-		resolvedCommit: resolved.resolvedCommit,
-		lockCommit: lockEntry?.resolvedCommit ?? null,
-		lockRulesSha256: lockEntry?.rulesSha256,
-		status,
-		bytes: lockEntry?.bytes,
-		fileCount: lockEntry?.fileCount,
-		manifestSha256: lockEntry?.manifestSha256,
-		rulesSha256,
-	};
+	});
+	return { ...base, status };
 };
 
 const logFetchStatus = (
