@@ -14,7 +14,7 @@ Documentation is cached in a gitignored location, exposed to agent and tool targ
 
 ## Features
 
-- **Local only**: Cache lives in the directory `.docs` (or a custom location) and _should_ be gitignored.
+- **Local only**: Cache lives in the directory `.docs` (or a custom location) and can be gitignored.
 - **Deterministic**: `docs-lock.json` pins commits and file metadata.
 - **Fast**: Local cache avoids network roundtrips after sync.
 - **Flexible**: Cache full repos or just the subdirectories you need.
