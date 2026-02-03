@@ -20,7 +20,7 @@ export const DefaultsSchema = z
 		required: z.boolean(),
 		maxBytes: z.number().min(1),
 		maxFiles: z.number().min(1).optional(),
-		ignoreHidden: z.boolean().optional(),
+		ignoreHidden: z.boolean(),
 		allowHosts: z.array(z.string().min(1)).min(1),
 		toc: z.union([z.boolean(), TocFormatSchema]).optional(),
 		unwrapSingleRootDir: z.boolean().optional(),

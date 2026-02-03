@@ -191,7 +191,7 @@ export const materializeSource = async (params: MaterializeParams) => {
 	try {
 		const ignorePatterns = [
 			".git/**",
-			...(resolved.ignoreHidden ? [".*", "**/.*"] : []),
+			...(resolved.ignoreHidden ? [".*", "**/.*", "**/.*/**"] : []),
 			...resolved.exclude,
 		];
 		const files = await fg(resolved.include, {
@@ -397,7 +397,7 @@ export const computeManifestHash = async (
 		cwd: params.repoDir,
 		ignore: [
 			".git/**",
-			...(params.ignoreHidden ? [".*", "**/.*"] : []),
+			...(params.ignoreHidden ? [".*", "**/.*", "**/.*/**"] : []),
 			...(params.exclude ?? []),
 		],
 		dot: true,
