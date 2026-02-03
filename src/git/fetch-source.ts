@@ -180,6 +180,27 @@ const isPartialClone = async (repoPath: string) => {
 	}
 };
 
+const hasCommitInRepo = async (
+	repoPath: string,
+	commit: string,
+	options?: {
+		timeoutMs?: number;
+		allowFileProtocol?: boolean;
+		logger?: (message: string) => void;
+	},
+): Promise<boolean> => {
+	try {
+		await git(["-C", repoPath, "cat-file", "-e", `${commit}^{commit}`], {
+			timeoutMs: options?.timeoutMs,
+			allowFileProtocol: options?.allowFileProtocol,
+			logger: options?.logger,
+		});
+		return true;
+	} catch {
+		return false;
+	}
+};
+
 const ensureCommitAvailable = async (
 	repoPath: string,
 	commit: string,
@@ -227,6 +248,11 @@ type FetchResult = {
 	repoDir: string;
 	cleanup: () => Promise<void>;
 	fromCache: boolean;
+};
+
+type CloneResult = {
+	usedCache: boolean;
+	cleanup: () => Promise<void>;
 };
 
 const isSparseEligible = (include?: string[]) => {
@@ -311,17 +337,62 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 	);
 };
 
+const addWorktreeFromCache = async (
+	params: FetchParams,
+	cachePath: string,
+	outDir: string,
+): Promise<CloneResult> => {
+	await git(
+		[
+			"-C",
+			cachePath,
+			"worktree",
+			"add",
+			"--detach",
+			outDir,
+			params.resolvedCommit,
+		],
+		{
+			timeoutMs: params.timeoutMs,
+			logger: params.logger,
+		},
+	);
+	if (isSparseEligible(params.include)) {
+		const sparsePaths = extractSparsePaths(params.include);
+		if (sparsePaths.length > 0) {
+			await git(["-C", outDir, "sparse-checkout", "set", ...sparsePaths], {
+				timeoutMs: params.timeoutMs,
+				logger: params.logger,
+			});
+		}
+	}
+	return {
+		usedCache: true,
+		cleanup: async () => {
+			try {
+				await git(["-C", cachePath, "worktree", "remove", "--force", outDir], {
+					timeoutMs: params.timeoutMs,
+					logger: params.logger,
+				});
+			} catch {
+				// fall back to removing the directory directly
+			}
+		},
+	};
+};
+
 // Clone or update a repository using persistent cache
 const cloneOrUpdateRepo = async (
 	params: FetchParams,
 	outDir: string,
-): Promise<{ usedCache: boolean }> => {
+): Promise<CloneResult> => {
 	const cachePath = getPersistentCachePath(params.repo);
 	const cacheExists = await exists(cachePath);
 	const cacheValid = cacheExists && (await isValidGitRepo(cachePath));
 	const isCommitRef = /^[0-9a-f]{7,40}$/i.test(params.ref);
 	const useSparse = isSparseEligible(params.include);
 	let usedCache = cacheValid;
+	let worktreeUsed = false;
 
 	const cacheRoot = resolveGitCacheDir();
 	await mkdir(cacheRoot, { recursive: true });
@@ -336,7 +407,20 @@ const cloneOrUpdateRepo = async (
 			usedCache = false;
 		} else {
 			try {
-				if (!params.offline) {
+				const commitExists = await hasCommitInRepo(
+					cachePath,
+					params.resolvedCommit,
+					{
+						timeoutMs: params.timeoutMs,
+						logger: params.logger,
+					},
+				);
+				if (!commitExists) {
+					if (params.offline) {
+						throw new Error(
+							`Commit ${params.resolvedCommit} not found in cache (offline).`,
+						);
+					}
 					const fetchArgs = ["fetch", "origin"];
 					if (!isCommitRef) {
 						const refSpec =
@@ -354,12 +438,15 @@ const cloneOrUpdateRepo = async (
 						progressLogger: params.progressLogger,
 						forceProgress: Boolean(params.progressLogger),
 					});
+					await ensureCommitAvailable(cachePath, params.resolvedCommit, {
+						timeoutMs: params.timeoutMs,
+						logger: params.logger,
+						offline: params.offline,
+					});
+					worktreeUsed = true;
+				} else {
+					worktreeUsed = true;
 				}
-				await ensureCommitAvailable(cachePath, params.resolvedCommit, {
-					timeoutMs: params.timeoutMs,
-					logger: params.logger,
-					offline: params.offline,
-				});
 			} catch (_error) {
 				if (params.offline) {
 					throw new Error(`Cache for ${params.repo} is unavailable (offline).`);
@@ -378,6 +465,10 @@ const cloneOrUpdateRepo = async (
 		}
 		await cloneRepo(params, cachePath);
 		usedCache = false;
+	}
+
+	if (worktreeUsed && cacheValid) {
+		return addWorktreeFromCache(params, cachePath, outDir);
 	}
 
 	await mkdir(outDir, { recursive: true });
@@ -442,27 +533,29 @@ const cloneOrUpdateRepo = async (
 		},
 	);
 
-	return { usedCache };
+	return { usedCache, cleanup: async () => undefined };
 };
 
 export const fetchSource = async (
 	params: FetchParams,
 ): Promise<FetchResult> => {
 	assertSafeSourceId(params.sourceId, "sourceId");
-	const tempDir = await mkdtemp(
+	const tempRoot = await mkdtemp(
 		path.join(tmpdir(), `docs-cache-${params.sourceId}-`),
 	);
+	const tempDir = path.join(tempRoot, "repo");
 	try {
-		const { usedCache } = await cloneOrUpdateRepo(params, tempDir);
+		const { usedCache, cleanup } = await cloneOrUpdateRepo(params, tempDir);
 		return {
 			repoDir: tempDir,
 			cleanup: async () => {
-				await removeDir(tempDir);
+				await cleanup();
+				await removeDir(tempRoot);
 			},
 			fromCache: usedCache,
 		};
 	} catch (error) {
-		await removeDir(tempDir);
+		await removeDir(tempRoot);
 		throw error;
 	}
 };

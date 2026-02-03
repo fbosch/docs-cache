@@ -5,6 +5,7 @@ import { toPosixPath } from "../paths";
 export const symbols = {
 	error: pc.red("✖"),
 	success: pc.green("✔"),
+	synced: pc.green("●"),
 	info: pc.blue("ℹ"),
 	warn: pc.yellow("⚠"),
 };

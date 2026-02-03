@@ -59,9 +59,9 @@ export class TaskReporter {
 		this.render();
 	}
 
-	success(label: string, details?: string) {
+	success(label: string, details?: string, icon: string = symbols.success) {
 		this.tasks.set(label, "success");
-		this.results.push(this.formatLine(symbols.success, label, details));
+		this.results.push(this.formatLine(icon, label, details));
 		this.liveLines.length = 0;
 		this.render();
 	}
@@ -110,7 +110,7 @@ export class TaskReporter {
 			if (this.hasRunningTasks()) {
 				this.render();
 			}
-		}, 250);
+		}, 100);
 		this.timer.unref?.();
 	}
 
@@ -124,8 +124,12 @@ export class TaskReporter {
 		const running = Array.from(this.tasks.entries())
 			.filter(([, state]) => state === "running")
 			.map(([label]) => `${pc.cyan("→")} ${label}`);
+		const runningCount = running.length;
+		const completedCount = this.results.length;
 		const elapsed = this.hasRunningTasks()
-			? pc.dim(`time: ${formatDuration(Date.now() - this.startTime)}`)
+			? pc.dim(
+					`elapsed: ${formatDuration(Date.now() - this.startTime)} · ${runningCount} running · ${completedCount} completed`,
+				)
 			: "";
 		const lines = [
 			...this.results,

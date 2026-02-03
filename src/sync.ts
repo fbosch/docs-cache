@@ -512,11 +512,16 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					result.bytes = stats.bytes;
 					result.fileCount = stats.fileCount;
 					result.manifestSha256 = stats.manifestSha256;
+					result.status = "up-to-date";
 					if (reporter) {
-						reporter.success(source.id, `synced ${stats.fileCount} files`);
+						reporter.success(
+							source.id,
+							`synced ${stats.fileCount} files`,
+							symbols.synced,
+						);
 					} else if (!options.json) {
 						ui.item(
-							symbols.success,
+							symbols.synced,
 							source.id,
 							`synced ${stats.fileCount} files`,
 						);
