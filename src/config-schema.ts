@@ -11,25 +11,26 @@ export const IntegritySchema = z
 	})
 	.strict();
 
-export const DefaultsSchema = z
-	.object({
-		ref: z.string().min(1),
-		mode: CacheModeSchema,
-		include: z.array(z.string().min(1)).min(1),
-		exclude: z.array(z.string().min(1)).optional(),
-		targetMode: TargetModeSchema.optional(),
-		required: z.boolean(),
-		maxBytes: z.number().min(1),
-		maxFiles: z.number().min(1).optional(),
-		ignoreHidden: z.boolean(),
-		allowHosts: z.array(z.string().min(1)).min(1),
-		toc: z.union([z.boolean(), TocFormatSchema]).optional(),
-		unwrapSingleRootDir: z.boolean().optional(),
-	})
-	.strict();
+const CommonOptionsSchema = z.object({
+	ref: z.string().min(1),
+	mode: CacheModeSchema,
+	include: z.array(z.string().min(1)).min(1),
+	exclude: z.array(z.string().min(1)).optional(),
+	targetMode: TargetModeSchema.optional(),
+	required: z.boolean(),
+	maxBytes: z.number().min(1),
+	maxFiles: z.number().min(1).optional(),
+	ignoreHidden: z.boolean(),
+	toc: z.union([z.boolean(), TocFormatSchema]).optional(),
+	unwrapSingleRootDir: z.boolean().optional(),
+});
 
-export const SourceSchema = z
-	.object({
+export const DefaultsSchema = CommonOptionsSchema.extend({
+	allowHosts: z.array(z.string().min(1)).min(1),
+}).strict();
+
+export const SourceSchema = CommonOptionsSchema.partial()
+	.extend({
 		id: z
 			.string()
 			.min(1)
@@ -46,21 +47,13 @@ export const SourceSchema = z
 			}),
 		repo: z.string().min(1),
 		targetDir: z.string().min(1).optional(),
-		targetMode: TargetModeSchema.optional(),
-		ref: z.string().min(1).optional(),
-		mode: CacheModeSchema.optional(),
+		integrity: IntegritySchema.optional(),
+	})
+	.extend({
 		include: z
 			.array(z.string().min(1))
 			.min(1, { message: "include must be a non-empty array" })
 			.optional(),
-		exclude: z.array(z.string().min(1)).optional(),
-		required: z.boolean().optional(),
-		maxBytes: z.number().min(1).optional(),
-		maxFiles: z.number().min(1).optional(),
-		ignoreHidden: z.boolean().optional(),
-		integrity: IntegritySchema.optional(),
-		toc: z.union([z.boolean(), TocFormatSchema]).optional(),
-		unwrapSingleRootDir: z.boolean().optional(),
 	})
 	.strict();
 
