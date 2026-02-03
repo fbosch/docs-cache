@@ -13,6 +13,7 @@ import {
 } from "./config";
 import { fetchSource } from "./git/fetch-source";
 import { resolveRemoteCommit } from "./git/resolve-remote";
+import type { DocsCacheLock } from "./lock";
 import { readLock, resolveLockPath, writeLock } from "./lock";
 import { MANIFEST_FILENAME } from "./manifest";
 import { computeManifestHash, materializeSource } from "./materialize";
@@ -178,57 +179,24 @@ export const getSyncPlan = async (
 	const results: SyncResult[] = await Promise.all(
 		filteredSources.map(async (source) => {
 			const lockEntry = lockData?.sources?.[source.id];
-			const include = source.include ?? defaults.include;
-			const exclude = source.exclude ?? defaults.exclude;
-			const rulesSha256 = computeRulesHash({
-				...source,
-				include,
-				exclude,
-			});
+			const rulesSha256 = computeRulesSha(source, defaults);
 			if (options.offline) {
-				const docsPresent = await hasDocs(resolvedCacheDir, source.id);
-				return {
-					id: source.id,
-					repo: lockEntry?.repo ?? source.repo,
-					ref: lockEntry?.ref ?? source.ref ?? defaults.ref,
-					resolvedCommit: lockEntry?.resolvedCommit ?? "offline",
-					lockCommit: lockEntry?.resolvedCommit ?? null,
-					lockRulesSha256: lockEntry?.rulesSha256,
-					status: lockEntry && docsPresent ? "up-to-date" : "missing",
-					bytes: lockEntry?.bytes,
-					fileCount: lockEntry?.fileCount,
-					manifestSha256: lockEntry?.manifestSha256,
+				return buildOfflineResult({
+					source,
+					lockEntry,
+					defaults,
+					resolvedCacheDir,
 					rulesSha256,
-				};
+				});
 			}
-			const resolved = await resolveCommit({
-				repo: source.repo,
-				ref: source.ref,
-				allowHosts: defaults.allowHosts,
-				timeoutMs: options.timeoutMs,
-				logger: options.verbose && !options.json ? ui.debug : undefined,
-			});
-			const upToDate =
-				lockEntry?.resolvedCommit === resolved.resolvedCommit &&
-				lockEntry?.rulesSha256 === rulesSha256;
-			const status = lockEntry
-				? upToDate
-					? "up-to-date"
-					: "changed"
-				: "missing";
-			return {
-				id: source.id,
-				repo: resolved.repo,
-				ref: resolved.ref,
-				resolvedCommit: resolved.resolvedCommit,
-				lockCommit: lockEntry?.resolvedCommit ?? null,
-				lockRulesSha256: lockEntry?.rulesSha256,
-				status,
-				bytes: lockEntry?.bytes,
-				fileCount: lockEntry?.fileCount,
-				manifestSha256: lockEntry?.manifestSha256,
+			return buildOnlineResult({
+				source,
+				lockEntry,
+				defaults,
+				options,
+				resolveCommit,
 				rulesSha256,
-			};
+			});
 		}),
 	);
 
@@ -305,6 +273,266 @@ const buildLock = async (
 	};
 };
 
+type SyncPlan = Awaited<ReturnType<typeof getSyncPlan>>;
+type SyncJob = {
+	result: SyncResult;
+	source: SyncPlan["sources"][number];
+};
+
+const computeRulesSha = (
+	source: DocsCacheResolvedSource,
+	defaults: DocsCacheDefaults,
+) => {
+	const include = source.include ?? defaults.include;
+	const exclude = source.exclude ?? defaults.exclude;
+	return computeRulesHash({
+		...source,
+		include,
+		exclude,
+	});
+};
+
+const buildOfflineResult = async (params: {
+	source: DocsCacheResolvedSource;
+	lockEntry: DocsCacheLock["sources"][string] | undefined;
+	defaults: DocsCacheDefaults;
+	resolvedCacheDir: string;
+	rulesSha256: string;
+}): Promise<SyncResult> => {
+	const { source, lockEntry, defaults, resolvedCacheDir, rulesSha256 } = params;
+	const docsPresent = await hasDocs(resolvedCacheDir, source.id);
+	return {
+		id: source.id,
+		repo: lockEntry?.repo ?? source.repo,
+		ref: lockEntry?.ref ?? source.ref ?? defaults.ref,
+		resolvedCommit: lockEntry?.resolvedCommit ?? "offline",
+		lockCommit: lockEntry?.resolvedCommit ?? null,
+		lockRulesSha256: lockEntry?.rulesSha256,
+		status: lockEntry && docsPresent ? "up-to-date" : "missing",
+		bytes: lockEntry?.bytes,
+		fileCount: lockEntry?.fileCount,
+		manifestSha256: lockEntry?.manifestSha256,
+		rulesSha256,
+	};
+};
+
+const buildOnlineResult = async (params: {
+	source: DocsCacheResolvedSource;
+	lockEntry: DocsCacheLock["sources"][string] | undefined;
+	defaults: DocsCacheDefaults;
+	options: SyncOptions;
+	resolveCommit: typeof resolveRemoteCommit;
+	rulesSha256: string;
+}): Promise<SyncResult> => {
+	const { source, lockEntry, defaults, options, resolveCommit, rulesSha256 } =
+		params;
+	const resolved = await resolveCommit({
+		repo: source.repo,
+		ref: source.ref,
+		allowHosts: defaults.allowHosts,
+		timeoutMs: options.timeoutMs,
+		logger: options.verbose && !options.json ? ui.debug : undefined,
+	});
+	const upToDate =
+		lockEntry?.resolvedCommit === resolved.resolvedCommit &&
+		lockEntry?.rulesSha256 === rulesSha256;
+	let status: SyncResult["status"] = "missing";
+	if (lockEntry) {
+		status = upToDate ? "up-to-date" : "changed";
+	}
+	return {
+		id: source.id,
+		repo: resolved.repo,
+		ref: resolved.ref,
+		resolvedCommit: resolved.resolvedCommit,
+		lockCommit: lockEntry?.resolvedCommit ?? null,
+		lockRulesSha256: lockEntry?.rulesSha256,
+		status,
+		bytes: lockEntry?.bytes,
+		fileCount: lockEntry?.fileCount,
+		manifestSha256: lockEntry?.manifestSha256,
+		rulesSha256,
+	};
+};
+
+const logFetchStatus = (
+	reporter: TaskReporter | null,
+	options: SyncOptions,
+	sourceId: string,
+	fromCache: boolean,
+) => {
+	if (reporter) {
+		reporter.debug(
+			`${sourceId}: ${fromCache ? "restored from cache" : "downloaded"}`,
+		);
+		return;
+	}
+	if (!options.json) {
+		ui.step(fromCache ? "Restoring from cache" : "Downloading repo", sourceId);
+	}
+};
+
+const logMaterializeStart = (
+	reporter: TaskReporter | null,
+	options: SyncOptions,
+	sourceId: string,
+) => {
+	if (reporter) {
+		reporter.debug(`${sourceId}: materializing`);
+		return;
+	}
+	if (!options.json) {
+		ui.step("Materializing", sourceId);
+	}
+};
+
+const reportNoChanges = (
+	reporter: TaskReporter | null,
+	options: SyncOptions,
+	sourceId: string,
+) => {
+	if (reporter) {
+		reporter.success(sourceId, "no content changes");
+		return;
+	}
+	if (!options.json) {
+		ui.item(symbols.success, sourceId, "no content changes");
+	}
+};
+
+const reportSynced = (
+	reporter: TaskReporter | null,
+	options: SyncOptions,
+	sourceId: string,
+	fileCount: number,
+) => {
+	if (reporter) {
+		reporter.success(sourceId, `synced ${fileCount} files`, symbols.synced);
+		return;
+	}
+	if (!options.json) {
+		ui.item(symbols.synced, sourceId, `synced ${fileCount} files`);
+	}
+};
+
+const tryReuseManifest = async (params: {
+	result: SyncResult;
+	source: SyncPlan["sources"][number];
+	lockEntry: DocsCacheLock["sources"][string] | undefined;
+	plan: SyncPlan;
+	defaults: DocsCacheDefaults;
+	fetch: Awaited<ReturnType<typeof fetchSource>>;
+	reporter: TaskReporter | null;
+	options: SyncOptions;
+}) => {
+	const {
+		result,
+		source,
+		lockEntry,
+		plan,
+		defaults,
+		fetch,
+		reporter,
+		options,
+	} = params;
+	if (result.status === "up-to-date") {
+		return false;
+	}
+	if (!lockEntry?.manifestSha256) {
+		return false;
+	}
+	if (lockEntry.rulesSha256 !== result.rulesSha256) {
+		return false;
+	}
+	const manifestPath = path.join(plan.cacheDir, source.id, MANIFEST_FILENAME);
+	if (!(await exists(manifestPath))) {
+		return false;
+	}
+	const computed = await computeManifestHash({
+		sourceId: source.id,
+		repoDir: fetch.repoDir,
+		cacheDir: plan.cacheDir,
+		include: source.include ?? defaults.include,
+		exclude: source.exclude,
+		maxBytes: source.maxBytes ?? defaults.maxBytes,
+		maxFiles: source.maxFiles ?? defaults.maxFiles,
+		ignoreHidden: source.ignoreHidden ?? defaults.ignoreHidden,
+	});
+	if (computed.manifestSha256 !== lockEntry.manifestSha256) {
+		return false;
+	}
+	result.bytes = computed.bytes;
+	result.fileCount = computed.fileCount;
+	result.manifestSha256 = computed.manifestSha256;
+	result.status = "up-to-date";
+	reportNoChanges(reporter, options, source.id);
+	return true;
+};
+
+const buildJobs = async (
+	plan: SyncPlan,
+	options: SyncOptions,
+	docsPresence: Map<string, boolean>,
+	ids?: string[],
+	force?: boolean,
+): Promise<SyncJob[]> => {
+	const pick = ids?.length
+		? plan.results.filter((result) => ids.includes(result.id))
+		: plan.results;
+	const jobs = await Promise.all(
+		pick.map(async (result) => {
+			const source = plan.sources.find((entry) => entry.id === result.id);
+			if (!source) {
+				return null;
+			}
+			if (options.offline) {
+				const lockEntry = plan.lockData?.sources?.[result.id];
+				if (!lockEntry?.resolvedCommit) {
+					return null;
+				}
+			}
+			if (force) {
+				return { result, source };
+			}
+			let docsPresent = docsPresence.get(result.id);
+			if (docsPresent === undefined) {
+				docsPresent = await hasDocs(plan.cacheDir, result.id);
+				docsPresence.set(result.id, docsPresent);
+			}
+			const needsMaterialize = result.status !== "up-to-date" || !docsPresent;
+			if (!needsMaterialize) {
+				return null;
+			}
+			return { result, source };
+		}),
+	);
+	return jobs.filter(Boolean) as SyncJob[];
+};
+
+const ensureTargets = async (plan: SyncPlan, defaults: DocsCacheDefaults) => {
+	await Promise.all(
+		plan.sources.map(async (source) => {
+			if (!source.targetDir) {
+				return;
+			}
+			const resolvedTarget = resolveTargetDir(
+				plan.configPath,
+				source.targetDir,
+			);
+			if (await exists(resolvedTarget)) {
+				return;
+			}
+			await applyTargetDir({
+				sourceDir: path.join(plan.cacheDir, source.id),
+				targetDir: resolvedTarget,
+				mode: source.targetMode ?? defaults.targetMode,
+				explicitTargetMode: source.targetMode !== undefined,
+				unwrapSingleRootDir: source.unwrapSingleRootDir,
+			});
+		}),
+	);
+};
+
 export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 	const startTime = process.hrtime.bigint();
 	let warningCount = 0;
@@ -329,71 +557,8 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		const runFetch = deps.fetchSource ?? fetchSource;
 		const runMaterialize = deps.materializeSource ?? materializeSource;
 		const docsPresence = new Map<string, boolean>();
-		const buildJobs = async (ids?: string[], force?: boolean) => {
-			const pick = ids?.length
-				? plan.results.filter((result) => ids.includes(result.id))
-				: plan.results;
-			const jobs = await Promise.all(
-				pick.map(async (result) => {
-					const source = plan.sources.find((entry) => entry.id === result.id);
-					if (!source) {
-						return null;
-					}
-					if (options.offline) {
-						const lockEntry = plan.lockData?.sources?.[result.id];
-						if (!lockEntry?.resolvedCommit) {
-							return null;
-						}
-					}
-					if (force) {
-						return { result, source };
-					}
-					let docsPresent = docsPresence.get(result.id);
-					if (docsPresent === undefined) {
-						docsPresent = await hasDocs(plan.cacheDir, result.id);
-						docsPresence.set(result.id, docsPresent);
-					}
-					const needsMaterialize =
-						result.status !== "up-to-date" || !docsPresent;
-					return needsMaterialize ? { result, source } : null;
-				}),
-			);
-			return jobs.filter(Boolean) as Array<{
-				result: SyncResult;
-				source: (typeof plan.sources)[number];
-			}>;
-		};
 
-		const ensureTargets = async () => {
-			await Promise.all(
-				plan.sources.map(async (source) => {
-					if (!source.targetDir) {
-						return;
-					}
-					const resolvedTarget = resolveTargetDir(
-						plan.configPath,
-						source.targetDir,
-					);
-					if (await exists(resolvedTarget)) {
-						return;
-					}
-					await applyTargetDir({
-						sourceDir: path.join(plan.cacheDir, source.id),
-						targetDir: resolvedTarget,
-						mode: source.targetMode ?? defaults.targetMode,
-						explicitTargetMode: source.targetMode !== undefined,
-						unwrapSingleRootDir: source.unwrapSingleRootDir,
-					});
-				}),
-			);
-		};
-
-		const runJobs = async (
-			jobs: Array<{
-				result: SyncResult;
-				source: (typeof plan.sources)[number];
-			}>,
-		) => {
+		const runJobs = async (jobs: SyncJob[]) => {
 			const concurrency = options.concurrency ?? 4;
 			let index = 0;
 			const runNext = async () => {
@@ -430,57 +595,23 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					progressLogger: logProgress,
 					offline: options.offline,
 				});
-				if (reporter) {
-					reporter.debug(
-						`${source.id}: ${fetch.fromCache ? "restored from cache" : "downloaded"}`,
-					);
-				} else if (!options.json) {
-					ui.step(
-						fetch.fromCache ? "Restoring from cache" : "Downloading repo",
-						source.id,
-					);
-				}
+				logFetchStatus(reporter, options, source.id, fetch.fromCache);
 				try {
-					const manifestPath = path.join(
-						plan.cacheDir,
-						source.id,
-						MANIFEST_FILENAME,
-					);
-					if (
-						result.status !== "up-to-date" &&
-						lockEntry?.manifestSha256 &&
-						lockEntry?.rulesSha256 === result.rulesSha256 &&
-						(await exists(manifestPath))
-					) {
-						const computed = await computeManifestHash({
-							sourceId: source.id,
-							repoDir: fetch.repoDir,
-							cacheDir: plan.cacheDir,
-							include: source.include ?? defaults.include,
-							exclude: source.exclude,
-							maxBytes: source.maxBytes ?? defaults.maxBytes,
-							maxFiles: source.maxFiles ?? defaults.maxFiles,
-							ignoreHidden: source.ignoreHidden ?? defaults.ignoreHidden,
-						});
-						if (computed.manifestSha256 === lockEntry.manifestSha256) {
-							result.bytes = computed.bytes;
-							result.fileCount = computed.fileCount;
-							result.manifestSha256 = computed.manifestSha256;
-							result.status = "up-to-date";
-							if (reporter) {
-								reporter.success(source.id, "no content changes");
-							} else if (!options.json) {
-								ui.item(symbols.success, source.id, "no content changes");
-							}
-							await runNext();
-							return;
-						}
+					const reusedManifest = await tryReuseManifest({
+						result,
+						source,
+						lockEntry,
+						plan,
+						defaults,
+						fetch,
+						reporter,
+						options,
+					});
+					if (reusedManifest) {
+						await runNext();
+						return;
 					}
-					if (reporter) {
-						reporter.debug(`${source.id}: materializing`);
-					} else if (!options.json) {
-						ui.step("Materializing", source.id);
-					}
+					logMaterializeStart(reporter, options, source.id);
 					const stats = await runMaterialize({
 						sourceId: source.id,
 						repoDir: fetch.repoDir,
@@ -513,19 +644,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					result.fileCount = stats.fileCount;
 					result.manifestSha256 = stats.manifestSha256;
 					result.status = "up-to-date";
-					if (reporter) {
-						reporter.success(
-							source.id,
-							`synced ${stats.fileCount} files`,
-							symbols.synced,
-						);
-					} else if (!options.json) {
-						ui.item(
-							symbols.synced,
-							source.id,
-							`synced ${stats.fileCount} files`,
-						);
-					}
+					reportSynced(reporter, options, source.id, stats.fileCount);
 				} finally {
 					await fetch.cleanup();
 				}
@@ -537,9 +656,9 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 			);
 		};
 
-		const initialJobs = await buildJobs();
+		const initialJobs = await buildJobs(plan, options, docsPresence);
 		await runJobs(initialJobs);
-		await ensureTargets();
+		await ensureTargets(plan, defaults);
 		if (!options.offline && (!options.json || initialJobs.length > 0)) {
 			const verifyReport = await verifyCache({
 				configPath: plan.configPath,
@@ -549,12 +668,15 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 			const failed = verifyReport.results.filter((result) => !result.ok);
 			if (failed.length > 0) {
 				const retryJobs = await buildJobs(
+					plan,
+					options,
+					docsPresence,
 					failed.map((result) => result.id),
 					true,
 				);
 				if (retryJobs.length > 0) {
 					await runJobs(retryJobs);
-					await ensureTargets();
+					await ensureTargets(plan, defaults);
 				}
 				const retryReport = await verifyCache({
 					configPath: plan.configPath,
@@ -568,7 +690,8 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 						for (const failed of stillFailed) {
 							reporter.warn(failed.id, failed.issues.join("; "));
 						}
-					} else if (!options.json) {
+					}
+					if (!reporter && !options.json) {
 						const details = stillFailed
 							.map((result) => `${result.id} (${result.issues.join("; ")})`)
 							.join(", ");
@@ -593,7 +716,8 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		);
 		const summary = `${symbols.info} ${formatBytes(totalBytes)} · ${totalFiles} files`;
 		reporter.finish(summary);
-	} else if (!options.json) {
+	}
+	if (!reporter && !options.json) {
 		const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1_000_000;
 		const totalBytes = plan.results.reduce(
 			(sum, result) => sum + (result.bytes ?? 0),

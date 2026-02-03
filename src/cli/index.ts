@@ -62,7 +62,11 @@ const runAdd = async (parsed: Extract<CliCommand, { command: "add" }>) => {
 		configPath: options.config,
 		entries: parsed.entries,
 	});
-	if (!options.offline) {
+	if (options.offline) {
+		if (!options.json) {
+			ui.line(`${symbols.warn} Offline: skipped sync`);
+		}
+	} else {
 		await runSync({
 			configPath: options.config,
 			cacheDirOverride: options.cacheDir,
@@ -74,8 +78,6 @@ const runAdd = async (parsed: Extract<CliCommand, { command: "add" }>) => {
 			timeoutMs: options.timeoutMs,
 			verbose: options.verbose,
 		});
-	} else if (!options.json) {
-		ui.line(`${symbols.warn} Offline: skipped sync`);
 	}
 	if (options.json) {
 		process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
