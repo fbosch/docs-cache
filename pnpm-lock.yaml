@@ -30,8 +30,8 @@ importers:
         specifier: ^1.1.1
         version: 1.1.1
       picomatch:
-        specifier: ^2.3.1
-        version: 2.3.1
+        specifier: ^4.0.3
+        version: 4.0.3
       zod:
         specifier: ^4.3.6
         version: 4.3.6
