@@ -38,6 +38,12 @@ const POSITIONAL_SKIP_OPTIONS = new Set([
 	"--concurrency",
 	"--timeout-ms",
 ]);
+const ADD_ONLY_OPTIONS_WITH_VALUES = new Set([
+	"--id",
+	"--source",
+	"--target",
+	"--target-dir",
+]);
 
 const parseAddEntries = (rawArgs: string[]): AddEntry[] => {
 	const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
@@ -150,14 +156,98 @@ const assertAddOnlyOptions = (command: Command | null, rawArgs: string[]) => {
 		if (ADD_ONLY_OPTIONS.has(arg)) {
 			throw new Error(`${arg} is only valid for add.`);
 		}
-		if (
-			arg.startsWith("--id=") ||
-			arg.startsWith("--source=") ||
-			arg.startsWith("--target=") ||
-			arg.startsWith("--target-dir=")
-		) {
-			throw new Error(`${arg.split("=")[0]} is only valid for add.`);
+		if (!arg.startsWith("--")) {
+			continue;
 		}
+		const [flag] = arg.split("=");
+		if (ADD_ONLY_OPTIONS_WITH_VALUES.has(flag)) {
+			throw new Error(`${flag} is only valid for add.`);
+		}
+	}
+};
+
+const buildOptions = (result: ReturnType<ReturnType<typeof cac>["parse"]>) => {
+	const options: CliOptions = {
+		config: result.options.config,
+		cacheDir: result.options.cacheDir,
+		offline: Boolean(result.options.offline),
+		failOnMiss: Boolean(result.options.failOnMiss),
+		lockOnly: Boolean(result.options.lockOnly),
+		prune: Boolean(result.options.prune),
+		concurrency: result.options.concurrency
+			? Number(result.options.concurrency)
+			: undefined,
+		json: Boolean(result.options.json),
+		timeoutMs: result.options.timeoutMs
+			? Number(result.options.timeoutMs)
+			: undefined,
+		silent: Boolean(result.options.silent),
+		verbose: Boolean(result.options.verbose),
+	};
+
+	if (options.concurrency !== undefined && options.concurrency < 1) {
+		throw new Error("--concurrency must be a positive number.");
+	}
+	if (options.timeoutMs !== undefined && options.timeoutMs < 1) {
+		throw new Error("--timeout-ms must be a positive number.");
+	}
+
+	return options;
+};
+
+const getCommandFromArgs = (rawArgs: string[]) => {
+	const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
+	const command =
+		commandIndex === -1 ? undefined : (rawArgs[commandIndex] as Command);
+	if (command && !COMMANDS.includes(command)) {
+		throw new Error(`Unknown command '${command}'.`);
+	}
+	return command ?? null;
+};
+
+const getPositionals = (
+	command: Command | null,
+	rawArgs: string[],
+	entries: AddEntry[] | null,
+) => {
+	if (command === "add") {
+		const addEntries = entries ?? parseAddEntries(rawArgs);
+		return { positionals: addEntries.map((entry) => entry.repo), addEntries };
+	}
+	return { positionals: parsePositionals(rawArgs), addEntries: entries };
+};
+
+const buildParsedCommand = (
+	command: Command | null,
+	options: CliOptions,
+	positionals: string[],
+	addEntries: AddEntry[] | null,
+): CliCommand => {
+	switch (command) {
+		case "add":
+			return {
+				command: "add",
+				entries: addEntries ?? [],
+				options,
+			};
+		case "remove":
+			return { command: "remove", ids: positionals, options };
+		case "sync":
+			return { command: "sync", options };
+		case "status":
+			return { command: "status", options };
+		case "clean":
+			return { command: "clean", options };
+		case "clean-cache":
+			return { command: "clean-cache", options };
+		case "prune":
+			return { command: "prune", options };
+		case "verify":
+			return { command: "verify", options };
+		case "init":
+			return { command: "init", options };
+		default:
+			return { command: null, options };
 	}
 };
 
@@ -197,90 +287,18 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 
 		const result = cli.parse(argv, { run: false });
 		const rawArgs = argv.slice(2);
-		const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
-		const command =
-			commandIndex === -1 ? undefined : (rawArgs[commandIndex] as Command);
-		if (command && !COMMANDS.includes(command)) {
-			throw new Error(`Unknown command '${command}'.`);
-		}
-
-		const options: CliOptions = {
-			config: result.options.config,
-			cacheDir: result.options.cacheDir,
-			offline: Boolean(result.options.offline),
-			failOnMiss: Boolean(result.options.failOnMiss),
-			lockOnly: Boolean(result.options.lockOnly),
-			prune: Boolean(result.options.prune),
-			concurrency: result.options.concurrency
-				? Number(result.options.concurrency)
-				: undefined,
-			json: Boolean(result.options.json),
-			timeoutMs: result.options.timeoutMs
-				? Number(result.options.timeoutMs)
-				: undefined,
-			silent: Boolean(result.options.silent),
-			verbose: Boolean(result.options.verbose),
-		};
-
-		if (options.concurrency !== undefined && options.concurrency < 1) {
-			throw new Error("--concurrency must be a positive number.");
-		}
-		if (options.timeoutMs !== undefined && options.timeoutMs < 1) {
-			throw new Error("--timeout-ms must be a positive number.");
-		}
-
-		assertAddOnlyOptions(command ?? null, rawArgs);
-		let addEntries: AddEntry[] | null = null;
-		const positionals = (() => {
-			switch (command ?? null) {
-				case "add":
-					addEntries = parseAddEntries(rawArgs);
-					return addEntries.map((entry) => entry.repo);
-				case "remove":
-					return parsePositionals(rawArgs);
-				default:
-					return parsePositionals(rawArgs);
-			}
-		})();
-		let parsed: CliCommand;
-		switch (command ?? null) {
-			case "add":
-				parsed = {
-					command: "add",
-					entries: addEntries ?? parseAddEntries(rawArgs),
-					options,
-				};
-				break;
-			case "remove":
-				parsed = { command: "remove", ids: positionals, options };
-				break;
-			case "sync":
-				parsed = { command: "sync", options };
-				break;
-			case "status":
-				parsed = { command: "status", options };
-				break;
-			case "clean":
-				parsed = { command: "clean", options };
-				break;
-			case "clean-cache":
-				parsed = { command: "clean-cache", options };
-				break;
-			case "prune":
-				parsed = { command: "prune", options };
-				break;
-			case "verify":
-				parsed = { command: "verify", options };
-				break;
-			case "init":
-				parsed = { command: "init", options };
-				break;
-			default:
-				parsed = { command: null, options };
-				break;
-		}
+		const command = getCommandFromArgs(rawArgs);
+		const options = buildOptions(result);
+		assertAddOnlyOptions(command, rawArgs);
+		const { positionals, addEntries } = getPositionals(command, rawArgs, null);
+		const parsed = buildParsedCommand(
+			command,
+			options,
+			positionals,
+			addEntries,
+		);
 		return {
-			command: command ?? null,
+			command,
 			options,
 			positionals,
 			rawArgs,
