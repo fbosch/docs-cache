@@ -187,6 +187,7 @@ const ensureCommitAvailable = async (
 		timeoutMs?: number;
 		allowFileProtocol?: boolean;
 		logger?: (message: string) => void;
+		offline?: boolean;
 	},
 ) => {
 	try {
@@ -198,6 +199,9 @@ const ensureCommitAvailable = async (
 		return;
 	} catch {
 		// commit not present, fetch it
+	}
+	if (options?.offline && !options?.allowFileProtocol) {
+		throw new Error(`Commit ${commit} not found in cache (offline).`);
 	}
 	await git(["-C", repoPath, "fetch", "origin", commit], {
 		timeoutMs: options?.timeoutMs,
@@ -216,6 +220,7 @@ type FetchParams = {
 	timeoutMs?: number;
 	logger?: (message: string) => void;
 	progressLogger?: (message: string) => void;
+	offline?: boolean;
 };
 
 type FetchResult = {
@@ -250,6 +255,9 @@ const extractSparsePaths = (include?: string[]) => {
 };
 
 const cloneRepo = async (params: FetchParams, outDir: string) => {
+	if (params.offline) {
+		throw new Error(`Cannot clone ${params.repo} while offline.`);
+	}
 	const isCommitRef = /^[0-9a-f]{7,40}$/i.test(params.ref);
 	const useSparse = isSparseEligible(params.include);
 	const buildCloneArgs = () => {
@@ -283,6 +291,7 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 	await ensureCommitAvailable(outDir, params.resolvedCommit, {
 		timeoutMs: params.timeoutMs,
 		logger: params.logger,
+		offline: params.offline,
 	});
 	if (useSparse) {
 		const sparsePaths = extractSparsePaths(params.include);
@@ -319,33 +328,42 @@ const cloneOrUpdateRepo = async (
 
 	if (cacheValid) {
 		if (await isPartialClone(cachePath)) {
+			if (params.offline) {
+				throw new Error(`Cache for ${params.repo} is partial (offline).`);
+			}
 			await removeDir(cachePath);
 			await cloneRepo(params, cachePath);
 			usedCache = false;
 		} else {
 			try {
-				const fetchArgs = ["fetch", "origin"];
-				if (!isCommitRef) {
-					const refSpec =
-						params.ref === "HEAD"
-							? "HEAD"
-							: `${params.ref}:refs/remotes/origin/${params.ref}`;
-					fetchArgs.push(refSpec, "--depth", String(DEFAULT_GIT_DEPTH));
-				} else {
-					fetchArgs.push("--depth", String(DEFAULT_GIT_DEPTH));
-				}
+				if (!params.offline) {
+					const fetchArgs = ["fetch", "origin"];
+					if (!isCommitRef) {
+						const refSpec =
+							params.ref === "HEAD"
+								? "HEAD"
+								: `${params.ref}:refs/remotes/origin/${params.ref}`;
+						fetchArgs.push(refSpec, "--depth", String(DEFAULT_GIT_DEPTH));
+					} else {
+						fetchArgs.push("--depth", String(DEFAULT_GIT_DEPTH));
+					}
 
-				await git(["-C", cachePath, ...fetchArgs], {
-					timeoutMs: params.timeoutMs,
-					logger: params.logger,
-					progressLogger: params.progressLogger,
-					forceProgress: Boolean(params.progressLogger),
-				});
+					await git(["-C", cachePath, ...fetchArgs], {
+						timeoutMs: params.timeoutMs,
+						logger: params.logger,
+						progressLogger: params.progressLogger,
+						forceProgress: Boolean(params.progressLogger),
+					});
+				}
 				await ensureCommitAvailable(cachePath, params.resolvedCommit, {
 					timeoutMs: params.timeoutMs,
 					logger: params.logger,
+					offline: params.offline,
 				});
 			} catch (_error) {
+				if (params.offline) {
+					throw new Error(`Cache for ${params.repo} is unavailable (offline).`);
+				}
 				await removeDir(cachePath);
 				await cloneRepo(params, cachePath);
 				usedCache = false;
@@ -354,6 +372,9 @@ const cloneOrUpdateRepo = async (
 	} else {
 		if (cacheExists) {
 			await removeDir(cachePath);
+		}
+		if (params.offline) {
+			throw new Error(`Cache for ${params.repo} is missing (offline).`);
 		}
 		await cloneRepo(params, cachePath);
 		usedCache = false;
@@ -409,6 +430,7 @@ const cloneOrUpdateRepo = async (
 		timeoutMs: params.timeoutMs,
 		allowFileProtocol: true,
 		logger: params.logger,
+		offline: params.offline,
 	});
 
 	await git(

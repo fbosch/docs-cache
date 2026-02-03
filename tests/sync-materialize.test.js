@@ -292,6 +292,95 @@ test("sync re-materializes when docs missing even if commit unchanged", async ()
 	assert.equal(materialized, true);
 });
 
+test("sync offline materializes from cache when lock exists", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-offline-materialize-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const repoDir = path.join(tmpRoot, "repo");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	await mkdir(repoDir, { recursive: true });
+	await writeFile(path.join(repoDir, "README.md"), "hello", "utf8");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{
+				id: "local",
+				repo: "https://example.com/repo.git",
+			},
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+	await writeFile(
+		path.join(tmpRoot, DEFAULT_LOCK_FILENAME),
+		JSON.stringify({
+			version: 1,
+			generatedAt: new Date().toISOString(),
+			toolVersion: "0.1.0",
+			sources: {
+				local: {
+					repo: "https://example.com/repo.git",
+					ref: "HEAD",
+					resolvedCommit: "abc123",
+					bytes: 0,
+					fileCount: 0,
+					manifestSha256: "abc123",
+					updatedAt: new Date().toISOString(),
+				},
+			},
+		}),
+	);
+
+	let resolveCalled = false;
+	let fetchOffline = false;
+	let materialized = false;
+
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: true,
+			failOnMiss: false,
+		},
+		{
+			resolveRemoteCommit: async () => {
+				resolveCalled = true;
+				throw new Error("Should not resolve while offline");
+			},
+			fetchSource: async (params) => {
+				fetchOffline = params.offline === true;
+				return {
+					repoDir,
+					cleanup: async () => undefined,
+				};
+			},
+			materializeSource: async ({ cacheDir: cacheRoot, sourceId }) => {
+				materialized = true;
+				const outDir = path.join(cacheRoot, sourceId);
+				await mkdir(outDir, { recursive: true });
+				await writeFile(
+					path.join(outDir, ".manifest.jsonl"),
+					`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
+				);
+				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
+				return { bytes: 5, fileCount: 1 };
+			},
+		},
+	);
+
+	assert.equal(resolveCalled, false);
+	assert.equal(fetchOffline, true);
+	assert.equal(materialized, true);
+	assert.equal(await exists(path.join(cacheDir, "local", "README.md")), true);
+});
+
 test("sync offline fails when required source missing", async () => {
 	const tmpRoot = path.join(
 		tmpdir(),

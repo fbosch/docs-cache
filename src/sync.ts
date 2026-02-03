@@ -339,6 +339,12 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					if (!source) {
 						return null;
 					}
+					if (options.offline) {
+						const lockEntry = plan.lockData?.sources?.[result.id];
+						if (!lockEntry?.resolvedCommit) {
+							return null;
+						}
+					}
 					if (force) {
 						return { result, source };
 					}
@@ -422,6 +428,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					timeoutMs: options.timeoutMs,
 					logger: logDebug,
 					progressLogger: logProgress,
+					offline: options.offline,
 				});
 				if (reporter) {
 					reporter.debug(
@@ -525,13 +532,9 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 			);
 		};
 
-		if (options.offline) {
-			await ensureTargets();
-		} else {
-			const initialJobs = await buildJobs();
-			await runJobs(initialJobs);
-			await ensureTargets();
-		}
+		const initialJobs = await buildJobs();
+		await runJobs(initialJobs);
+		await ensureTargets();
 		if (!options.offline) {
 			const verifyReport = await verifyCache({
 				configPath: plan.configPath,
