@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import pc from "picocolors";
 import { symbols, ui } from "./cli/ui";
 import { DEFAULT_CACHE_DIR, loadConfig } from "./config";
-import { readLock, resolveLockPath } from "./lock";
+import { DEFAULT_LOCK_FILENAME, readLock, resolveLockPath } from "./lock";
 import { getCacheLayout, resolveCacheDir } from "./paths";
 
 type StatusOptions = {
@@ -81,7 +81,7 @@ export const printStatus = (status: Awaited<ReturnType<typeof getStatus>>) => {
 		: pc.yellow("missing");
 
 	ui.header("Cache", `${relCache} (${cacheState})`);
-	ui.header("Lock", `docs.lock (${lockState})`);
+	ui.header("Lock", `${DEFAULT_LOCK_FILENAME} (${lockState})`);
 
 	if (status.sources.length === 0) {
 		ui.line();

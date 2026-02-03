@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
 
-import { printSyncPlan } from "../dist/api.mjs";
+import { DEFAULT_LOCK_FILENAME, printSyncPlan } from "../dist/api.mjs";
 
 test("printSyncPlan outputs summary and short hashes", () => {
 	const cwd = process.cwd();
 	const plan = {
 		configPath: path.join(cwd, "docs.config.json"),
 		cacheDir: path.join(cwd, ".docs"),
-		lockPath: path.join(cwd, "docs.lock"),
+		lockPath: path.join(cwd, DEFAULT_LOCK_FILENAME),
 		lockExists: true,
 		results: [
 			{

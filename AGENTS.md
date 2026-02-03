@@ -22,7 +22,7 @@ pnpm.
 ## Cache layout
 
 - Materialized sources live at `.docs/<id>/`.
-- Lock file lives next to `docs.config.json` as `docs.lock`.
+- Lock file lives next to `docs.config.json` as `docs-lock.json`.
 
 ## CLI architecture
 

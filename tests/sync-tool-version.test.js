@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { runSync } from "../dist/api.mjs";
+import { DEFAULT_LOCK_FILENAME, runSync } from "../dist/api.mjs";
 
 test("sync writes lock toolVersion from package.json", async () => {
 	const tmpRoot = path.join(
@@ -43,7 +43,10 @@ test("sync writes lock toolVersion from package.json", async () => {
 		failOnMiss: false,
 	});
 
-	const lockRaw = await readFile(path.join(tmpRoot, "docs.lock"), "utf8");
+	const lockRaw = await readFile(
+		path.join(tmpRoot, DEFAULT_LOCK_FILENAME),
+		"utf8",
+	);
 	const lock = JSON.parse(lockRaw);
 	const pkgRaw = await readFile(
 		path.resolve(process.cwd(), "package.json"),

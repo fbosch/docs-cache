@@ -19,7 +19,7 @@ export interface DocsCacheLock {
 	sources: Record<string, DocsCacheLockSource>;
 }
 
-export const DEFAULT_LOCK_FILENAME = "docs.lock";
+export const DEFAULT_LOCK_FILENAME = "docs-lock.json";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);

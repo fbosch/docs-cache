@@ -18,6 +18,7 @@ import {
 	verifyCache,
 } from "../../dist/api.mjs";
 import {
+	DEFAULT_LOCK_FILENAME,
 	readLock,
 	resolveLockPath,
 	validateLock,
@@ -286,7 +287,7 @@ const main = async () => {
 			() => {
 				const tempLock = path.join(
 					benchRoot,
-					`docs.lock.${Math.random().toString(36).slice(2)}`,
+					`${DEFAULT_LOCK_FILENAME}.${Math.random().toString(36).slice(2)}`,
 				);
 				return writeLock(tempLock, lockData);
 			},

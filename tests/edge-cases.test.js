@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { loadConfig } from "../dist/api.mjs";
+import { DEFAULT_LOCK_FILENAME, loadConfig } from "../dist/api.mjs";
 
 const writeConfig = async (data) => {
 	const tmpRoot = path.join(
@@ -221,7 +221,7 @@ test("lock file with invalid version", async () => {
 		`docs-cache-lock-ver-${Date.now().toString(36)}`,
 	);
 	await mkdir(tmpRoot, { recursive: true });
-	const lockPath = path.join(tmpRoot, "docs.lock");
+	const lockPath = path.join(tmpRoot, DEFAULT_LOCK_FILENAME);
 
 	const invalidLock = {
 		version: 2,
@@ -248,7 +248,7 @@ test("lock file with missing required fields", async () => {
 		`docs-cache-lock-miss-${Date.now().toString(36)}`,
 	);
 	await mkdir(tmpRoot, { recursive: true });
-	const lockPath = path.join(tmpRoot, "docs.lock");
+	const lockPath = path.join(tmpRoot, DEFAULT_LOCK_FILENAME);
 
 	const invalidLock = {
 		version: 1,
@@ -271,7 +271,7 @@ test("lock file with negative bytes", async () => {
 		`docs-cache-lock-neg-${Date.now().toString(36)}`,
 	);
 	await mkdir(tmpRoot, { recursive: true });
-	const lockPath = path.join(tmpRoot, "docs.lock");
+	const lockPath = path.join(tmpRoot, DEFAULT_LOCK_FILENAME);
 
 	const invalidLock = {
 		version: 1,
@@ -306,7 +306,7 @@ test("lock file with corrupted JSON", async () => {
 		`docs-cache-lock-corrupt-${Date.now().toString(36)}`,
 	);
 	await mkdir(tmpRoot, { recursive: true });
-	const lockPath = path.join(tmpRoot, "docs.lock");
+	const lockPath = path.join(tmpRoot, DEFAULT_LOCK_FILENAME);
 
 	await writeFile(lockPath, '{"version": 1, invalid', "utf8");
 
