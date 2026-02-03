@@ -19,6 +19,7 @@ export interface DocsCacheDefaults {
 	ref: string;
 	mode: CacheMode;
 	include: string[];
+	exclude?: string[];
 	targetMode?: "symlink" | "copy";
 	required: boolean;
 	maxBytes: number;
@@ -80,6 +81,7 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 		ref: "HEAD",
 		mode: "materialize",
 		include: ["**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}"],
+		exclude: [],
 		targetMode: DEFAULT_TARGET_MODE,
 		required: true,
 		maxBytes: 200000000,
@@ -277,6 +279,10 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 				defaultsInput.include !== undefined
 					? assertStringArray(defaultsInput.include, "defaults.include")
 					: defaultValues.include,
+			exclude:
+				defaultsInput.exclude !== undefined
+					? assertStringArray(defaultsInput.exclude, "defaults.exclude")
+					: defaultValues.exclude,
 			targetMode:
 				defaultsInput.targetMode !== undefined
 					? assertTargetMode(defaultsInput.targetMode, "defaults.targetMode")
@@ -434,7 +440,7 @@ export const resolveSources = (
 		ref: source.ref ?? defaults.ref,
 		mode: source.mode ?? defaults.mode,
 		include: source.include ?? defaults.include,
-		exclude: source.exclude,
+		exclude: source.exclude ?? defaults.exclude,
 		required: source.required ?? defaults.required,
 		maxBytes: source.maxBytes ?? defaults.maxBytes,
 		maxFiles: source.maxFiles ?? defaults.maxFiles,

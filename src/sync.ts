@@ -176,7 +176,7 @@ export const getSyncPlan = async (
 		filteredSources.map(async (source) => {
 			const lockEntry = lockData?.sources?.[source.id];
 			const include = source.include ?? defaults.include;
-			const exclude = source.exclude;
+			const exclude = source.exclude ?? defaults.exclude;
 			const rulesSha256 = computeRulesHash({
 				...source,
 				include,

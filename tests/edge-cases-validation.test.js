@@ -393,6 +393,7 @@ test("defaults with all fields specified", async () => {
 			ref: "main",
 			mode: "materialize",
 			include: ["**/*.md"],
+			exclude: ["**/.cache/**"],
 			targetMode: "copy",
 			required: false,
 			maxBytes: 1000000,
@@ -411,5 +412,18 @@ test("defaults with all fields specified", async () => {
 	assert.equal(config.defaults.maxBytes, 1000000);
 	assert.equal(config.defaults.maxFiles, 100);
 	assert.deepEqual(config.defaults.allowHosts, ["github.com"]);
+	assert.deepEqual(config.defaults.exclude, ["**/.cache/**"]);
 	assert.equal(config.defaults.toc, true);
+});
+
+test("defaults exclude applies to sources", async () => {
+	const configPath = await writeConfig({
+		defaults: {
+			exclude: ["**/.cache/**"],
+		},
+		sources: [{ id: "test", repo: "https://github.com/example/repo.git" }],
+	});
+
+	const { sources } = await loadConfig(configPath);
+	assert.deepEqual(sources[0].exclude, ["**/.cache/**"]);
 });

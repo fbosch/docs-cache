@@ -78,21 +78,22 @@ npx docs-cache clean
 | Field      | Details                                | Required |
 | ---------- | -------------------------------------- | -------- |
 | `cacheDir` | Directory for cache. Default: `.docs`. | Optional |
-| `sources`  | List of repositories to sync.          | Required |
 | `defaults` | Default settings for all sources.      | Optional |
+| `sources`  | List of repositories to sync.          | Required |
 
 <details>
 <summary>Show default and source options</summary>
 
 ### Default options
 
-All fields in `defaults` apply to all sources unless overridden per-source.
+These fields can be set in `defaults` and are inherited by every source unless overridden per-source.
 
 | Field                 | Details                                                                                                          |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `ref`                 | Branch, tag, or commit. Default: `"HEAD"`.                                                                       |
 | `mode`                | Cache mode. Default: `"materialize"`.                                                                            |
 | `include`             | Glob patterns to copy. Default: `["**/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}"]`.                          |
+| `exclude`             | Glob patterns to skip. Default: `[]`.                                                                            |
 | `targetMode`          | How to link or copy from the cache to the destination. Default: `"symlink"` on Unix, `"copy"` on Windows.        |
 | `required`            | Whether missing sources should fail. Default: `true`.                                                            |
 | `maxBytes`            | Maximum total bytes to materialize. Default: `200000000` (200 MB).                                               |
@@ -110,20 +111,11 @@ All fields in `defaults` apply to all sources unless overridden per-source.
 | `repo` | Git URL.                          |
 | `id`   | Unique identifier for the source. |
 
-#### Optional
+#### Optional (source-only)
 
-| Field                 | Details                                                                                         |
-| --------------------- | ----------------------------------------------------------------------------------------------- |
-| `ref`                 | Branch, tag, or commit.                                                                         |
-| `include`             | Glob patterns to copy.                                                                          |
-| `exclude`             | Glob patterns to skip.                                                                          |
-| `targetDir`           | Path where files should be symlinked/copied to, outside `.docs`.                                |
-| `targetMode`          | How to link or copy from the cache to the destination.                                          |
-| `required`            | Whether missing sources should fail.                                                            |
-| `maxBytes`            | Maximum total bytes to materialize.                                                             |
-| `maxFiles`            | Maximum total files to materialize.                                                             |
-| `toc`                 | Generate per-source `TOC.md`. Supports `true`, `false`, or a format (`"tree"`, `"compressed"`). |
-| `unwrapSingleRootDir` | If the materialized output is nested under a single directory, unwrap it (recursively).         |
+| Field       | Details                                                          |
+| ----------- | ---------------------------------------------------------------- |
+| `targetDir` | Path where files should be symlinked/copied to, outside `.docs`. |
 
 > **Note**: Sources are always downloaded to `.docs/<id>/`. If you provide a `targetDir`, `docs-cache` will create a symlink or copy pointing from the cache to that target directory. The target should be outside `.docs`. Git operation timeout is configured via the `--timeout-ms` CLI flag, not as a per-source configuration option.
 
