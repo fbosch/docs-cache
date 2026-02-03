@@ -90,7 +90,7 @@
 	"dependencies": {
 		"@clack/prompts": "^1.0.0",
 		"cac": "^6.7.14",
-		"cli-truncate": "^5.1.1",
+		"cli-truncate": "^4.0.0",
 		"execa": "^9.6.1",
 		"fast-glob": "^3.3.2",
 		"log-update": "^7.0.2",
