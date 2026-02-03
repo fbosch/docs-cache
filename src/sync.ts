@@ -535,7 +535,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		const initialJobs = await buildJobs();
 		await runJobs(initialJobs);
 		await ensureTargets();
-		if (!options.offline) {
+		if (!options.offline && initialJobs.length > 0) {
 			const verifyReport = await verifyCache({
 				configPath: plan.configPath,
 				cacheDirOverride: plan.cacheDir,
