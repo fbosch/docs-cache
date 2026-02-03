@@ -1,6 +1,6 @@
 # 🗃️ `docs-cache`
 
-Deterministic local caching of external documentation for agents and tools
+Deterministic local caching of external documentation for agents and developers
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![npm version](https://img.shields.io/npm/v/docs-cache)](https://www.npmjs.com/package/docs-cache)
@@ -8,7 +8,7 @@ Deterministic local caching of external documentation for agents and tools
 
 ## Purpose
 
-Provides agents and automation tools with local access to external documentation without committing it to the repository.
+Provides agents and developers with local access to external documentation without committing it to the repository.
 
 Documentation is cached in a gitignored location, exposed to agent and tool targets via links or copies, and updated through sync commands or postinstall hooks.
 
