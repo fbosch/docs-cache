@@ -35,7 +35,14 @@ const loadPackageConfig = async (configPath: string) => {
 	};
 };
 
-const resolveConfigTarget = async (configPath?: string) => {
+type ConfigTarget = {
+	resolvedPath: string;
+	mode: "package" | "config";
+};
+
+const resolveConfigTarget = async (
+	configPath?: string,
+): Promise<ConfigTarget> => {
 	if (configPath) {
 		const resolvedPath = resolveConfigPath(configPath);
 		return {
@@ -57,36 +64,31 @@ const resolveConfigTarget = async (configPath?: string) => {
 	return { resolvedPath: defaultPath, mode: "config" };
 };
 
-export const removeSources = async (params: {
-	configPath?: string;
-	ids: string[];
-}) => {
-	if (params.ids.length === 0) {
-		throw new Error("No sources specified to remove.");
+const readConfigAtPath = async (target: ConfigTarget) => {
+	if (!(await exists(target.resolvedPath))) {
+		throw new Error(`Config not found at ${target.resolvedPath}.`);
 	}
-	const target = await resolveConfigTarget(params.configPath);
-	const resolvedPath = target.resolvedPath;
-	let config = DEFAULT_CONFIG;
-	let rawConfig: DocsCacheConfig | null = null;
-	let rawPackage: Record<string, unknown> | null = null;
-	if (await exists(resolvedPath)) {
-		if (target.mode === "package") {
-			const pkg = await loadPackageConfig(resolvedPath);
-			rawPackage = pkg.parsed;
-			rawConfig = pkg.config;
-			if (!rawConfig) {
-				throw new Error(`Missing docs-cache config in ${resolvedPath}.`);
-			}
-			config = rawConfig;
-		} else {
-			const raw = await readFile(resolvedPath, "utf8");
-			rawConfig = JSON.parse(raw.toString());
-			config = validateConfig(rawConfig);
+	if (target.mode === "package") {
+		const pkg = await loadPackageConfig(target.resolvedPath);
+		if (!pkg.config) {
+			throw new Error(`Missing docs-cache config in ${target.resolvedPath}.`);
 		}
-	} else {
-		throw new Error(`Config not found at ${resolvedPath}.`);
+		return {
+			config: pkg.config,
+			rawConfig: pkg.config,
+			rawPackage: pkg.parsed,
+		};
 	}
+	const raw = await readFile(target.resolvedPath, "utf8");
+	const rawConfig = JSON.parse(raw.toString());
+	return {
+		config: validateConfig(rawConfig),
+		rawConfig,
+		rawPackage: null,
+	};
+};
 
+const resolveIdsToRemove = (ids: string[], config: DocsCacheConfig) => {
 	const sourcesById = new Map(
 		config.sources.map((source) => [source.id, source]),
 	);
@@ -95,7 +97,7 @@ export const removeSources = async (params: {
 	);
 	const idsToRemove = new Set<string>();
 	const missing: string[] = [];
-	for (const token of params.ids) {
+	for (const token of ids) {
 		if (sourcesById.has(token)) {
 			idsToRemove.add(token);
 			continue;
@@ -114,6 +116,74 @@ export const removeSources = async (params: {
 		}
 		missing.push(token);
 	}
+	return { idsToRemove, missing };
+};
+
+const buildNextConfig = (
+	config: DocsCacheConfig,
+	remaining: DocsCacheConfig["sources"],
+): DocsCacheConfig => {
+	const nextConfig: DocsCacheConfig = {
+		$schema:
+			config.$schema ??
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: remaining,
+	};
+	if (config.cacheDir) {
+		nextConfig.cacheDir = config.cacheDir;
+	}
+	if (config.defaults) {
+		nextConfig.defaults = config.defaults;
+	}
+	if (config.targetMode) {
+		nextConfig.targetMode = config.targetMode;
+	}
+	return nextConfig;
+};
+
+const writeConfigFile = async (params: {
+	mode: "package" | "config";
+	resolvedPath: string;
+	config: DocsCacheConfig;
+	rawPackage: Record<string, unknown> | null;
+}) => {
+	const { mode, resolvedPath, config, rawPackage } = params;
+	if (mode === "package") {
+		const pkg = rawPackage ?? {};
+		pkg["docs-cache"] = stripDefaultConfigValues(config);
+		await writeFile(resolvedPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+		return;
+	}
+	await writeConfig(resolvedPath, config);
+};
+
+const removeTargets = async (
+	resolvedPath: string,
+	removedSources: DocsCacheConfig["sources"],
+) => {
+	const targetRemovals: Array<{ id: string; targetDir: string }> = [];
+	for (const source of removedSources) {
+		if (!source.targetDir) {
+			continue;
+		}
+		const targetDir = resolveTargetDir(resolvedPath, source.targetDir);
+		await rm(targetDir, { recursive: true, force: true });
+		targetRemovals.push({ id: source.id, targetDir });
+	}
+	return targetRemovals;
+};
+
+export const removeSources = async (params: {
+	configPath?: string;
+	ids: string[];
+}) => {
+	if (params.ids.length === 0) {
+		throw new Error("No sources specified to remove.");
+	}
+	const target = await resolveConfigTarget(params.configPath);
+	const resolvedPath = target.resolvedPath;
+	const { config, rawConfig, rawPackage } = await readConfigAtPath(target);
+	const { idsToRemove, missing } = resolveIdsToRemove(params.ids, config);
 	const remaining = config.sources.filter(
 		(source) => !idsToRemove.has(source.id),
 	);
@@ -128,39 +198,14 @@ export const removeSources = async (params: {
 		throw new Error("No matching sources found to remove.");
 	}
 
-	const nextConfig: DocsCacheConfig = {
-		$schema:
-			rawConfig?.$schema ??
-			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
-		sources: remaining,
-	};
-	if (rawConfig?.cacheDir) {
-		nextConfig.cacheDir = rawConfig.cacheDir;
-	}
-	if (rawConfig?.defaults) {
-		nextConfig.defaults = rawConfig.defaults;
-	}
-	if (rawConfig?.targetMode) {
-		nextConfig.targetMode = rawConfig.targetMode;
-	}
-
-	if (target.mode === "package") {
-		const pkg = rawPackage ?? {};
-		pkg["docs-cache"] = stripDefaultConfigValues(nextConfig);
-		await writeFile(resolvedPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
-	} else {
-		await writeConfig(resolvedPath, nextConfig);
-	}
-
-	const targetRemovals: Array<{ id: string; targetDir: string }> = [];
-	for (const source of removedSources) {
-		if (!source.targetDir) {
-			continue;
-		}
-		const targetDir = resolveTargetDir(resolvedPath, source.targetDir);
-		await rm(targetDir, { recursive: true, force: true });
-		targetRemovals.push({ id: source.id, targetDir });
-	}
+	const nextConfig = buildNextConfig(rawConfig ?? DEFAULT_CONFIG, remaining);
+	await writeConfigFile({
+		mode: target.mode,
+		resolvedPath,
+		config: nextConfig,
+		rawPackage,
+	});
+	const targetRemovals = await removeTargets(resolvedPath, removedSources);
 
 	return {
 		configPath: resolvedPath,

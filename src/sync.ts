@@ -415,6 +415,134 @@ const reportSynced = (
 	}
 };
 
+const createLoggers = (
+	reporter: TaskReporter | null,
+	options: SyncOptions,
+	sourceId: string,
+) => {
+	const logDebug =
+		options.verbose && !options.json
+			? reporter
+				? (msg: string) => reporter.debug(msg)
+				: ui.debug
+			: undefined;
+	const logProgress = reporter
+		? (msg: string) => reporter.debug(`${sourceId}: ${msg}`)
+		: undefined;
+	return { logDebug, logProgress };
+};
+
+const applyTargetIfNeeded = async (
+	plan: SyncPlan,
+	defaults: DocsCacheDefaults,
+	source: SyncPlan["sources"][number],
+) => {
+	if (!source.targetDir) {
+		return;
+	}
+	const resolvedTarget = resolveTargetDir(plan.configPath, source.targetDir);
+	await applyTargetDir({
+		sourceDir: path.join(plan.cacheDir, source.id),
+		targetDir: resolvedTarget,
+		mode: source.targetMode ?? defaults.targetMode,
+		explicitTargetMode: source.targetMode !== undefined,
+		unwrapSingleRootDir: source.unwrapSingleRootDir,
+	});
+};
+
+const materializeJob = async (params: {
+	plan: SyncPlan;
+	options: SyncOptions;
+	defaults: DocsCacheDefaults;
+	reporter: TaskReporter | null;
+	source: SyncPlan["sources"][number];
+	fetch: Awaited<ReturnType<typeof fetchSource>>;
+	runMaterialize: typeof materializeSource;
+	result: SyncResult;
+}) => {
+	const {
+		plan,
+		options,
+		defaults,
+		reporter,
+		source,
+		fetch,
+		runMaterialize,
+		result,
+	} = params;
+	logMaterializeStart(reporter, options, source.id);
+	const stats = await runMaterialize({
+		sourceId: source.id,
+		repoDir: fetch.repoDir,
+		cacheDir: plan.cacheDir,
+		include: source.include ?? defaults.include,
+		exclude: source.exclude,
+		maxBytes: source.maxBytes ?? defaults.maxBytes,
+		maxFiles: source.maxFiles ?? defaults.maxFiles,
+		ignoreHidden: source.ignoreHidden ?? defaults.ignoreHidden,
+		unwrapSingleRootDir: source.unwrapSingleRootDir,
+		json: options.json,
+		progressLogger: reporter
+			? (msg: string) => reporter.debug(`${source.id}: ${msg}`)
+			: undefined,
+	});
+	await applyTargetIfNeeded(plan, defaults, source);
+	result.bytes = stats.bytes;
+	result.fileCount = stats.fileCount;
+	result.manifestSha256 = stats.manifestSha256;
+	result.status = "up-to-date";
+	reportSynced(reporter, options, source.id, stats.fileCount);
+};
+
+const verifyAndRepairCache = async (params: {
+	plan: SyncPlan;
+	options: SyncOptions;
+	docsPresence: Map<string, boolean>;
+	defaults: DocsCacheDefaults;
+	reporter: TaskReporter | null;
+	runJobs: (jobs: SyncJob[]) => Promise<void>;
+}) => {
+	const { plan, options, docsPresence, defaults, reporter, runJobs } = params;
+	if (options.offline) {
+		return 0;
+	}
+	const shouldVerify = !options.json || plan.results.length > 0;
+	if (!shouldVerify) {
+		return 0;
+	}
+	const verifyReport = await verifyCache({
+		configPath: plan.configPath,
+		cacheDirOverride: plan.cacheDir,
+		json: true,
+	});
+	const failed = verifyReport.results.filter((result) => !result.ok);
+	if (failed.length === 0) {
+		return 0;
+	}
+	const retryJobs = await buildJobs(
+		plan,
+		options,
+		docsPresence,
+		failed.map((result) => result.id),
+		true,
+	);
+	if (retryJobs.length > 0) {
+		await runJobs(retryJobs);
+		await ensureTargets(plan, defaults);
+	}
+	const retryReport = await verifyCache({
+		configPath: plan.configPath,
+		cacheDirOverride: plan.cacheDir,
+		json: true,
+	});
+	const stillFailed = retryReport.results.filter((result) => !result.ok);
+	if (stillFailed.length === 0) {
+		return 0;
+	}
+	reportVerifyFailures(reporter, options, stillFailed);
+	return 1;
+};
+
 const tryReuseManifest = async (params: {
 	result: SyncResult;
 	source: SyncPlan["sources"][number];
@@ -533,6 +661,156 @@ const ensureTargets = async (plan: SyncPlan, defaults: DocsCacheDefaults) => {
 	);
 };
 
+const summarizePlan = (plan: SyncPlan) => {
+	const totalBytes = plan.results.reduce(
+		(sum, result) => sum + (result.bytes ?? 0),
+		0,
+	);
+	const totalFiles = plan.results.reduce(
+		(sum, result) => sum + (result.fileCount ?? 0),
+		0,
+	);
+	return { totalBytes, totalFiles };
+};
+
+const reportVerifyFailures = (
+	reporter: TaskReporter | null,
+	options: SyncOptions,
+	stillFailed: Array<{ id: string; issues: string[] }>,
+) => {
+	if (stillFailed.length === 0) {
+		return;
+	}
+	if (reporter) {
+		for (const failed of stillFailed) {
+			reporter.warn(failed.id, failed.issues.join("; "));
+		}
+		return;
+	}
+	if (!options.json) {
+		const details = stillFailed
+			.map((result) => `${result.id} (${result.issues.join("; ")})`)
+			.join(", ");
+		ui.line(
+			`${symbols.warn} Verify failed for ${stillFailed.length} source(s): ${details}`,
+		);
+	}
+};
+
+const finalizeSync = async (params: {
+	plan: SyncPlan;
+	previous: Awaited<ReturnType<typeof readLock>> | null;
+	reporter: TaskReporter | null;
+	options: SyncOptions;
+	startTime: bigint;
+	warningCount: number;
+}) => {
+	const { plan, previous, reporter, options, startTime, warningCount } = params;
+	const lock = await buildLock(plan, previous);
+	await writeLock(plan.lockPath, lock);
+	const { totalBytes, totalFiles } = summarizePlan(plan);
+	if (reporter) {
+		const summary = `${symbols.info} ${formatBytes(totalBytes)} · ${totalFiles} files`;
+		reporter.finish(summary);
+	}
+	if (!reporter && !options.json) {
+		const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1_000_000;
+		ui.line(
+			`${symbols.info} Completed in ${elapsedMs.toFixed(0)}ms · ${formatBytes(totalBytes)} · ${totalFiles} files${warningCount ? ` · ${warningCount} warning${warningCount === 1 ? "" : "s"}` : ""}`,
+		);
+	}
+	await writeToc({
+		cacheDir: plan.cacheDir,
+		configPath: plan.configPath,
+		lock,
+		sources: plan.sources,
+		results: plan.results,
+	});
+	plan.lockExists = true;
+	return plan;
+};
+
+const createJobRunner = (params: {
+	plan: SyncPlan;
+	options: SyncOptions;
+	defaults: DocsCacheDefaults;
+	reporter: TaskReporter | null;
+	runFetch: typeof fetchSource;
+	runMaterialize: typeof materializeSource;
+}) => {
+	const { plan, options, defaults, reporter, runFetch, runMaterialize } =
+		params;
+	return async (jobs: SyncJob[]) => {
+		const concurrency = options.concurrency ?? 4;
+		let index = 0;
+		const runNext = async () => {
+			const job = jobs[index];
+			if (!job || !job.source) {
+				return;
+			}
+			index += 1;
+			const { result, source } = job;
+			const lockEntry = plan.lockData?.sources?.[source.id];
+			const { logDebug, logProgress } = createLoggers(
+				reporter,
+				options,
+				source.id,
+			);
+
+			if (reporter) {
+				reporter.start(source.id);
+			}
+
+			const fetch = await runFetch({
+				sourceId: source.id,
+				repo: source.repo,
+				ref: source.ref,
+				resolvedCommit: result.resolvedCommit,
+				cacheDir: plan.cacheDir,
+				include: source.include ?? defaults.include,
+				timeoutMs: options.timeoutMs,
+				logger: logDebug,
+				progressLogger: logProgress,
+				offline: options.offline,
+			});
+			logFetchStatus(reporter, options, source.id, fetch.fromCache);
+			try {
+				const reusedManifest = await tryReuseManifest({
+					result,
+					source,
+					lockEntry,
+					plan,
+					defaults,
+					fetch,
+					reporter,
+					options,
+				});
+				if (reusedManifest) {
+					await runNext();
+					return;
+				}
+				await materializeJob({
+					plan,
+					options,
+					defaults,
+					reporter,
+					source,
+					fetch,
+					runMaterialize,
+					result,
+				});
+			} finally {
+				await fetch.cleanup();
+			}
+			await runNext();
+		};
+
+		await Promise.all(
+			Array.from({ length: Math.min(concurrency, jobs.length) }, runNext),
+		);
+	};
+};
+
 export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 	const startTime = process.hrtime.bigint();
 	let warningCount = 0;
@@ -557,190 +835,35 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		const runFetch = deps.fetchSource ?? fetchSource;
 		const runMaterialize = deps.materializeSource ?? materializeSource;
 		const docsPresence = new Map<string, boolean>();
-
-		const runJobs = async (jobs: SyncJob[]) => {
-			const concurrency = options.concurrency ?? 4;
-			let index = 0;
-			const runNext = async () => {
-				const job = jobs[index];
-				if (!job || !job.source) {
-					return;
-				}
-				index += 1;
-				const { result, source } = job;
-				const lockEntry = plan.lockData?.sources?.[source.id];
-				const logDebug =
-					options.verbose && !options.json
-						? reporter
-							? (msg: string) => reporter.debug(msg)
-							: ui.debug
-						: undefined;
-				const logProgress = reporter
-					? (msg: string) => reporter.debug(`${source.id}: ${msg}`)
-					: undefined;
-
-				if (reporter) {
-					reporter.start(source.id);
-				}
-
-				const fetch = await runFetch({
-					sourceId: source.id,
-					repo: source.repo,
-					ref: source.ref,
-					resolvedCommit: result.resolvedCommit,
-					cacheDir: plan.cacheDir,
-					include: source.include ?? defaults.include,
-					timeoutMs: options.timeoutMs,
-					logger: logDebug,
-					progressLogger: logProgress,
-					offline: options.offline,
-				});
-				logFetchStatus(reporter, options, source.id, fetch.fromCache);
-				try {
-					const reusedManifest = await tryReuseManifest({
-						result,
-						source,
-						lockEntry,
-						plan,
-						defaults,
-						fetch,
-						reporter,
-						options,
-					});
-					if (reusedManifest) {
-						await runNext();
-						return;
-					}
-					logMaterializeStart(reporter, options, source.id);
-					const stats = await runMaterialize({
-						sourceId: source.id,
-						repoDir: fetch.repoDir,
-						cacheDir: plan.cacheDir,
-						include: source.include ?? defaults.include,
-						exclude: source.exclude,
-						maxBytes: source.maxBytes ?? defaults.maxBytes,
-						maxFiles: source.maxFiles ?? defaults.maxFiles,
-						ignoreHidden: source.ignoreHidden ?? defaults.ignoreHidden,
-						unwrapSingleRootDir: source.unwrapSingleRootDir,
-						json: options.json,
-						progressLogger: reporter
-							? (msg: string) => reporter.debug(`${source.id}: ${msg}`)
-							: undefined,
-					});
-					if (source.targetDir) {
-						const resolvedTarget = resolveTargetDir(
-							plan.configPath,
-							source.targetDir,
-						);
-						await applyTargetDir({
-							sourceDir: path.join(plan.cacheDir, source.id),
-							targetDir: resolvedTarget,
-							mode: source.targetMode ?? defaults.targetMode,
-							explicitTargetMode: source.targetMode !== undefined,
-							unwrapSingleRootDir: source.unwrapSingleRootDir,
-						});
-					}
-					result.bytes = stats.bytes;
-					result.fileCount = stats.fileCount;
-					result.manifestSha256 = stats.manifestSha256;
-					result.status = "up-to-date";
-					reportSynced(reporter, options, source.id, stats.fileCount);
-				} finally {
-					await fetch.cleanup();
-				}
-				await runNext();
-			};
-
-			await Promise.all(
-				Array.from({ length: Math.min(concurrency, jobs.length) }, runNext),
-			);
-		};
+		const runJobs = createJobRunner({
+			plan,
+			options,
+			defaults,
+			reporter,
+			runFetch,
+			runMaterialize,
+		});
 
 		const initialJobs = await buildJobs(plan, options, docsPresence);
 		await runJobs(initialJobs);
 		await ensureTargets(plan, defaults);
-		if (!options.offline && (!options.json || initialJobs.length > 0)) {
-			const verifyReport = await verifyCache({
-				configPath: plan.configPath,
-				cacheDirOverride: plan.cacheDir,
-				json: true,
-			});
-			const failed = verifyReport.results.filter((result) => !result.ok);
-			if (failed.length > 0) {
-				const retryJobs = await buildJobs(
-					plan,
-					options,
-					docsPresence,
-					failed.map((result) => result.id),
-					true,
-				);
-				if (retryJobs.length > 0) {
-					await runJobs(retryJobs);
-					await ensureTargets(plan, defaults);
-				}
-				const retryReport = await verifyCache({
-					configPath: plan.configPath,
-					cacheDirOverride: plan.cacheDir,
-					json: true,
-				});
-				const stillFailed = retryReport.results.filter((result) => !result.ok);
-				if (stillFailed.length > 0) {
-					warningCount += 1;
-					if (reporter) {
-						for (const failed of stillFailed) {
-							reporter.warn(failed.id, failed.issues.join("; "));
-						}
-					}
-					if (!reporter && !options.json) {
-						const details = stillFailed
-							.map((result) => `${result.id} (${result.issues.join("; ")})`)
-							.join(", ");
-						ui.line(
-							`${symbols.warn} Verify failed for ${stillFailed.length} source(s): ${details}`,
-						);
-					}
-				}
-			}
-		}
+		warningCount += await verifyAndRepairCache({
+			plan,
+			options,
+			docsPresence,
+			defaults,
+			reporter,
+			runJobs,
+		});
 	}
-	const lock = await buildLock(plan, previous);
-	await writeLock(plan.lockPath, lock);
-	if (reporter) {
-		const totalBytes = plan.results.reduce(
-			(sum, result) => sum + (result.bytes ?? 0),
-			0,
-		);
-		const totalFiles = plan.results.reduce(
-			(sum, result) => sum + (result.fileCount ?? 0),
-			0,
-		);
-		const summary = `${symbols.info} ${formatBytes(totalBytes)} · ${totalFiles} files`;
-		reporter.finish(summary);
-	}
-	if (!reporter && !options.json) {
-		const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1_000_000;
-		const totalBytes = plan.results.reduce(
-			(sum, result) => sum + (result.bytes ?? 0),
-			0,
-		);
-		const totalFiles = plan.results.reduce(
-			(sum, result) => sum + (result.fileCount ?? 0),
-			0,
-		);
-		ui.line(
-			`${symbols.info} Completed in ${elapsedMs.toFixed(0)}ms · ${formatBytes(totalBytes)} · ${totalFiles} files${warningCount ? ` · ${warningCount} warning${warningCount === 1 ? "" : "s"}` : ""}`,
-		);
-	}
-	// Always call writeToc to handle both generation and cleanup
-	await writeToc({
-		cacheDir: plan.cacheDir,
-		configPath: plan.configPath,
-		lock,
-		sources: plan.sources,
-		results: plan.results,
+	return finalizeSync({
+		plan,
+		previous,
+		reporter,
+		options,
+		startTime,
+		warningCount,
 	});
-	plan.lockExists = true;
-	return plan;
 };
 
 export const printSyncPlan = (
