@@ -15,6 +15,112 @@ const DEFAULT_GIT_DEPTH = 1;
 const DEFAULT_RM_RETRIES = 3;
 const DEFAULT_RM_BACKOFF_MS = 100;
 
+const buildGitEnv = () => {
+	const pathValue = process.env.PATH ?? process.env.Path;
+	const pathExtValue =
+		process.env.PATHEXT ??
+		(process.platform === "win32" ? ".COM;.EXE;.BAT;.CMD" : undefined);
+	return {
+		...process.env,
+		...(pathValue ? { PATH: pathValue, Path: pathValue } : {}),
+		...(pathExtValue ? { PATHEXT: pathExtValue } : {}),
+		HOME: process.env.HOME,
+		USER: process.env.USER,
+		USERPROFILE: process.env.USERPROFILE,
+		TMPDIR: process.env.TMPDIR,
+		TMP: process.env.TMP,
+		TEMP: process.env.TEMP,
+		SYSTEMROOT: process.env.SYSTEMROOT,
+		WINDIR: process.env.WINDIR,
+		SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK,
+		SSH_AGENT_PID: process.env.SSH_AGENT_PID,
+		HTTP_PROXY: process.env.HTTP_PROXY,
+		HTTPS_PROXY: process.env.HTTPS_PROXY,
+		NO_PROXY: process.env.NO_PROXY,
+		GIT_TERMINAL_PROMPT: "0",
+		GIT_CONFIG_NOSYSTEM: "1",
+		GIT_CONFIG_NOGLOBAL: "1",
+		...(process.platform === "win32" ? {} : { GIT_ASKPASS: "/bin/false" }),
+	};
+};
+
+const buildGitConfigs = (allowFileProtocol?: boolean) => [
+	"-c",
+	"core.hooksPath=/dev/null",
+	"-c",
+	"submodule.recurse=false",
+	"-c",
+	"protocol.ext.allow=never",
+	"-c",
+	`protocol.file.allow=${allowFileProtocol ? "always" : "never"}`,
+];
+
+const buildCommandArgs = (
+	args: string[],
+	allowFileProtocol?: boolean,
+	forceProgress?: boolean,
+) => {
+	const configs = buildGitConfigs(allowFileProtocol);
+	const commandArgs = [...configs, ...args];
+	if (forceProgress) {
+		commandArgs.push("--progress");
+	}
+	return commandArgs;
+};
+
+const isProgressLine = (line: string) =>
+	line.includes("Receiving objects") ||
+	line.includes("Resolving deltas") ||
+	line.includes("Compressing objects") ||
+	line.includes("Updating files") ||
+	line.includes("Counting objects");
+
+const shouldEmitProgress = (
+	line: string,
+	now: number,
+	lastProgressAt: number,
+	throttleMs: number,
+) =>
+	now - lastProgressAt >= throttleMs ||
+	line.includes("100%") ||
+	line.includes("done");
+
+const attachLoggers = (
+	subprocess: ReturnType<typeof execa>,
+	commandLabel: string,
+	options?: {
+		logger?: (message: string) => void;
+		progressLogger?: (message: string) => void;
+		progressThrottleMs?: number;
+	},
+) => {
+	if (!options?.logger && !options?.progressLogger) {
+		return;
+	}
+	let lastProgressAt = 0;
+	const forward = (stream: NodeJS.ReadableStream | null) => {
+		if (!stream) return;
+		stream.on("data", (chunk) => {
+			const text =
+				chunk instanceof Buffer ? chunk.toString("utf8") : String(chunk);
+			for (const line of text.split(/\r?\n/)) {
+				if (!line) continue;
+				options.logger?.(`${commandLabel} | ${line}`);
+				if (!options?.progressLogger) continue;
+				if (!isProgressLine(line)) continue;
+				const now = Date.now();
+				const throttleMs = options.progressThrottleMs ?? 120;
+				if (shouldEmitProgress(line, now, lastProgressAt, throttleMs)) {
+					lastProgressAt = now;
+					options.progressLogger(line);
+				}
+			}
+		});
+	};
+	forward(subprocess.stdout);
+	forward(subprocess.stderr);
+};
+
 const git = async (
 	args: string[],
 	options?: {
@@ -27,100 +133,22 @@ const git = async (
 		forceProgress?: boolean;
 	},
 ) => {
-	const pathValue = process.env.PATH ?? process.env.Path;
-	const pathExtValue =
-		process.env.PATHEXT ??
-		(process.platform === "win32" ? ".COM;.EXE;.BAT;.CMD" : undefined);
-
-	const configs = [
-		"-c",
-		"core.hooksPath=/dev/null",
-		"-c",
-		"submodule.recurse=false",
-		"-c",
-		"protocol.ext.allow=never",
-	];
-
-	// Configure file protocol access
-	if (options?.allowFileProtocol) {
-		// Explicitly allow file protocol for local cache clones
-		configs.push("-c", "protocol.file.allow=always");
-	} else {
-		// Disallow file protocol by default (when false or undefined)
-		configs.push("-c", "protocol.file.allow=never");
-	}
-
-	const commandArgs = [...configs, ...args];
-	if (options?.forceProgress) {
-		commandArgs.push("--progress");
-	}
+	const commandArgs = buildCommandArgs(
+		args,
+		options?.allowFileProtocol,
+		options?.forceProgress,
+	);
 	const commandLabel = `git ${commandArgs.join(" ")}`;
 	options?.logger?.(commandLabel);
 	const subprocess = execa("git", commandArgs, {
 		cwd: options?.cwd,
 		timeout: options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-		maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large repos
+		maxBuffer: 10 * 1024 * 1024,
 		stdout: "pipe",
 		stderr: "pipe",
-		env: {
-			...process.env,
-			...(pathValue ? { PATH: pathValue, Path: pathValue } : {}),
-			...(pathExtValue ? { PATHEXT: pathExtValue } : {}),
-			HOME: process.env.HOME,
-			USER: process.env.USER,
-			USERPROFILE: process.env.USERPROFILE,
-			TMPDIR: process.env.TMPDIR,
-			TMP: process.env.TMP,
-			TEMP: process.env.TEMP,
-			SYSTEMROOT: process.env.SYSTEMROOT,
-			WINDIR: process.env.WINDIR,
-			SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK,
-			SSH_AGENT_PID: process.env.SSH_AGENT_PID,
-			HTTP_PROXY: process.env.HTTP_PROXY,
-			HTTPS_PROXY: process.env.HTTPS_PROXY,
-			NO_PROXY: process.env.NO_PROXY,
-			GIT_TERMINAL_PROMPT: "0",
-			GIT_CONFIG_NOSYSTEM: "1",
-			GIT_CONFIG_NOGLOBAL: "1",
-			...(process.platform === "win32" ? {} : { GIT_ASKPASS: "/bin/false" }),
-		},
+		env: buildGitEnv(),
 	});
-	if (options?.logger || options?.progressLogger) {
-		let lastProgressAt = 0;
-		const forward = (stream: NodeJS.ReadableStream | null) => {
-			if (!stream) return;
-			stream.on("data", (chunk) => {
-				const text =
-					chunk instanceof Buffer ? chunk.toString("utf8") : String(chunk);
-				for (const line of text.split(/\r?\n/)) {
-					if (!line) continue;
-					options.logger?.(`${commandLabel} | ${line}`);
-					if (options?.progressLogger) {
-						const isProgressLine =
-							line.includes("Receiving objects") ||
-							line.includes("Resolving deltas") ||
-							line.includes("Compressing objects") ||
-							line.includes("Updating files") ||
-							line.includes("Counting objects");
-						if (isProgressLine) {
-							const now = Date.now();
-							const throttleMs = options.progressThrottleMs ?? 120;
-							const shouldEmit =
-								now - lastProgressAt >= throttleMs ||
-								line.includes("100%") ||
-								line.includes("done");
-							if (shouldEmit) {
-								lastProgressAt = now;
-								options.progressLogger(line);
-							}
-						}
-					}
-				}
-			});
-		};
-		forward(subprocess.stdout);
-		forward(subprocess.stderr);
-	}
+	attachLoggers(subprocess, commandLabel, options);
 	await subprocess;
 };
 
@@ -366,15 +394,15 @@ const addWorktreeFromCache = async (
 			allowFileProtocol: true,
 		},
 	);
-	if (isSparseEligible(params.include)) {
-		const sparsePaths = extractSparsePaths(params.include);
-		if (sparsePaths.length > 0) {
-			await git(["-C", outDir, "sparse-checkout", "set", ...sparsePaths], {
-				timeoutMs: params.timeoutMs,
-				logger: params.logger,
-				allowFileProtocol: true,
-			});
-		}
+	const sparsePaths = isSparseEligible(params.include)
+		? extractSparsePaths(params.include)
+		: [];
+	if (sparsePaths.length > 0) {
+		await git(["-C", outDir, "sparse-checkout", "set", ...sparsePaths], {
+			timeoutMs: params.timeoutMs,
+			logger: params.logger,
+			allowFileProtocol: true,
+		});
 	}
 	return {
 		usedCache: true,
@@ -390,6 +418,95 @@ const addWorktreeFromCache = async (
 			}
 		},
 	};
+};
+
+const buildFetchArgs = (ref: string, isCommitRef: boolean) => {
+	const fetchArgs = ["fetch", "origin"];
+	if (!isCommitRef) {
+		const refSpec =
+			ref === "HEAD" ? "HEAD" : `${ref}:refs/remotes/origin/${ref}`;
+		fetchArgs.push(refSpec, "--depth", String(DEFAULT_GIT_DEPTH));
+		return fetchArgs;
+	}
+	fetchArgs.push("--depth", String(DEFAULT_GIT_DEPTH));
+	return fetchArgs;
+};
+
+const fetchCommitFromOrigin = async (
+	params: FetchParams,
+	cachePath: string,
+	isCommitRef: boolean,
+) => {
+	const fetchArgs = buildFetchArgs(params.ref, isCommitRef);
+	await git(["-C", cachePath, ...fetchArgs], {
+		timeoutMs: params.timeoutMs,
+		logger: params.logger,
+		progressLogger: params.progressLogger,
+		forceProgress: Boolean(params.progressLogger),
+		allowFileProtocol: true,
+	});
+	await ensureCommitAvailable(cachePath, params.resolvedCommit, {
+		timeoutMs: params.timeoutMs,
+		logger: params.logger,
+		offline: params.offline,
+	});
+};
+
+const handleValidCache = async (
+	params: FetchParams,
+	cachePath: string,
+	isCommitRef: boolean,
+): Promise<{ usedCache: boolean; worktreeUsed: boolean }> => {
+	if (await isPartialClone(cachePath)) {
+		if (params.offline) {
+			throw new Error(`Cache for ${params.repo} is partial (offline).`);
+		}
+		await removeDir(cachePath);
+		await cloneRepo(params, cachePath);
+		return { usedCache: false, worktreeUsed: false };
+	}
+	try {
+		const commitExists = await hasCommitInRepo(
+			cachePath,
+			params.resolvedCommit,
+			{
+				timeoutMs: params.timeoutMs,
+				logger: params.logger,
+			},
+		);
+		if (commitExists) {
+			return { usedCache: true, worktreeUsed: true };
+		}
+		if (params.offline) {
+			throw new Error(
+				`Commit ${params.resolvedCommit} not found in cache (offline).`,
+			);
+		}
+		await fetchCommitFromOrigin(params, cachePath, isCommitRef);
+		return { usedCache: true, worktreeUsed: false };
+	} catch (_error) {
+		if (params.offline) {
+			throw new Error(`Cache for ${params.repo} is unavailable (offline).`);
+		}
+		await removeDir(cachePath);
+		await cloneRepo(params, cachePath);
+		return { usedCache: false, worktreeUsed: false };
+	}
+};
+
+const handleMissingCache = async (
+	params: FetchParams,
+	cachePath: string,
+	cacheExists: boolean,
+): Promise<{ usedCache: boolean; worktreeUsed: boolean }> => {
+	if (cacheExists) {
+		await removeDir(cachePath);
+	}
+	if (params.offline) {
+		throw new Error(`Cache for ${params.repo} is missing (offline).`);
+	}
+	await cloneRepo(params, cachePath);
+	return { usedCache: false, worktreeUsed: false };
 };
 
 // Clone or update a repository using persistent cache
@@ -409,73 +526,14 @@ const cloneOrUpdateRepo = async (
 	await mkdir(cacheRoot, { recursive: true });
 
 	if (cacheValid) {
-		if (await isPartialClone(cachePath)) {
-			if (params.offline) {
-				throw new Error(`Cache for ${params.repo} is partial (offline).`);
-			}
-			await removeDir(cachePath);
-			await cloneRepo(params, cachePath);
-			usedCache = false;
-		} else {
-			try {
-				const commitExists = await hasCommitInRepo(
-					cachePath,
-					params.resolvedCommit,
-					{
-						timeoutMs: params.timeoutMs,
-						logger: params.logger,
-					},
-				);
-				if (!commitExists) {
-					if (params.offline) {
-						throw new Error(
-							`Commit ${params.resolvedCommit} not found in cache (offline).`,
-						);
-					}
-					const fetchArgs = ["fetch", "origin"];
-					if (!isCommitRef) {
-						const refSpec =
-							params.ref === "HEAD"
-								? "HEAD"
-								: `${params.ref}:refs/remotes/origin/${params.ref}`;
-						fetchArgs.push(refSpec, "--depth", String(DEFAULT_GIT_DEPTH));
-					} else {
-						fetchArgs.push("--depth", String(DEFAULT_GIT_DEPTH));
-					}
-
-					await git(["-C", cachePath, ...fetchArgs], {
-						timeoutMs: params.timeoutMs,
-						logger: params.logger,
-						progressLogger: params.progressLogger,
-						forceProgress: Boolean(params.progressLogger),
-						allowFileProtocol: true,
-					});
-					await ensureCommitAvailable(cachePath, params.resolvedCommit, {
-						timeoutMs: params.timeoutMs,
-						logger: params.logger,
-						offline: params.offline,
-					});
-				} else {
-					worktreeUsed = true;
-				}
-			} catch (_error) {
-				if (params.offline) {
-					throw new Error(`Cache for ${params.repo} is unavailable (offline).`);
-				}
-				await removeDir(cachePath);
-				await cloneRepo(params, cachePath);
-				usedCache = false;
-			}
-		}
-	} else {
-		if (cacheExists) {
-			await removeDir(cachePath);
-		}
-		if (params.offline) {
-			throw new Error(`Cache for ${params.repo} is missing (offline).`);
-		}
-		await cloneRepo(params, cachePath);
-		usedCache = false;
+		const result = await handleValidCache(params, cachePath, isCommitRef);
+		usedCache = result.usedCache;
+		worktreeUsed = result.worktreeUsed;
+	}
+	if (!cacheValid) {
+		const result = await handleMissingCache(params, cachePath, cacheExists);
+		usedCache = result.usedCache;
+		worktreeUsed = result.worktreeUsed;
 	}
 
 	if (worktreeUsed && cacheValid) {
