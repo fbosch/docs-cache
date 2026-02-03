@@ -18,41 +18,15 @@ import { readLock, resolveLockPath, writeLock } from "./lock";
 import { MANIFEST_FILENAME } from "./manifest";
 import { computeManifestHash, materializeSource } from "./materialize";
 import { resolveCacheDir, resolveTargetDir } from "./paths";
+import type { SyncOptions, SyncResult } from "./sync-types";
 import { applyTargetDir } from "./targets";
 import { writeToc } from "./toc";
 import { verifyCache } from "./verify";
-
-type SyncOptions = {
-	configPath?: string;
-	cacheDirOverride?: string;
-	json: boolean;
-	lockOnly: boolean;
-	offline: boolean;
-	failOnMiss: boolean;
-	verbose?: boolean;
-	concurrency?: number;
-	sourceFilter?: string[];
-	timeoutMs?: number;
-};
 
 type SyncDeps = {
 	resolveRemoteCommit?: typeof resolveRemoteCommit;
 	fetchSource?: typeof fetchSource;
 	materializeSource?: typeof materializeSource;
-};
-
-type SyncResult = {
-	id: string;
-	repo: string;
-	ref: string;
-	resolvedCommit: string;
-	lockCommit: string | null;
-	lockRulesSha256?: string;
-	status: "up-to-date" | "changed" | "missing";
-	bytes?: number;
-	fileCount?: number;
-	manifestSha256?: string;
-	rulesSha256?: string;
 };
 
 const formatBytes = (value: number) => {

@@ -1,99 +1,15 @@
-import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { DEFAULT_CACHE_DIR, type DocsCacheConfig } from "./config";
 import {
-	DEFAULT_CACHE_DIR,
-	DEFAULT_CONFIG,
-	type DocsCacheConfig,
-	resolveConfigPath,
-	stripDefaultConfigValues,
-	validateConfig,
-	writeConfig,
-} from "./config";
+	mergeConfigBase,
+	readConfigAtPath,
+	resolveConfigTarget,
+	writeConfigFile,
+} from "./config-io";
 import { ensureGitignoreEntry } from "./gitignore";
 import { resolveTargetDir } from "./paths";
 import { resolveRepoInput } from "./resolve-repo";
 import { assertSafeSourceId } from "./source-id";
-
-const exists = async (target: string) => {
-	try {
-		await access(target);
-		return true;
-	} catch {
-		return false;
-	}
-};
-
-const PACKAGE_JSON = "package.json";
-
-const loadPackageConfig = async (configPath: string) => {
-	const raw = await readFile(configPath, "utf8");
-	const parsed = JSON.parse(raw) as Record<string, unknown>;
-	const config = parsed["docs-cache"];
-	if (!config) {
-		return { parsed, config: null };
-	}
-	return {
-		parsed,
-		config: validateConfig(config),
-	};
-};
-
-type ConfigTarget = {
-	resolvedPath: string;
-	mode: "package" | "config";
-};
-
-const resolveConfigTarget = async (
-	configPath?: string,
-): Promise<ConfigTarget> => {
-	if (configPath) {
-		const resolvedPath = resolveConfigPath(configPath);
-		return {
-			resolvedPath,
-			mode: path.basename(resolvedPath) === PACKAGE_JSON ? "package" : "config",
-		};
-	}
-	const defaultPath = resolveConfigPath();
-	if (await exists(defaultPath)) {
-		return { resolvedPath: defaultPath, mode: "config" };
-	}
-	const packagePath = path.resolve(process.cwd(), PACKAGE_JSON);
-	if (await exists(packagePath)) {
-		const pkg = await loadPackageConfig(packagePath);
-		if (pkg.config) {
-			return { resolvedPath: packagePath, mode: "package" };
-		}
-	}
-	return { resolvedPath: defaultPath, mode: "config" };
-};
-
-const readConfigAtPath = async (target: ConfigTarget) => {
-	if (!(await exists(target.resolvedPath))) {
-		return {
-			config: DEFAULT_CONFIG,
-			rawConfig: null,
-			rawPackage: null,
-			hadDocsCacheConfig: false,
-		};
-	}
-	if (target.mode === "package") {
-		const pkg = await loadPackageConfig(target.resolvedPath);
-		return {
-			config: pkg.config ?? DEFAULT_CONFIG,
-			rawConfig: pkg.config,
-			rawPackage: pkg.parsed,
-			hadDocsCacheConfig: Boolean(pkg.config),
-		};
-	}
-	const raw = await readFile(target.resolvedPath, "utf8");
-	const rawConfig = JSON.parse(raw.toString());
-	return {
-		config: validateConfig(rawConfig),
-		rawConfig,
-		rawPackage: null,
-		hadDocsCacheConfig: true,
-	};
-};
 
 const buildNewSources = (
 	entries: Array<{ id?: string; repo: string; targetDir?: string }>,
@@ -134,41 +50,6 @@ const buildNewSources = (
 	return { newSources, skipped };
 };
 
-const buildNextConfig = (
-	config: DocsCacheConfig,
-	newSources: DocsCacheConfig["sources"],
-) => {
-	const schema =
-		"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json";
-	const nextConfig: DocsCacheConfig = {
-		$schema: config.$schema ?? schema,
-		sources: [...config.sources, ...newSources],
-	};
-	if (config.cacheDir) {
-		nextConfig.cacheDir = config.cacheDir;
-	}
-	if (config.defaults) {
-		nextConfig.defaults = config.defaults;
-	}
-	return nextConfig;
-};
-
-const writeConfigFile = async (params: {
-	mode: "package" | "config";
-	resolvedPath: string;
-	config: DocsCacheConfig;
-	rawPackage: Record<string, unknown> | null;
-}) => {
-	const { mode, resolvedPath, config, rawPackage } = params;
-	if (mode === "package") {
-		const pkg = rawPackage ?? {};
-		pkg["docs-cache"] = stripDefaultConfigValues(config);
-		await writeFile(resolvedPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
-		return;
-	}
-	await writeConfig(resolvedPath, config);
-};
-
 const ensureGitignore = async (
 	resolvedPath: string,
 	cacheDir: string,
@@ -187,7 +68,7 @@ export const addSources = async (params: {
 	const target = await resolveConfigTarget(params.configPath);
 	const resolvedPath = target.resolvedPath;
 	const { config, rawConfig, rawPackage, hadDocsCacheConfig } =
-		await readConfigAtPath(target);
+		await readConfigAtPath(target, { allowMissing: true });
 	const { newSources, skipped } = buildNewSources(
 		params.entries,
 		config,
@@ -196,7 +77,10 @@ export const addSources = async (params: {
 	if (newSources.length === 0) {
 		throw new Error("All sources already exist in config.");
 	}
-	const nextConfig = buildNextConfig(rawConfig ?? config, newSources);
+	const nextConfig = mergeConfigBase(rawConfig ?? config, [
+		...config.sources,
+		...newSources,
+	]);
 	await writeConfigFile({
 		mode: target.mode,
 		resolvedPath,

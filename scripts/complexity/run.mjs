@@ -151,6 +151,32 @@ const main = async () => {
 		}
 	}
 
+	const maintainabilitySorted = metrics
+		.map((entry) => ({
+			file: entry.file,
+			min: entry.maintainability.minMaintainability,
+			avg: entry.maintainability.averageMaintainability,
+		}))
+		.filter(
+			(entry) =>
+				typeof entry.min === "number" &&
+				Number.isFinite(entry.min) &&
+				entry.min >= 0,
+		)
+		.sort((left, right) => (left.min ?? 0) - (right.min ?? 0))
+		.slice(0, config.top);
+	if (maintainabilitySorted.length > 0) {
+		process.stdout.write("\nLowest maintainability\n");
+		process.stdout.write("Min   Avg   File\n");
+		process.stdout.write("----- ----- -------------------------\n");
+		for (const entry of maintainabilitySorted) {
+			const rel = path.relative(process.cwd(), entry.file);
+			const min = formatNumber(entry.min).padStart(5);
+			const avg = formatNumber(entry.avg).padStart(5);
+			process.stdout.write(`${min} ${avg} ${rel}\n`);
+		}
+	}
+
 	const failures = [];
 	for (const entry of functions) {
 		if (entry.complexity > config.maxCyclomatic) {
