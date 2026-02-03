@@ -131,6 +131,26 @@ const isPartialClone = async (repoPath: string) => {
 	}
 };
 
+const ensureCommitAvailable = async (
+	repoPath: string,
+	commit: string,
+	options?: { timeoutMs?: number; allowFileProtocol?: boolean },
+) => {
+	try {
+		await git(["-C", repoPath, "cat-file", "-e", `${commit}^{commit}`], {
+			timeoutMs: options?.timeoutMs,
+			allowFileProtocol: options?.allowFileProtocol,
+		});
+		return;
+	} catch {
+		// commit not present, fetch it
+	}
+	await git(["-C", repoPath, "fetch", "origin", commit], {
+		timeoutMs: options?.timeoutMs,
+		allowFileProtocol: options?.allowFileProtocol,
+	});
+};
+
 type FetchParams = {
 	sourceId: string;
 	repo: string;
@@ -224,6 +244,9 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 	}
 	cloneArgs.push(params.repo, outDir);
 	await git(cloneArgs, { timeoutMs: params.timeoutMs });
+	await ensureCommitAvailable(outDir, params.resolvedCommit, {
+		timeoutMs: params.timeoutMs,
+	});
 	if (useSparse) {
 		const sparsePaths = extractSparsePaths(params.include);
 		if (sparsePaths.length > 0) {
@@ -273,6 +296,9 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 				}
 
 				await git(["-C", cachePath, ...fetchArgs], {
+					timeoutMs: params.timeoutMs,
+				});
+				await ensureCommitAvailable(cachePath, params.resolvedCommit, {
 					timeoutMs: params.timeoutMs,
 				});
 			} catch (_error) {
@@ -332,6 +358,11 @@ const cloneOrUpdateRepo = async (params: FetchParams, outDir: string) => {
 			});
 		}
 	}
+
+	await ensureCommitAvailable(outDir, params.resolvedCommit, {
+		timeoutMs: params.timeoutMs,
+		allowFileProtocol: true,
+	});
 
 	await git(
 		["-C", outDir, "checkout", "--quiet", "--detach", params.resolvedCommit],
