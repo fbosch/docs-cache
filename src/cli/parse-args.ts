@@ -52,6 +52,11 @@ const ADD_ENTRY_SKIP_OPTIONS = new Set([
 	"--timeout-ms",
 ]);
 
+const VALUE_FLAGS = new Set([
+	...POSITIONAL_SKIP_OPTIONS,
+	...ADD_ONLY_OPTIONS_WITH_VALUES,
+]);
+
 type AddParseState = {
 	entries: AddEntry[];
 	lastIndex: number;
@@ -103,8 +108,23 @@ const setTarget = (state: AddParseState, targetDir: string) => {
 	state.lastWasRepoAdded = false;
 };
 
+const findCommandIndex = (rawArgs: string[]) => {
+	for (let index = 0; index < rawArgs.length; index += 1) {
+		const arg = rawArgs[index];
+		if (arg.startsWith("--")) {
+			const [flag] = arg.split("=");
+			if (VALUE_FLAGS.has(flag) && !arg.includes("=")) {
+				index += 1;
+			}
+			continue;
+		}
+		return index;
+	}
+	return -1;
+};
+
 const parseAddEntries = (rawArgs: string[]): AddEntry[] => {
-	const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
+	const commandIndex = findCommandIndex(rawArgs);
 	const tail = commandIndex === -1 ? [] : rawArgs.slice(commandIndex + 1);
 	const state: AddParseState = {
 		entries: [],
@@ -164,7 +184,7 @@ const parseAddEntries = (rawArgs: string[]): AddEntry[] => {
 };
 
 const parsePositionals = (rawArgs: string[]) => {
-	const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
+	const commandIndex = findCommandIndex(rawArgs);
 	const tail = commandIndex === -1 ? [] : rawArgs.slice(commandIndex + 1);
 	const positionals: string[] = [];
 	for (let index = 0; index < tail.length; index += 1) {
@@ -238,7 +258,7 @@ const buildOptions = (result: ReturnType<ReturnType<typeof cac>["parse"]>) => {
 };
 
 const getCommandFromArgs = (rawArgs: string[]) => {
-	const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
+	const commandIndex = findCommandIndex(rawArgs);
 	const command =
 		commandIndex === -1 ? undefined : (rawArgs[commandIndex] as Command);
 	if (command && !COMMANDS.includes(command)) {
