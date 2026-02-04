@@ -289,13 +289,7 @@ const patternHasGlob = (pattern: string) =>
 const normalizeSparsePatterns = (include?: string[]) =>
 	(include ?? []).map((pattern) => pattern.replace(/\\/g, "/")).filter(Boolean);
 
-const isDirectoryLiteral = (pattern: string) => {
-	if (pattern.endsWith("/")) {
-		return true;
-	}
-	const base = pattern.split("/").pop() ?? "";
-	return !base.includes(".");
-};
+const isDirectoryLiteral = (pattern: string) => pattern.endsWith("/");
 
 const toNoConePattern = (pattern: string) => {
 	if (!patternHasGlob(pattern) && isDirectoryLiteral(pattern)) {
