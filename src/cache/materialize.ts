@@ -175,7 +175,7 @@ const resolveMaterializeParams = (
 	...params,
 	exclude: params.exclude ?? [],
 	ignoreHidden: params.ignoreHidden ?? false,
-	unwrapSingleRootDir: params.unwrapSingleRootDir ?? false,
+	unwrapSingleRootDir: params.unwrapSingleRootDir ?? true,
 	json: params.json ?? false,
 	progressThrottleMs: params.progressThrottleMs ?? 120,
 });

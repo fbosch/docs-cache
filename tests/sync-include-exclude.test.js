@@ -247,11 +247,8 @@ test("ignoreHidden excludes nested hidden directories", async () => {
 	);
 
 	const docsRoot = path.join(cacheDir, "local");
-	assert.equal(await exists(path.join(docsRoot, "docs", "guide.md")), true);
-	assert.equal(
-		await exists(path.join(docsRoot, "docs", ".git", "config")),
-		false,
-	);
+	assert.equal(await exists(path.join(docsRoot, "guide.md")), true);
+	assert.equal(await exists(path.join(docsRoot, ".git", "config")), false);
 	assert.equal(
 		await exists(path.join(docsRoot, "src", ".vscode", "settings.json")),
 		false,
@@ -429,7 +426,7 @@ test("sync re-materializes when include rules change", async () => {
 
 	const docsRoot = path.join(cacheDir, "local");
 	assert.equal(await exists(path.join(docsRoot, "README.md")), false);
-	assert.equal(await exists(path.join(docsRoot, "docs", "guide.md")), true);
+	assert.equal(await exists(path.join(docsRoot, "guide.md")), true);
 
 	const updatedConfig = {
 		...baseConfig,
@@ -450,5 +447,5 @@ test("sync re-materializes when include rules change", async () => {
 	await runSync(syncOptions, deps);
 
 	assert.equal(await exists(path.join(docsRoot, "README.md")), true);
-	assert.equal(await exists(path.join(docsRoot, "docs", "guide.md")), false);
+	assert.equal(await exists(path.join(docsRoot, "guide.md")), false);
 });

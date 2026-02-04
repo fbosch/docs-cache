@@ -102,7 +102,7 @@ These fields can be set in `defaults` and are inherited by every source unless o
 | `ignoreHidden`        | Skip hidden files and directories (dotfiles). Default: `false`.                                                                 |
 | `allowHosts`          | Allowed Git hosts. Default: `["github.com", "gitlab.com", "visualstudio.com"]`.                                                    |
 | `toc`                 | Generate per-source `TOC.md`. Default: `true`. Supports `true`, `false`, or a format: `"tree"` (human readable), `"compressed"` |
-| `unwrapSingleRootDir` | If the materialized output is nested under a single directory, unwrap it (recursively). Default: `false`.                       |
+| `unwrapSingleRootDir` | If the materialized output is nested under a single directory, unwrap it (recursively). Default: `true`.                        |
 
 ### Source options
 

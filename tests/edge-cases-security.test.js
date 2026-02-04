@@ -161,9 +161,7 @@ test("materialize handles deeply nested directories", async () => {
 
 	// Verify deeply nested file was materialized
 	const { access } = await import("node:fs/promises");
-	await access(
-		path.join(cacheDir, "test", "a", "b", "c", "d", "e", "f", "g", "deep.md"),
-	);
+	await access(path.join(cacheDir, "test", "deep.md"));
 });
 
 test("materialize handles files with special characters in names", async () => {
