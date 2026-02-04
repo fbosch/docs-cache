@@ -46,27 +46,28 @@ test("applyTargetDir warns and falls back to copy when symlink fails", async () 
 	assert.match(stderr, /Warning: Failed to create symlink/i);
 });
 
-test("applyTargetDir uses relative symlink targets on non-Windows", async (t) => {
-	if (process.platform === "win32") {
-		t.skip("Relative symlink targets are not used on Windows.");
-	}
-	const tmpRoot = path.join(
-		tmpdir(),
-		`docs-cache-target-relative-${Date.now().toString(36)}`,
-	);
-	const sourceDir = path.join(tmpRoot, "source");
-	const targetDir = path.join(tmpRoot, "target");
-	const parentDir = path.dirname(targetDir);
+test(
+	"applyTargetDir uses relative symlink targets on non-Windows",
+	{ skip: process.platform === "win32" },
+	async () => {
+		const tmpRoot = path.join(
+			tmpdir(),
+			`docs-cache-target-relative-${Date.now().toString(36)}`,
+		);
+		const sourceDir = path.join(tmpRoot, "source");
+		const targetDir = path.join(tmpRoot, "target");
+		const parentDir = path.dirname(targetDir);
 
-	await mkdir(sourceDir, { recursive: true });
-	await writeFile(path.join(sourceDir, "README.md"), "hello", "utf8");
+		await mkdir(sourceDir, { recursive: true });
+		await writeFile(path.join(sourceDir, "README.md"), "hello", "utf8");
 
-	await applyTargetDir({
-		sourceDir,
-		targetDir,
-		mode: "symlink",
-	});
+		await applyTargetDir({
+			sourceDir,
+			targetDir,
+			mode: "symlink",
+		});
 
-	const linkTarget = await readlink(targetDir);
-	assert.equal(linkTarget, path.relative(parentDir, sourceDir));
-});
+		const linkTarget = await readlink(targetDir);
+		assert.equal(linkTarget, path.relative(parentDir, sourceDir));
+	},
+);
