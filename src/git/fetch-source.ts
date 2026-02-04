@@ -6,14 +6,120 @@ import { pathToFileURL } from "node:url";
 
 import { execa } from "execa";
 
-import { getErrnoCode } from "../errors";
-import { assertSafeSourceId } from "../source-id";
-import { exists, resolveGitCacheDir } from "./cache-dir";
+import { getErrnoCode } from "#core/errors";
+import { assertSafeSourceId } from "#core/source-id";
+import { exists, resolveGitCacheDir } from "#git/cache-dir";
 
 const DEFAULT_TIMEOUT_MS = 120000; // 120 seconds (2 minutes)
 const DEFAULT_GIT_DEPTH = 1;
 const DEFAULT_RM_RETRIES = 3;
 const DEFAULT_RM_BACKOFF_MS = 100;
+
+const buildGitEnv = () => {
+	const pathValue = process.env.PATH ?? process.env.Path;
+	const pathExtValue =
+		process.env.PATHEXT ??
+		(process.platform === "win32" ? ".COM;.EXE;.BAT;.CMD" : undefined);
+	return {
+		...process.env,
+		...(pathValue ? { PATH: pathValue, Path: pathValue } : {}),
+		...(pathExtValue ? { PATHEXT: pathExtValue } : {}),
+		HOME: process.env.HOME,
+		USER: process.env.USER,
+		USERPROFILE: process.env.USERPROFILE,
+		TMPDIR: process.env.TMPDIR,
+		TMP: process.env.TMP,
+		TEMP: process.env.TEMP,
+		SYSTEMROOT: process.env.SYSTEMROOT,
+		WINDIR: process.env.WINDIR,
+		SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK,
+		SSH_AGENT_PID: process.env.SSH_AGENT_PID,
+		HTTP_PROXY: process.env.HTTP_PROXY,
+		HTTPS_PROXY: process.env.HTTPS_PROXY,
+		NO_PROXY: process.env.NO_PROXY,
+		GIT_TERMINAL_PROMPT: "0",
+		GIT_CONFIG_NOSYSTEM: "1",
+		GIT_CONFIG_NOGLOBAL: "1",
+		...(process.platform === "win32" ? {} : { GIT_ASKPASS: "/bin/false" }),
+	};
+};
+
+const buildGitConfigs = (allowFileProtocol?: boolean) => [
+	"-c",
+	"core.hooksPath=/dev/null",
+	"-c",
+	"submodule.recurse=false",
+	"-c",
+	"protocol.ext.allow=never",
+	"-c",
+	`protocol.file.allow=${allowFileProtocol ? "always" : "never"}`,
+];
+
+const buildCommandArgs = (
+	args: string[],
+	allowFileProtocol?: boolean,
+	forceProgress?: boolean,
+) => {
+	const configs = buildGitConfigs(allowFileProtocol);
+	const commandArgs = [...configs, ...args];
+	if (forceProgress) {
+		commandArgs.push("--progress");
+	}
+	return commandArgs;
+};
+
+const isProgressLine = (line: string) =>
+	line.includes("Receiving objects") ||
+	line.includes("Resolving deltas") ||
+	line.includes("Compressing objects") ||
+	line.includes("Updating files") ||
+	line.includes("Counting objects");
+
+const shouldEmitProgress = (
+	line: string,
+	now: number,
+	lastProgressAt: number,
+	throttleMs: number,
+) =>
+	now - lastProgressAt >= throttleMs ||
+	line.includes("100%") ||
+	line.includes("done");
+
+const attachLoggers = (
+	subprocess: ReturnType<typeof execa>,
+	commandLabel: string,
+	options?: {
+		logger?: (message: string) => void;
+		progressLogger?: (message: string) => void;
+		progressThrottleMs?: number;
+	},
+) => {
+	if (!options?.logger && !options?.progressLogger) {
+		return;
+	}
+	let lastProgressAt = 0;
+	const forward = (stream: NodeJS.ReadableStream | null) => {
+		if (!stream) return;
+		stream.on("data", (chunk) => {
+			const text =
+				chunk instanceof Buffer ? chunk.toString("utf8") : String(chunk);
+			for (const line of text.split(/\r?\n/)) {
+				if (!line) continue;
+				options.logger?.(`${commandLabel} | ${line}`);
+				if (!options?.progressLogger) continue;
+				if (!isProgressLine(line)) continue;
+				const now = Date.now();
+				const throttleMs = options.progressThrottleMs ?? 120;
+				if (shouldEmitProgress(line, now, lastProgressAt, throttleMs)) {
+					lastProgressAt = now;
+					options.progressLogger(line);
+				}
+			}
+		});
+	};
+	forward(subprocess.stdout);
+	forward(subprocess.stderr);
+};
 
 const git = async (
 	args: string[],
@@ -22,78 +128,27 @@ const git = async (
 		timeoutMs?: number;
 		allowFileProtocol?: boolean;
 		logger?: (message: string) => void;
+		progressLogger?: (message: string) => void;
+		progressThrottleMs?: number;
+		forceProgress?: boolean;
 	},
 ) => {
-	const pathValue = process.env.PATH ?? process.env.Path;
-	const pathExtValue =
-		process.env.PATHEXT ??
-		(process.platform === "win32" ? ".COM;.EXE;.BAT;.CMD" : undefined);
-
-	const configs = [
-		"-c",
-		"core.hooksPath=/dev/null",
-		"-c",
-		"submodule.recurse=false",
-		"-c",
-		"protocol.ext.allow=never",
-	];
-
-	// Configure file protocol access
-	if (options?.allowFileProtocol) {
-		// Explicitly allow file protocol for local cache clones
-		configs.push("-c", "protocol.file.allow=always");
-	} else {
-		// Disallow file protocol by default (when false or undefined)
-		configs.push("-c", "protocol.file.allow=never");
-	}
-
-	const commandArgs = [...configs, ...args];
+	const commandArgs = buildCommandArgs(
+		args,
+		options?.allowFileProtocol,
+		options?.forceProgress,
+	);
 	const commandLabel = `git ${commandArgs.join(" ")}`;
 	options?.logger?.(commandLabel);
 	const subprocess = execa("git", commandArgs, {
 		cwd: options?.cwd,
 		timeout: options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-		maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large repos
+		maxBuffer: 10 * 1024 * 1024,
 		stdout: "pipe",
 		stderr: "pipe",
-		env: {
-			...process.env,
-			...(pathValue ? { PATH: pathValue, Path: pathValue } : {}),
-			...(pathExtValue ? { PATHEXT: pathExtValue } : {}),
-			HOME: process.env.HOME,
-			USER: process.env.USER,
-			USERPROFILE: process.env.USERPROFILE,
-			TMPDIR: process.env.TMPDIR,
-			TMP: process.env.TMP,
-			TEMP: process.env.TEMP,
-			SYSTEMROOT: process.env.SYSTEMROOT,
-			WINDIR: process.env.WINDIR,
-			SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK,
-			SSH_AGENT_PID: process.env.SSH_AGENT_PID,
-			HTTP_PROXY: process.env.HTTP_PROXY,
-			HTTPS_PROXY: process.env.HTTPS_PROXY,
-			NO_PROXY: process.env.NO_PROXY,
-			GIT_TERMINAL_PROMPT: "0",
-			GIT_CONFIG_NOSYSTEM: "1",
-			GIT_CONFIG_NOGLOBAL: "1",
-			...(process.platform === "win32" ? {} : { GIT_ASKPASS: "/bin/false" }),
-		},
+		env: buildGitEnv(),
 	});
-	if (options?.logger) {
-		const forward = (stream: NodeJS.ReadableStream | null) => {
-			if (!stream) return;
-			stream.on("data", (chunk) => {
-				const text =
-					chunk instanceof Buffer ? chunk.toString("utf8") : String(chunk);
-				for (const line of text.split(/\r?\n/)) {
-					if (!line) continue;
-					options.logger?.(`${commandLabel} | ${line}`);
-				}
-			});
-		};
-		forward(subprocess.stdout);
-		forward(subprocess.stderr);
-	}
+	attachLoggers(subprocess, commandLabel, options);
 	await subprocess;
 };
 
@@ -153,6 +208,27 @@ const isPartialClone = async (repoPath: string) => {
 	}
 };
 
+const hasCommitInRepo = async (
+	repoPath: string,
+	commit: string,
+	options?: {
+		timeoutMs?: number;
+		allowFileProtocol?: boolean;
+		logger?: (message: string) => void;
+	},
+): Promise<boolean> => {
+	try {
+		await git(["-C", repoPath, "cat-file", "-e", `${commit}^{commit}`], {
+			timeoutMs: options?.timeoutMs,
+			allowFileProtocol: options?.allowFileProtocol,
+			logger: options?.logger,
+		});
+		return true;
+	} catch {
+		return false;
+	}
+};
+
 const ensureCommitAvailable = async (
 	repoPath: string,
 	commit: string,
@@ -160,6 +236,7 @@ const ensureCommitAvailable = async (
 		timeoutMs?: number;
 		allowFileProtocol?: boolean;
 		logger?: (message: string) => void;
+		offline?: boolean;
 	},
 ) => {
 	try {
@@ -171,6 +248,9 @@ const ensureCommitAvailable = async (
 		return;
 	} catch {
 		// commit not present, fetch it
+	}
+	if (options?.offline && !options?.allowFileProtocol) {
+		throw new Error(`Commit ${commit} not found in cache (offline).`);
 	}
 	await git(["-C", repoPath, "fetch", "origin", commit], {
 		timeoutMs: options?.timeoutMs,
@@ -188,12 +268,19 @@ type FetchParams = {
 	include?: string[];
 	timeoutMs?: number;
 	logger?: (message: string) => void;
+	progressLogger?: (message: string) => void;
+	offline?: boolean;
 };
 
 type FetchResult = {
 	repoDir: string;
 	cleanup: () => Promise<void>;
 	fromCache: boolean;
+};
+
+type CloneResult = {
+	usedCache: boolean;
+	cleanup: () => Promise<void>;
 };
 
 const isSparseEligible = (include?: string[]) => {
@@ -222,6 +309,9 @@ const extractSparsePaths = (include?: string[]) => {
 };
 
 const cloneRepo = async (params: FetchParams, outDir: string) => {
+	if (params.offline) {
+		throw new Error(`Cannot clone ${params.repo} while offline.`);
+	}
 	const isCommitRef = /^[0-9a-f]{7,40}$/i.test(params.ref);
 	const useSparse = isSparseEligible(params.include);
 	const buildCloneArgs = () => {
@@ -246,10 +336,16 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 		}
 	}
 	cloneArgs.push(params.repo, outDir);
-	await git(cloneArgs, { timeoutMs: params.timeoutMs, logger: params.logger });
+	await git(cloneArgs, {
+		timeoutMs: params.timeoutMs,
+		logger: params.logger,
+		progressLogger: params.progressLogger,
+		forceProgress: Boolean(params.progressLogger),
+	});
 	await ensureCommitAvailable(outDir, params.resolvedCommit, {
 		timeoutMs: params.timeoutMs,
 		logger: params.logger,
+		offline: params.offline,
 	});
 	if (useSparse) {
 		const sparsePaths = extractSparsePaths(params.include);
@@ -269,59 +365,179 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 	);
 };
 
+const addWorktreeFromCache = async (
+	params: FetchParams,
+	cachePath: string,
+	outDir: string,
+): Promise<CloneResult> => {
+	await git(
+		[
+			"-C",
+			cachePath,
+			"worktree",
+			"add",
+			"--detach",
+			outDir,
+			params.resolvedCommit,
+		],
+		{
+			timeoutMs: params.timeoutMs,
+			logger: params.logger,
+			allowFileProtocol: true,
+		},
+	);
+	await git(
+		["-C", outDir, "checkout", "--quiet", "--detach", params.resolvedCommit],
+		{
+			timeoutMs: params.timeoutMs,
+			logger: params.logger,
+			allowFileProtocol: true,
+		},
+	);
+	const sparsePaths = isSparseEligible(params.include)
+		? extractSparsePaths(params.include)
+		: [];
+	if (sparsePaths.length > 0) {
+		await git(["-C", outDir, "sparse-checkout", "set", ...sparsePaths], {
+			timeoutMs: params.timeoutMs,
+			logger: params.logger,
+			allowFileProtocol: true,
+		});
+	}
+	return {
+		usedCache: true,
+		cleanup: async () => {
+			try {
+				await git(["-C", cachePath, "worktree", "remove", "--force", outDir], {
+					timeoutMs: params.timeoutMs,
+					logger: params.logger,
+					allowFileProtocol: true,
+				});
+			} catch {
+				// fall back to removing the directory directly
+			}
+		},
+	};
+};
+
+const buildFetchArgs = (ref: string, isCommitRef: boolean) => {
+	const fetchArgs = ["fetch", "origin"];
+	if (!isCommitRef) {
+		const refSpec =
+			ref === "HEAD" ? "HEAD" : `${ref}:refs/remotes/origin/${ref}`;
+		fetchArgs.push(refSpec, "--depth", String(DEFAULT_GIT_DEPTH));
+		return fetchArgs;
+	}
+	fetchArgs.push("--depth", String(DEFAULT_GIT_DEPTH));
+	return fetchArgs;
+};
+
+const fetchCommitFromOrigin = async (
+	params: FetchParams,
+	cachePath: string,
+	isCommitRef: boolean,
+) => {
+	const fetchArgs = buildFetchArgs(params.ref, isCommitRef);
+	await git(["-C", cachePath, ...fetchArgs], {
+		timeoutMs: params.timeoutMs,
+		logger: params.logger,
+		progressLogger: params.progressLogger,
+		forceProgress: Boolean(params.progressLogger),
+		allowFileProtocol: true,
+	});
+	await ensureCommitAvailable(cachePath, params.resolvedCommit, {
+		timeoutMs: params.timeoutMs,
+		logger: params.logger,
+		offline: params.offline,
+	});
+};
+
+const handleValidCache = async (
+	params: FetchParams,
+	cachePath: string,
+	isCommitRef: boolean,
+): Promise<{ usedCache: boolean; worktreeUsed: boolean }> => {
+	if (await isPartialClone(cachePath)) {
+		if (params.offline) {
+			throw new Error(`Cache for ${params.repo} is partial (offline).`);
+		}
+		await removeDir(cachePath);
+		await cloneRepo(params, cachePath);
+		return { usedCache: false, worktreeUsed: false };
+	}
+	try {
+		const commitExists = await hasCommitInRepo(
+			cachePath,
+			params.resolvedCommit,
+			{
+				timeoutMs: params.timeoutMs,
+				logger: params.logger,
+			},
+		);
+		if (commitExists) {
+			return { usedCache: true, worktreeUsed: true };
+		}
+		if (params.offline) {
+			throw new Error(
+				`Commit ${params.resolvedCommit} not found in cache (offline).`,
+			);
+		}
+		await fetchCommitFromOrigin(params, cachePath, isCommitRef);
+		return { usedCache: true, worktreeUsed: false };
+	} catch (_error) {
+		if (params.offline) {
+			throw new Error(`Cache for ${params.repo} is unavailable (offline).`);
+		}
+		await removeDir(cachePath);
+		await cloneRepo(params, cachePath);
+		return { usedCache: false, worktreeUsed: false };
+	}
+};
+
+const handleMissingCache = async (
+	params: FetchParams,
+	cachePath: string,
+	cacheExists: boolean,
+): Promise<{ usedCache: boolean; worktreeUsed: boolean }> => {
+	if (cacheExists) {
+		await removeDir(cachePath);
+	}
+	if (params.offline) {
+		throw new Error(`Cache for ${params.repo} is missing (offline).`);
+	}
+	await cloneRepo(params, cachePath);
+	return { usedCache: false, worktreeUsed: false };
+};
+
 // Clone or update a repository using persistent cache
 const cloneOrUpdateRepo = async (
 	params: FetchParams,
 	outDir: string,
-): Promise<{ usedCache: boolean }> => {
+): Promise<CloneResult> => {
 	const cachePath = getPersistentCachePath(params.repo);
 	const cacheExists = await exists(cachePath);
 	const cacheValid = cacheExists && (await isValidGitRepo(cachePath));
 	const isCommitRef = /^[0-9a-f]{7,40}$/i.test(params.ref);
 	const useSparse = isSparseEligible(params.include);
 	let usedCache = cacheValid;
+	let worktreeUsed = false;
 
 	const cacheRoot = resolveGitCacheDir();
 	await mkdir(cacheRoot, { recursive: true });
 
 	if (cacheValid) {
-		if (await isPartialClone(cachePath)) {
-			await removeDir(cachePath);
-			await cloneRepo(params, cachePath);
-			usedCache = false;
-		} else {
-			try {
-				const fetchArgs = ["fetch", "origin"];
-				if (!isCommitRef) {
-					const refSpec =
-						params.ref === "HEAD"
-							? "HEAD"
-							: `${params.ref}:refs/remotes/origin/${params.ref}`;
-					fetchArgs.push(refSpec, "--depth", String(DEFAULT_GIT_DEPTH));
-				} else {
-					fetchArgs.push("--depth", String(DEFAULT_GIT_DEPTH));
-				}
+		const result = await handleValidCache(params, cachePath, isCommitRef);
+		usedCache = result.usedCache;
+		worktreeUsed = result.worktreeUsed;
+	}
+	if (!cacheValid) {
+		const result = await handleMissingCache(params, cachePath, cacheExists);
+		usedCache = result.usedCache;
+		worktreeUsed = result.worktreeUsed;
+	}
 
-				await git(["-C", cachePath, ...fetchArgs], {
-					timeoutMs: params.timeoutMs,
-					logger: params.logger,
-				});
-				await ensureCommitAvailable(cachePath, params.resolvedCommit, {
-					timeoutMs: params.timeoutMs,
-					logger: params.logger,
-				});
-			} catch (_error) {
-				await removeDir(cachePath);
-				await cloneRepo(params, cachePath);
-				usedCache = false;
-			}
-		}
-	} else {
-		if (cacheExists) {
-			await removeDir(cachePath);
-		}
-		await cloneRepo(params, cachePath);
-		usedCache = false;
+	if (worktreeUsed && cacheValid) {
+		return addWorktreeFromCache(params, cachePath, outDir);
 	}
 
 	await mkdir(outDir, { recursive: true });
@@ -355,6 +571,8 @@ const cloneOrUpdateRepo = async (
 		timeoutMs: params.timeoutMs,
 		allowFileProtocol: true,
 		logger: params.logger,
+		progressLogger: params.progressLogger,
+		forceProgress: Boolean(params.progressLogger),
 	});
 
 	if (useSparse) {
@@ -372,6 +590,7 @@ const cloneOrUpdateRepo = async (
 		timeoutMs: params.timeoutMs,
 		allowFileProtocol: true,
 		logger: params.logger,
+		offline: params.offline,
 	});
 
 	await git(
@@ -383,27 +602,29 @@ const cloneOrUpdateRepo = async (
 		},
 	);
 
-	return { usedCache };
+	return { usedCache, cleanup: async () => undefined };
 };
 
 export const fetchSource = async (
 	params: FetchParams,
 ): Promise<FetchResult> => {
 	assertSafeSourceId(params.sourceId, "sourceId");
-	const tempDir = await mkdtemp(
+	const tempRoot = await mkdtemp(
 		path.join(tmpdir(), `docs-cache-${params.sourceId}-`),
 	);
+	const tempDir = path.join(tempRoot, "repo");
 	try {
-		const { usedCache } = await cloneOrUpdateRepo(params, tempDir);
+		const { usedCache, cleanup } = await cloneOrUpdateRepo(params, tempDir);
 		return {
 			repoDir: tempDir,
 			cleanup: async () => {
-				await removeDir(tempDir);
+				await cleanup();
+				await removeDir(tempRoot);
 			},
 			fromCache: usedCache,
 		};
 	} catch (error) {
-		await removeDir(tempDir);
+		await removeDir(tempRoot);
 		throw error;
 	}
 };

@@ -1,9 +1,13 @@
 import { access, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { symbols, ui } from "./cli/ui";
-import type { DocsCacheResolvedSource, TocFormat } from "./config";
-import type { DocsCacheLock } from "./lock";
-import { DEFAULT_TOC_FILENAME, resolveTargetDir, toPosixPath } from "./paths";
+import type { DocsCacheLock } from "#cache/lock";
+import { symbols, ui } from "#cli/ui";
+import type { DocsCacheResolvedSource, TocFormat } from "#config";
+import {
+	DEFAULT_TOC_FILENAME,
+	resolveTargetDir,
+	toPosixPath,
+} from "#core/paths";
 
 type TocEntry = {
 	id: string;
@@ -225,14 +229,6 @@ export const writeToc = async (params: {
 
 		if (tocEnabled) {
 			const result = resultsById.get(id);
-			if (result?.status === "up-to-date") {
-				try {
-					await access(sourceTocPath);
-					continue;
-				} catch {
-					// Missing TOC; regenerate below.
-				}
-			}
 			let existingContent: string | null = null;
 			try {
 				existingContent = await readFile(sourceTocPath, "utf8");
@@ -240,6 +236,12 @@ export const writeToc = async (params: {
 				existingContent = null;
 			}
 			const sourceTocContent = generateSourceToc(entry, tocFormat);
+			if (
+				result?.status === "up-to-date" &&
+				existingContent === sourceTocContent
+			) {
+				continue;
+			}
 			if (existingContent !== null && existingContent !== sourceTocContent) {
 				ui.line(
 					`${symbols.warn} Overwriting existing ${DEFAULT_TOC_FILENAME} for ${id}`,

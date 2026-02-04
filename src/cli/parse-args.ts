@@ -1,7 +1,7 @@
 import process from "node:process";
 
 import cac from "cac";
-import { ExitCode } from "./exit-code";
+import { ExitCode } from "#cli/exit-code";
 import type { AddEntry, CliCommand, CliOptions } from "./types";
 
 const COMMANDS = [
@@ -38,94 +38,153 @@ const POSITIONAL_SKIP_OPTIONS = new Set([
 	"--concurrency",
 	"--timeout-ms",
 ]);
+const ADD_ONLY_OPTIONS_WITH_VALUES = new Set([
+	"--id",
+	"--source",
+	"--target",
+	"--target-dir",
+]);
+
+const ADD_ENTRY_SKIP_OPTIONS = new Set([
+	"--config",
+	"--cache-dir",
+	"--concurrency",
+	"--timeout-ms",
+]);
+
+const VALUE_FLAGS = new Set([
+	...POSITIONAL_SKIP_OPTIONS,
+	...ADD_ONLY_OPTIONS_WITH_VALUES,
+]);
+
+type AddParseState = {
+	entries: AddEntry[];
+	lastIndex: number;
+	pendingId: string | null;
+	lastWasRepoAdded: boolean;
+};
+
+const getArgValue = (arg: string, next: string | undefined, flag: string) => {
+	const rawValue = arg === flag ? next : arg.slice(flag.length + 1);
+	if (!rawValue || rawValue.startsWith("-")) {
+		throw new Error(`${flag} expects a value.`);
+	}
+	return rawValue;
+};
+
+const addEntry = (state: AddParseState, repo: string) => {
+	state.entries.push({
+		repo,
+		...(state.pendingId ? { id: state.pendingId } : {}),
+	});
+	state.lastIndex = state.entries.length - 1;
+	state.pendingId = null;
+	state.lastWasRepoAdded = true;
+};
+
+const applyPendingId = (state: AddParseState, value: string) => {
+	const canApply =
+		state.lastWasRepoAdded &&
+		state.lastIndex !== -1 &&
+		state.entries[state.lastIndex]?.id === undefined &&
+		state.pendingId === null;
+	if (!canApply) {
+		if (state.pendingId !== null) {
+			throw new Error("--id must be followed by a source.");
+		}
+		state.pendingId = value;
+		state.lastWasRepoAdded = false;
+		return;
+	}
+	state.entries[state.lastIndex].id = value;
+	state.lastWasRepoAdded = false;
+};
+
+const setTarget = (state: AddParseState, targetDir: string) => {
+	if (state.lastIndex === -1) {
+		throw new Error("--target must follow a --source entry.");
+	}
+	state.entries[state.lastIndex].targetDir = targetDir;
+	state.lastWasRepoAdded = false;
+};
+
+const findCommandIndex = (rawArgs: string[]) => {
+	for (let index = 0; index < rawArgs.length; index += 1) {
+		const arg = rawArgs[index];
+		if (arg.startsWith("--")) {
+			const [flag] = arg.split("=");
+			if (VALUE_FLAGS.has(flag) && !arg.includes("=")) {
+				index += 1;
+			}
+			continue;
+		}
+		return index;
+	}
+	return -1;
+};
 
 const parseAddEntries = (rawArgs: string[]): AddEntry[] => {
-	const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
+	const commandIndex = findCommandIndex(rawArgs);
 	const tail = commandIndex === -1 ? [] : rawArgs.slice(commandIndex + 1);
-	const entries: AddEntry[] = [];
-	let lastIndex = -1;
-	let pendingId: string | null = null;
-	let lastWasRepoAdded = false;
-	const skipNextFor = new Set([
-		"--config",
-		"--cache-dir",
-		"--concurrency",
-		"--timeout-ms",
-	]);
+	const state: AddParseState = {
+		entries: [],
+		lastIndex: -1,
+		pendingId: null,
+		lastWasRepoAdded: false,
+	};
 	for (let index = 0; index < tail.length; index += 1) {
 		const arg = tail[index];
 		if (arg === "--id" || arg.startsWith("--id=")) {
-			const rawValue = arg === "--id" ? tail[index + 1] : arg.slice(5);
-			if (!rawValue || rawValue.startsWith("-")) {
-				throw new Error("--id expects a value.");
-			}
+			const value = getArgValue(arg, tail[index + 1], "--id");
 			if (arg === "--id") {
 				index += 1;
 			}
-			if (
-				lastWasRepoAdded &&
-				lastIndex !== -1 &&
-				entries[lastIndex]?.id === undefined &&
-				pendingId === null
-			) {
-				entries[lastIndex].id = rawValue;
-				lastWasRepoAdded = false;
-				continue;
-			}
-			if (pendingId !== null) {
-				throw new Error("--id must be followed by a source.");
-			}
-			pendingId = rawValue;
-			lastWasRepoAdded = false;
+			applyPendingId(state, value);
 			continue;
 		}
-		if (arg === "--source") {
-			const next = tail[index + 1];
-			if (!next || next.startsWith("-")) {
-				throw new Error("--source expects a value.");
+		if (arg === "--source" || arg.startsWith("--source=")) {
+			const value = getArgValue(arg, tail[index + 1], "--source");
+			addEntry(state, value);
+			if (arg === "--source") {
+				index += 1;
 			}
-			entries.push({ repo: next, ...(pendingId ? { id: pendingId } : {}) });
-			lastIndex = entries.length - 1;
-			pendingId = null;
-			lastWasRepoAdded = true;
-			index += 1;
 			continue;
 		}
-		if (arg === "--target" || arg === "--target-dir") {
-			const next = tail[index + 1];
-			if (!next || next.startsWith("-")) {
-				throw new Error("--target expects a value.");
+		if (arg === "--target" || arg.startsWith("--target=")) {
+			const value = getArgValue(arg, tail[index + 1], "--target");
+			setTarget(state, value);
+			if (arg === "--target") {
+				index += 1;
 			}
-			if (lastIndex === -1) {
-				throw new Error("--target must follow a --source entry.");
-			}
-			entries[lastIndex].targetDir = next;
-			index += 1;
-			lastWasRepoAdded = false;
 			continue;
 		}
-		if (skipNextFor.has(arg)) {
+		if (arg === "--target-dir" || arg.startsWith("--target-dir=")) {
+			const value = getArgValue(arg, tail[index + 1], "--target-dir");
+			setTarget(state, value);
+			if (arg === "--target-dir") {
+				index += 1;
+			}
+			continue;
+		}
+		if (ADD_ENTRY_SKIP_OPTIONS.has(arg)) {
 			index += 1;
-			lastWasRepoAdded = false;
+			state.lastWasRepoAdded = false;
 			continue;
 		}
 		if (arg.startsWith("--")) {
-			lastWasRepoAdded = false;
+			state.lastWasRepoAdded = false;
 			continue;
 		}
-		entries.push({ repo: arg, ...(pendingId ? { id: pendingId } : {}) });
-		lastIndex = entries.length - 1;
-		pendingId = null;
-		lastWasRepoAdded = true;
+		addEntry(state, arg);
 	}
-	if (pendingId !== null) {
+	if (state.pendingId !== null) {
 		throw new Error("--id must be followed by a source.");
 	}
-	return entries;
+	return state.entries;
 };
 
 const parsePositionals = (rawArgs: string[]) => {
-	const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
+	const commandIndex = findCommandIndex(rawArgs);
 	const tail = commandIndex === -1 ? [] : rawArgs.slice(commandIndex + 1);
 	const positionals: string[] = [];
 	for (let index = 0; index < tail.length; index += 1) {
@@ -150,14 +209,107 @@ const assertAddOnlyOptions = (command: Command | null, rawArgs: string[]) => {
 		if (ADD_ONLY_OPTIONS.has(arg)) {
 			throw new Error(`${arg} is only valid for add.`);
 		}
-		if (
-			arg.startsWith("--id=") ||
-			arg.startsWith("--source=") ||
-			arg.startsWith("--target=") ||
-			arg.startsWith("--target-dir=")
-		) {
-			throw new Error(`${arg.split("=")[0]} is only valid for add.`);
+		if (!arg.startsWith("--")) {
+			continue;
 		}
+		const [flag] = arg.split("=");
+		if (ADD_ONLY_OPTIONS_WITH_VALUES.has(flag)) {
+			throw new Error(`${flag} is only valid for add.`);
+		}
+	}
+};
+
+const buildOptions = (result: ReturnType<ReturnType<typeof cac>["parse"]>) => {
+	const options: CliOptions = {
+		config: result.options.config,
+		cacheDir: result.options.cacheDir,
+		offline: Boolean(result.options.offline),
+		failOnMiss: Boolean(result.options.failOnMiss),
+		lockOnly: Boolean(result.options.lockOnly),
+		prune: Boolean(result.options.prune),
+		concurrency: result.options.concurrency
+			? Number(result.options.concurrency)
+			: undefined,
+		json: Boolean(result.options.json),
+		timeoutMs: result.options.timeoutMs
+			? Number(result.options.timeoutMs)
+			: undefined,
+		silent: Boolean(result.options.silent),
+		verbose: Boolean(result.options.verbose),
+	};
+
+	if (options.concurrency !== undefined && options.concurrency < 1) {
+		throw new Error("--concurrency must be a positive number.");
+	}
+	if (
+		options.concurrency !== undefined &&
+		!Number.isFinite(options.concurrency)
+	) {
+		throw new Error("--concurrency must be a positive number.");
+	}
+	if (options.timeoutMs !== undefined && options.timeoutMs < 1) {
+		throw new Error("--timeout-ms must be a positive number.");
+	}
+	if (options.timeoutMs !== undefined && !Number.isFinite(options.timeoutMs)) {
+		throw new Error("--timeout-ms must be a positive number.");
+	}
+
+	return options;
+};
+
+const getCommandFromArgs = (rawArgs: string[]) => {
+	const commandIndex = findCommandIndex(rawArgs);
+	const command =
+		commandIndex === -1 ? undefined : (rawArgs[commandIndex] as Command);
+	if (command && !COMMANDS.includes(command)) {
+		throw new Error(`Unknown command '${command}'.`);
+	}
+	return command ?? null;
+};
+
+const getPositionals = (
+	command: Command | null,
+	rawArgs: string[],
+	entries: AddEntry[] | null,
+) => {
+	if (command === "add") {
+		const addEntries = entries ?? parseAddEntries(rawArgs);
+		return { positionals: addEntries.map((entry) => entry.repo), addEntries };
+	}
+	return { positionals: parsePositionals(rawArgs), addEntries: entries };
+};
+
+const buildParsedCommand = (
+	command: Command | null,
+	options: CliOptions,
+	positionals: string[],
+	addEntries: AddEntry[] | null,
+): CliCommand => {
+	switch (command) {
+		case "add":
+			return {
+				command: "add",
+				entries: addEntries ?? [],
+				options,
+			};
+		case "remove":
+			return { command: "remove", ids: positionals, options };
+		case "sync":
+			return { command: "sync", options };
+		case "status":
+			return { command: "status", options };
+		case "clean":
+			return { command: "clean", options };
+		case "clean-cache":
+			return { command: "clean-cache", options };
+		case "prune":
+			return { command: "prune", options };
+		case "verify":
+			return { command: "verify", options };
+		case "init":
+			return { command: "init", options };
+		default:
+			return { command: null, options };
 	}
 };
 
@@ -197,90 +349,18 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 
 		const result = cli.parse(argv, { run: false });
 		const rawArgs = argv.slice(2);
-		const commandIndex = rawArgs.findIndex((arg) => !arg.startsWith("-"));
-		const command =
-			commandIndex === -1 ? undefined : (rawArgs[commandIndex] as Command);
-		if (command && !COMMANDS.includes(command)) {
-			throw new Error(`Unknown command '${command}'.`);
-		}
-
-		const options: CliOptions = {
-			config: result.options.config,
-			cacheDir: result.options.cacheDir,
-			offline: Boolean(result.options.offline),
-			failOnMiss: Boolean(result.options.failOnMiss),
-			lockOnly: Boolean(result.options.lockOnly),
-			prune: Boolean(result.options.prune),
-			concurrency: result.options.concurrency
-				? Number(result.options.concurrency)
-				: undefined,
-			json: Boolean(result.options.json),
-			timeoutMs: result.options.timeoutMs
-				? Number(result.options.timeoutMs)
-				: undefined,
-			silent: Boolean(result.options.silent),
-			verbose: Boolean(result.options.verbose),
-		};
-
-		if (options.concurrency !== undefined && options.concurrency < 1) {
-			throw new Error("--concurrency must be a positive number.");
-		}
-		if (options.timeoutMs !== undefined && options.timeoutMs < 1) {
-			throw new Error("--timeout-ms must be a positive number.");
-		}
-
-		assertAddOnlyOptions(command ?? null, rawArgs);
-		let addEntries: AddEntry[] | null = null;
-		const positionals = (() => {
-			switch (command ?? null) {
-				case "add":
-					addEntries = parseAddEntries(rawArgs);
-					return addEntries.map((entry) => entry.repo);
-				case "remove":
-					return parsePositionals(rawArgs);
-				default:
-					return parsePositionals(rawArgs);
-			}
-		})();
-		let parsed: CliCommand;
-		switch (command ?? null) {
-			case "add":
-				parsed = {
-					command: "add",
-					entries: addEntries ?? parseAddEntries(rawArgs),
-					options,
-				};
-				break;
-			case "remove":
-				parsed = { command: "remove", ids: positionals, options };
-				break;
-			case "sync":
-				parsed = { command: "sync", options };
-				break;
-			case "status":
-				parsed = { command: "status", options };
-				break;
-			case "clean":
-				parsed = { command: "clean", options };
-				break;
-			case "clean-cache":
-				parsed = { command: "clean-cache", options };
-				break;
-			case "prune":
-				parsed = { command: "prune", options };
-				break;
-			case "verify":
-				parsed = { command: "verify", options };
-				break;
-			case "init":
-				parsed = { command: "init", options };
-				break;
-			default:
-				parsed = { command: null, options };
-				break;
-		}
+		const command = getCommandFromArgs(rawArgs);
+		const options = buildOptions(result);
+		assertAddOnlyOptions(command, rawArgs);
+		const { positionals, addEntries } = getPositionals(command, rawArgs, null);
+		const parsed = buildParsedCommand(
+			command,
+			options,
+			positionals,
+			addEntries,
+		);
 		return {
-			command: command ?? null,
+			command,
 			options,
 			positionals,
 			rawArgs,

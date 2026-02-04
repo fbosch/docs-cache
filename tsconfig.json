@@ -5,10 +5,22 @@
 		"moduleResolution": "Bundler",
 		"lib": ["ES2022"],
 		"types": ["node"],
+		"baseUrl": ".",
+		"paths": {
+			"#cache/*": ["src/cache/*.ts"],
+			"#cli/*": ["src/cli/*.ts"],
+			"#commands/*": ["src/commands/*.ts"],
+			"#core/*": ["src/*.ts"],
+			"#config": ["src/config/index.ts"],
+			"#config/*": ["src/config/*.ts"],
+			"#git/*": ["src/git/*.ts"],
+			"#types/*": ["src/types/*.ts"]
+		},
 		"strict": true,
 		"declaration": true,
 		"declarationMap": true,
 		"sourceMap": true,
+		"rootDir": ".",
 		"outDir": "dist",
 		"resolveJsonModule": true,
 		"skipLibCheck": true

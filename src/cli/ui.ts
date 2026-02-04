@@ -1,10 +1,11 @@
 import path from "node:path";
 import pc from "picocolors";
-import { toPosixPath } from "../paths";
+import { toPosixPath } from "#core/paths";
 
 export const symbols = {
 	error: pc.red("✖"),
 	success: pc.green("✔"),
+	synced: pc.green("●"),
 	info: pc.blue("ℹ"),
 	warn: pc.yellow("⚠"),
 };
@@ -19,6 +20,10 @@ export const setSilentMode = (silent: boolean) => {
 export const setVerboseMode = (verbose: boolean) => {
 	_verboseMode = verbose;
 };
+
+export const isSilentMode = () => _silentMode;
+
+export const isVerboseMode = () => _verboseMode;
 
 export const ui = {
 	// Formatters

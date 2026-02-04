@@ -14,11 +14,11 @@ import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import fg from "fast-glob";
-import { symbols, ui } from "./cli/ui";
-import { getErrnoCode } from "./errors";
-import { MANIFEST_FILENAME } from "./manifest";
-import { getCacheLayout, toPosixPath } from "./paths";
-import { assertSafeSourceId } from "./source-id";
+import { MANIFEST_FILENAME } from "#cache/manifest";
+import { symbols, ui } from "#cli/ui";
+import { getErrnoCode } from "#core/errors";
+import { getCacheLayout, toPosixPath } from "#core/paths";
+import { assertSafeSourceId } from "#core/source-id";
 
 type MaterializeParams = {
 	sourceId: string;
@@ -31,6 +31,8 @@ type MaterializeParams = {
 	ignoreHidden?: boolean;
 	unwrapSingleRootDir?: boolean;
 	json?: boolean;
+	progressLogger?: (message: string) => void;
+	progressThrottleMs?: number;
 };
 
 type ResolvedMaterializeParams = {
@@ -44,6 +46,8 @@ type ResolvedMaterializeParams = {
 	ignoreHidden: boolean;
 	unwrapSingleRootDir: boolean;
 	json: boolean;
+	progressLogger?: (message: string) => void;
+	progressThrottleMs: number;
 };
 
 type ManifestStats = {
@@ -173,6 +177,7 @@ const resolveMaterializeParams = (
 	ignoreHidden: params.ignoreHidden ?? false,
 	unwrapSingleRootDir: params.unwrapSingleRootDir ?? false,
 	json: params.json ?? false,
+	progressThrottleMs: params.progressThrottleMs ?? 120,
 });
 
 const acquireLock = async (lockPath: string, timeoutMs = 5000) => {
@@ -254,6 +259,7 @@ export const materializeSource = async (params: MaterializeParams) => {
 				normalized: normalizePath(relativePath),
 			}))
 			.sort((left, right) => left.normalized.localeCompare(right.normalized));
+		const totalEntries = entries.length;
 		const unwrapPrefix = resolveUnwrapPrefix(
 			entries,
 			resolved.unwrapSingleRootDir,
@@ -272,6 +278,7 @@ export const materializeSource = async (params: MaterializeParams) => {
 		);
 		let bytes = 0;
 		let fileCount = 0;
+		let lastProgressAt = 0;
 		const concurrency = Math.max(
 			1,
 			Math.min(
@@ -368,6 +375,22 @@ export const materializeSource = async (params: MaterializeParams) => {
 				manifestHash.update(line);
 				await writeManifestLine(line);
 				fileCount += 1;
+			}
+			if (resolved.progressLogger && totalEntries > 0) {
+				const now = Date.now();
+				const shouldEmit =
+					now - lastProgressAt >= resolved.progressThrottleMs ||
+					fileCount === totalEntries;
+				if (shouldEmit) {
+					lastProgressAt = now;
+					const percent = Math.min(
+						100,
+						Math.round((fileCount / totalEntries) * 100),
+					);
+					resolved.progressLogger(
+						`materializing ${fileCount}/${totalEntries} (${percent}%)`,
+					);
+				}
 			}
 		}
 		await new Promise<void>((resolve, reject) => {

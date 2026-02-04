@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 
-import { getCacheLayout } from "./paths";
+import { getCacheLayout } from "#core/paths";
 
 export const ensureCacheLayout = async (
 	cacheDir: string,

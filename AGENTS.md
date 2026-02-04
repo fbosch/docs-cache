@@ -38,6 +38,9 @@ pnpm.
 
 - Use `node:` specifiers for built-in modules.
 - Keep modules small and single-purpose; prefer focused helpers in `src/`.
+- Prefer early returns to reduce nested control flow.
+- Avoid `else if` branches when early returns or separate conditionals are clearer.
+- Avoid type casts when a safe type guard or discriminated union can be used.
 - Place shared types in `src/types/` and import them via `import type`.
 - Use `index.ts` barrels for public entrypoints.
 

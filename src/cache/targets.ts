@@ -1,8 +1,8 @@
 import { cp, mkdir, readdir, rm, symlink } from "node:fs/promises";
 import path from "node:path";
-import { getErrnoCode } from "./errors";
-import { MANIFEST_FILENAME } from "./manifest";
-import { DEFAULT_TOC_FILENAME } from "./paths";
+import { MANIFEST_FILENAME } from "#cache/manifest";
+import { getErrnoCode } from "#core/errors";
+import { DEFAULT_TOC_FILENAME } from "#core/paths";
 
 type TargetDeps = {
 	cp: typeof cp;

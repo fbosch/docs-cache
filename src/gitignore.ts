@@ -1,6 +1,6 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { toPosixPath } from "./paths";
+import { toPosixPath } from "#core/paths";
 
 const exists = async (target: string) => {
 	try {
