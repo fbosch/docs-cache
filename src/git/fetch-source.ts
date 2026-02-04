@@ -283,29 +283,34 @@ type CloneResult = {
 	cleanup: () => Promise<void>;
 };
 
-const isSparseEligible = (include?: string[]) => {
-	if (!include || include.length === 0) {
-		return false;
-	}
-	for (const pattern of include) {
-		if (!pattern || pattern.includes("**")) {
-			return false;
-		}
-	}
-	return true;
-};
+const patternHasGlob = (pattern: string) =>
+	pattern.includes("*") || pattern.includes("?") || pattern.includes("[");
 
-const extractSparsePaths = (include?: string[]) => {
-	if (!include) {
-		return [];
+const normalizeSparsePatterns = (include?: string[]) =>
+	(include ?? []).map((pattern) => pattern.replace(/\\/g, "/")).filter(Boolean);
+
+const resolveSparseSpec = (include?: string[]) => {
+	const normalized = normalizeSparsePatterns(include);
+	if (normalized.length === 0) {
+		return { enabled: false, mode: "cone" as const, patterns: [] as string[] };
 	}
-	const paths = include.map((pattern) => {
-		const normalized = pattern.replace(/\\/g, "/");
-		const starIndex = normalized.indexOf("*");
-		const base = starIndex === -1 ? normalized : normalized.slice(0, starIndex);
+	const hasDoubleStar = normalized.some((pattern) => pattern.includes("**"));
+	const hasLiteral = normalized.some((pattern) => !patternHasGlob(pattern));
+	if (hasDoubleStar || hasLiteral) {
+		return { enabled: true, mode: "no-cone" as const, patterns: normalized };
+	}
+	const paths = normalized.map((pattern) => {
+		const starIndex = pattern.indexOf("*");
+		const base = starIndex === -1 ? pattern : pattern.slice(0, starIndex);
 		return base.replace(/\/+$|\/$/, "");
 	});
-	return Array.from(new Set(paths.filter((value) => value.length > 0)));
+	const uniquePaths = Array.from(
+		new Set(paths.filter((value) => value.length > 0)),
+	);
+	if (uniquePaths.length === 0) {
+		return { enabled: true, mode: "no-cone" as const, patterns: normalized };
+	}
+	return { enabled: true, mode: "cone" as const, patterns: uniquePaths };
 };
 
 const cloneRepo = async (params: FetchParams, outDir: string) => {
@@ -313,7 +318,7 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 		throw new Error(`Cannot clone ${params.repo} while offline.`);
 	}
 	const isCommitRef = /^[0-9a-f]{7,40}$/i.test(params.ref);
-	const useSparse = isSparseEligible(params.include);
+	const sparseSpec = resolveSparseSpec(params.include);
 	const buildCloneArgs = () => {
 		const cloneArgs = [
 			"clone",
@@ -326,7 +331,7 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 		return cloneArgs;
 	};
 	const cloneArgs = buildCloneArgs();
-	if (useSparse) {
+	if (sparseSpec.enabled) {
 		cloneArgs.push("--sparse");
 	}
 	if (!isCommitRef) {
@@ -347,14 +352,16 @@ const cloneRepo = async (params: FetchParams, outDir: string) => {
 		logger: params.logger,
 		offline: params.offline,
 	});
-	if (useSparse) {
-		const sparsePaths = extractSparsePaths(params.include);
-		if (sparsePaths.length > 0) {
-			await git(["-C", outDir, "sparse-checkout", "set", ...sparsePaths], {
-				timeoutMs: params.timeoutMs,
-				logger: params.logger,
-			});
+	if (sparseSpec.enabled) {
+		const sparseArgs = ["-C", outDir, "sparse-checkout", "set"];
+		if (sparseSpec.mode === "no-cone") {
+			sparseArgs.push("--no-cone");
 		}
+		sparseArgs.push(...sparseSpec.patterns);
+		await git(sparseArgs, {
+			timeoutMs: params.timeoutMs,
+			logger: params.logger,
+		});
 	}
 	await git(
 		["-C", outDir, "checkout", "--quiet", "--detach", params.resolvedCommit],
@@ -394,11 +401,14 @@ const addWorktreeFromCache = async (
 			allowFileProtocol: true,
 		},
 	);
-	const sparsePaths = isSparseEligible(params.include)
-		? extractSparsePaths(params.include)
-		: [];
-	if (sparsePaths.length > 0) {
-		await git(["-C", outDir, "sparse-checkout", "set", ...sparsePaths], {
+	const sparseSpec = resolveSparseSpec(params.include);
+	if (sparseSpec.enabled) {
+		const sparseArgs = ["-C", outDir, "sparse-checkout", "set"];
+		if (sparseSpec.mode === "no-cone") {
+			sparseArgs.push("--no-cone");
+		}
+		sparseArgs.push(...sparseSpec.patterns);
+		await git(sparseArgs, {
 			timeoutMs: params.timeoutMs,
 			logger: params.logger,
 			allowFileProtocol: true,
@@ -518,7 +528,7 @@ const cloneOrUpdateRepo = async (
 	const cacheExists = await exists(cachePath);
 	const cacheValid = cacheExists && (await isValidGitRepo(cachePath));
 	const isCommitRef = /^[0-9a-f]{7,40}$/i.test(params.ref);
-	const useSparse = isSparseEligible(params.include);
+	const sparseSpec = resolveSparseSpec(params.include);
 	let usedCache = cacheValid;
 	let worktreeUsed = false;
 
@@ -554,7 +564,7 @@ const cloneOrUpdateRepo = async (
 		localCloneArgs.splice(2, 0, "--filter=blob:none");
 	}
 
-	if (useSparse) {
+	if (sparseSpec.enabled) {
 		localCloneArgs.push("--sparse");
 	}
 
@@ -575,15 +585,17 @@ const cloneOrUpdateRepo = async (
 		forceProgress: Boolean(params.progressLogger),
 	});
 
-	if (useSparse) {
-		const sparsePaths = extractSparsePaths(params.include);
-		if (sparsePaths.length > 0) {
-			await git(["-C", outDir, "sparse-checkout", "set", ...sparsePaths], {
-				timeoutMs: params.timeoutMs,
-				allowFileProtocol: true,
-				logger: params.logger,
-			});
+	if (sparseSpec.enabled) {
+		const sparseArgs = ["-C", outDir, "sparse-checkout", "set"];
+		if (sparseSpec.mode === "no-cone") {
+			sparseArgs.push("--no-cone");
 		}
+		sparseArgs.push(...sparseSpec.patterns);
+		await git(sparseArgs, {
+			timeoutMs: params.timeoutMs,
+			allowFileProtocol: true,
+			logger: params.logger,
+		});
 	}
 
 	await ensureCommitAvailable(outDir, params.resolvedCommit, {
