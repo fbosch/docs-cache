@@ -73,6 +73,9 @@ export const readConfigAtPath = async (
 		if (!options?.allowMissing) {
 			throw new Error(`Config not found at ${target.resolvedPath}.`);
 		}
+		if (target.mode === "package") {
+			throw new Error(`package.json not found at ${target.resolvedPath}.`);
+		}
 		return {
 			config: DEFAULT_CONFIG,
 			rawConfig: null,

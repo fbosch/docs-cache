@@ -1,5 +1,5 @@
 import cliTruncate from "cli-truncate";
-import logUpdate from "log-update";
+import { createLogUpdate } from "log-update";
 
 type LiveOutputOptions = {
 	stdout?: NodeJS.WriteStream;
@@ -20,27 +20,28 @@ export const createLiveOutput = (
 	options: LiveOutputOptions = {},
 ): LiveOutput => {
 	const stdout = options.stdout ?? process.stdout;
+	const updater = createLogUpdate(stdout);
 	const maxWidth = options.maxWidth ?? Math.max(20, (stdout.columns ?? 80) - 2);
 	const truncate = (line: string) =>
 		cliTruncate(line, maxWidth, { position: "end" });
 
 	const render = (lines: string[]) => {
 		const output = normalizeLines(lines).map(truncate).join("\n");
-		logUpdate(output);
+		updater(output);
 	};
 
 	const persist = (lines: string[]) => {
 		const output = normalizeLines(lines).map(truncate).join("\n");
-		logUpdate(output);
-		logUpdate.done();
+		updater(output);
+		updater.done();
 	};
 
 	const clear = () => {
-		logUpdate.clear();
+		updater.clear();
 	};
 
 	const stop = () => {
-		logUpdate.done();
+		updater.done();
 	};
 
 	return {

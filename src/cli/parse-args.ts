@@ -122,16 +122,28 @@ const parseAddEntries = (rawArgs: string[]): AddEntry[] => {
 			applyPendingId(state, value);
 			continue;
 		}
-		if (arg === "--source") {
+		if (arg === "--source" || arg.startsWith("--source=")) {
 			const value = getArgValue(arg, tail[index + 1], "--source");
 			addEntry(state, value);
-			index += 1;
+			if (arg === "--source") {
+				index += 1;
+			}
 			continue;
 		}
-		if (arg === "--target" || arg === "--target-dir") {
-			const value = getArgValue(arg, tail[index + 1], arg);
+		if (arg === "--target" || arg.startsWith("--target=")) {
+			const value = getArgValue(arg, tail[index + 1], "--target");
 			setTarget(state, value);
-			index += 1;
+			if (arg === "--target") {
+				index += 1;
+			}
+			continue;
+		}
+		if (arg === "--target-dir" || arg.startsWith("--target-dir=")) {
+			const value = getArgValue(arg, tail[index + 1], "--target-dir");
+			setTarget(state, value);
+			if (arg === "--target-dir") {
+				index += 1;
+			}
 			continue;
 		}
 		if (ADD_ENTRY_SKIP_OPTIONS.has(arg)) {
@@ -209,7 +221,16 @@ const buildOptions = (result: ReturnType<ReturnType<typeof cac>["parse"]>) => {
 	if (options.concurrency !== undefined && options.concurrency < 1) {
 		throw new Error("--concurrency must be a positive number.");
 	}
+	if (
+		options.concurrency !== undefined &&
+		!Number.isFinite(options.concurrency)
+	) {
+		throw new Error("--concurrency must be a positive number.");
+	}
 	if (options.timeoutMs !== undefined && options.timeoutMs < 1) {
+		throw new Error("--timeout-ms must be a positive number.");
+	}
+	if (options.timeoutMs !== undefined && !Number.isFinite(options.timeoutMs)) {
 		throw new Error("--timeout-ms must be a positive number.");
 	}
 

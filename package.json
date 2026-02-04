@@ -85,6 +85,10 @@
 		"#git/*": {
 			"types": "./dist/esm/git/*.d.ts",
 			"default": "./dist/esm/git/*.mjs"
+		},
+		"#types/*": {
+			"types": "./dist/esm/types/*.d.ts",
+			"default": "./dist/esm/types/*.mjs"
 		}
 	},
 	"dependencies": {

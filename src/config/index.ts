@@ -243,8 +243,15 @@ export const loadConfig = async (configPath?: string) => {
 	if (await exists(packagePath)) {
 		try {
 			return await loadConfigFromFile(packagePath, "package");
-		} catch {
-			// fall through to error below
+		} catch (error) {
+			if (
+				error instanceof Error &&
+				error.message.includes("Missing docs-cache config")
+			) {
+				// fall through to error below
+			} else {
+				throw error;
+			}
 		}
 	}
 	throw new Error(

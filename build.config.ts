@@ -47,6 +47,10 @@ export default defineBuildConfig({
 					find: /^#git\/(.*)$/,
 					replacement: path.resolve("src/git/$1"),
 				},
+				{
+					find: /^#types\/(.*)$/,
+					replacement: path.resolve("src/types/$1"),
+				},
 			],
 		},
 		inlineDependencies: ["picocolors"],

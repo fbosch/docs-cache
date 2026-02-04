@@ -18,10 +18,10 @@ import {
 	type DocsCacheResolvedSource,
 	loadConfig,
 } from "#config";
-import type { SyncOptions, SyncResult } from "#config/sync-types";
 import { resolveCacheDir, resolveTargetDir } from "#core/paths";
 import { fetchSource } from "#git/fetch-source";
 import { resolveRemoteCommit } from "#git/resolve-remote";
+import type { SyncOptions, SyncResult } from "#types/sync";
 
 type SyncDeps = {
 	resolveRemoteCommit?: typeof resolveRemoteCommit;
@@ -749,7 +749,13 @@ const createJobRunner = (params: {
 	const { plan, options, defaults, reporter, runFetch, runMaterialize } =
 		params;
 	return async (jobs: SyncJob[]) => {
-		const concurrency = options.concurrency ?? 4;
+		const concurrencyRaw = options.concurrency ?? 4;
+		const concurrency = Math.floor(concurrencyRaw);
+		if (!Number.isFinite(concurrencyRaw) || concurrency < 1) {
+			throw new TypeError(
+				"Invalid options.concurrency; must be a positive number.",
+			);
+		}
 		let index = 0;
 		const runNext = async () => {
 			const job = jobs[index];

@@ -12,7 +12,7 @@ export const exists = async (target: string) => {
 };
 
 export const hasDocs = async (cacheDir: string, sourceId: string) => {
-	const sourceDir = path.join(cacheDir, sourceId);
+	const sourceDir = path.join(cacheDir, ".docs", sourceId);
 	if (!(await exists(sourceDir))) {
 		return false;
 	}
