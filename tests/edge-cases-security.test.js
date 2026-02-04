@@ -404,7 +404,7 @@ test("source ID with null bytes is rejected", async () => {
 	const { loadConfig } = await import("../dist/api.mjs");
 	await assert.rejects(
 		() => loadConfig(configPath),
-		/sources\[0\]\.id|alphanumeric/i,
+		/sources\.0\.id|path separators|reserved characters/i,
 	);
 });
 
