@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readlink, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -45,3 +45,29 @@ test("applyTargetDir warns and falls back to copy when symlink fails", async () 
 	assert.equal(data, "hello");
 	assert.match(stderr, /Warning: Failed to create symlink/i);
 });
+
+test(
+	"applyTargetDir uses relative symlink targets on non-Windows",
+	{ skip: process.platform === "win32" },
+	async () => {
+		const tmpRoot = path.join(
+			tmpdir(),
+			`docs-cache-target-relative-${Date.now().toString(36)}`,
+		);
+		const sourceDir = path.join(tmpRoot, "source");
+		const targetDir = path.join(tmpRoot, "target");
+		const parentDir = path.dirname(targetDir);
+
+		await mkdir(sourceDir, { recursive: true });
+		await writeFile(path.join(sourceDir, "README.md"), "hello", "utf8");
+
+		await applyTargetDir({
+			sourceDir,
+			targetDir,
+			mode: "symlink",
+		});
+
+		const linkTarget = await readlink(targetDir);
+		assert.equal(linkTarget, path.relative(parentDir, sourceDir));
+	},
+);
