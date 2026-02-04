@@ -289,28 +289,59 @@ const patternHasGlob = (pattern: string) =>
 const normalizeSparsePatterns = (include?: string[]) =>
 	(include ?? []).map((pattern) => pattern.replace(/\\/g, "/")).filter(Boolean);
 
+const isDirectoryLiteral = (pattern: string) => {
+	if (pattern.endsWith("/")) {
+		return true;
+	}
+	const base = pattern.split("/").pop() ?? "";
+	return !base.includes(".");
+};
+
+const toNoConePattern = (pattern: string) => {
+	if (!patternHasGlob(pattern) && isDirectoryLiteral(pattern)) {
+		return pattern.endsWith("/") ? pattern : `${pattern}/`;
+	}
+	return pattern;
+};
+
 const resolveSparseSpec = (include?: string[]) => {
 	const normalized = normalizeSparsePatterns(include);
 	if (normalized.length === 0) {
 		return { enabled: false, mode: "cone" as const, patterns: [] as string[] };
 	}
-	const hasDoubleStar = normalized.some((pattern) => pattern.includes("**"));
-	const hasLiteral = normalized.some((pattern) => !patternHasGlob(pattern));
-	if (hasDoubleStar || hasLiteral) {
-		return { enabled: true, mode: "no-cone" as const, patterns: normalized };
+	const conePaths: string[] = [];
+	let coneEligible = true;
+	for (const pattern of normalized) {
+		if (pattern.includes("**")) {
+			coneEligible = false;
+			break;
+		}
+		if (!patternHasGlob(pattern)) {
+			if (isDirectoryLiteral(pattern)) {
+				conePaths.push(pattern.replace(/\/+$/, ""));
+				continue;
+			}
+			coneEligible = false;
+			break;
+		}
+		const globIndex = pattern.search(/[*?[]/);
+		const base = globIndex === -1 ? pattern : pattern.slice(0, globIndex);
+		const trimmed = base.replace(/\/+$/, "");
+		if (!trimmed) {
+			coneEligible = false;
+			break;
+		}
+		conePaths.push(trimmed);
 	}
-	const paths = normalized.map((pattern) => {
-		const starIndex = pattern.indexOf("*");
-		const base = starIndex === -1 ? pattern : pattern.slice(0, starIndex);
-		return base.replace(/\/+$|\/$/, "");
-	});
-	const uniquePaths = Array.from(
-		new Set(paths.filter((value) => value.length > 0)),
-	);
-	if (uniquePaths.length === 0) {
-		return { enabled: true, mode: "no-cone" as const, patterns: normalized };
+	const uniquePaths = Array.from(new Set(conePaths.filter(Boolean)));
+	if (coneEligible && uniquePaths.length > 0) {
+		return { enabled: true, mode: "cone" as const, patterns: uniquePaths };
 	}
-	return { enabled: true, mode: "cone" as const, patterns: uniquePaths };
+	return {
+		enabled: true,
+		mode: "no-cone" as const,
+		patterns: normalized.map(toNoConePattern),
+	};
 };
 
 const cloneRepo = async (params: FetchParams, outDir: string) => {
