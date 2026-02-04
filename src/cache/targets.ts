@@ -69,7 +69,11 @@ export const applyTargetDir = async (params: TargetParams) => {
 
 	const type = process.platform === "win32" ? "junction" : "dir";
 	try {
-		await deps.symlink(sourceDir, params.targetDir, type);
+		const linkTarget =
+			process.platform === "win32"
+				? sourceDir
+				: path.relative(parentDir, sourceDir);
+		await deps.symlink(linkTarget, params.targetDir, type);
 	} catch (error) {
 		const code = getErrnoCode(error);
 		const fallbackCodes = new Set(["EPERM", "EACCES", "ENOTSUP", "EINVAL"]);
