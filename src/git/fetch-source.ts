@@ -316,22 +316,16 @@ const resolveSparseSpec = (include?: string[]) => {
 			coneEligible = false;
 			break;
 		}
-		if (!patternHasGlob(pattern)) {
-			if (isDirectoryLiteral(pattern)) {
-				conePaths.push(pattern.replace(/\/+$/, ""));
-				continue;
-			}
+		if (patternHasGlob(pattern)) {
 			coneEligible = false;
 			break;
 		}
-		const globIndex = pattern.search(/[*?[]/);
-		const base = globIndex === -1 ? pattern : pattern.slice(0, globIndex);
-		const trimmed = base.replace(/\/+$/, "");
-		if (!trimmed) {
-			coneEligible = false;
-			break;
+		if (isDirectoryLiteral(pattern)) {
+			conePaths.push(pattern.replace(/\/+$/, ""));
+			continue;
 		}
-		conePaths.push(trimmed);
+		coneEligible = false;
+		break;
 	}
 	const uniquePaths = Array.from(new Set(conePaths.filter(Boolean)));
 	if (coneEligible && uniquePaths.length > 0) {
