@@ -33,7 +33,7 @@ test("config rejects source ID with path traversal characters", async () => {
 	});
 	await assert.rejects(
 		() => loadConfig(configPath),
-		/sources\[0\]\.id|alphanumeric/i,
+		/sources\.0\.id|path separators|reserved characters/i,
 	);
 });
 
@@ -46,7 +46,7 @@ test("config rejects source ID with special characters", async () => {
 		});
 		await assert.rejects(
 			() => loadConfig(configPath),
-			/sources\[0\]\.id|alphanumeric/i,
+			/sources\.0\.id|path separators|reserved characters/i,
 		);
 	}
 });
@@ -126,10 +126,7 @@ test("config rejects whitespace-only ID", async () => {
 	const configPath = await writeConfig({
 		sources: [{ id: "   ", repo: "https://github.com/example/repo.git" }],
 	});
-	await assert.rejects(
-		() => loadConfig(configPath),
-		/sources\[0\]\.id|alphanumeric/i,
-	);
+	await assert.rejects(() => loadConfig(configPath), /sources\.0\.id|blank/i);
 });
 
 test("config rejects empty repo URL", async () => {

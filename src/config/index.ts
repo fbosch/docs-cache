@@ -39,7 +39,7 @@ export const DEFAULT_CONFIG: DocsCacheConfig = {
 		ignoreHidden: false,
 		allowHosts: ["github.com", "gitlab.com", "visualstudio.com"],
 		toc: true,
-		unwrapSingleRootDir: false,
+		unwrapSingleRootDir: true,
 	},
 	sources: [],
 } as const;

@@ -36,7 +36,7 @@ test("sourceId with forward slash is rejected", async () => {
 
 	await assert.rejects(
 		() => loadConfig(configPath),
-		/sources\[0\]\.id|alphanumeric/i,
+		/sources\.0\.id|path separators|reserved characters/i,
 	);
 });
 
@@ -47,7 +47,7 @@ test("sourceId with backslash is rejected", async () => {
 
 	await assert.rejects(
 		() => loadConfig(configPath),
-		/sources\[0\]\.id|alphanumeric/i,
+		/sources\.0\.id|path separators|reserved characters/i,
 	);
 });
 
@@ -72,8 +72,20 @@ test("source ID allows hyphen and underscore", async () => {
 	}
 });
 
-test("source ID rejects dots and at-signs", async () => {
+test("source ID allows dots and at-signs", async () => {
 	const ids = ["test.repo", "test@v1.0", "a.b", "a@b"];
+
+	for (const id of ids) {
+		const configPath = await writeConfig({
+			sources: [{ id, repo: "https://github.com/example/repo.git" }],
+		});
+		const { sources } = await loadConfig(configPath);
+		assert.equal(sources[0].id, id);
+	}
+});
+
+test("source ID rejects trailing dots or spaces", async () => {
+	const ids = ["repo.", "repo ", "repo..", "repo. "];
 
 	for (const id of ids) {
 		const configPath = await writeConfig({
@@ -81,8 +93,19 @@ test("source ID rejects dots and at-signs", async () => {
 		});
 		await assert.rejects(
 			() => loadConfig(configPath),
-			/sources\[0\]\.id|alphanumeric/i,
+			/sources\.0\.id|dots or spaces/i,
 		);
+	}
+});
+
+test("source ID rejects reserved names", async () => {
+	const ids = ["CON", "AUX", "NUL", "PRN"];
+
+	for (const id of ids) {
+		const configPath = await writeConfig({
+			sources: [{ id, repo: "https://github.com/example/repo.git" }],
+		});
+		await assert.rejects(() => loadConfig(configPath), /reserved name/i);
 	}
 });
 

@@ -197,12 +197,7 @@ test("sync decodes percent-encoded include patterns", async () => {
 		},
 	);
 
-	const materializedPath = path.join(
-		cacheDir,
-		"local",
-		decodedDir,
-		"README.md",
-	);
+	const materializedPath = path.join(cacheDir, "local", "README.md");
 	assert.equal(await readFile(materializedPath, "utf8"), "hello");
 });
 
@@ -434,7 +429,6 @@ test("sync target can unwrap single root directory", async () => {
 				id: "local",
 				repo: "https://example.com/repo.git",
 				include: ["17/umbraco-forms/**"],
-				unwrapSingleRootDir: true,
 			},
 		],
 	};
@@ -529,6 +523,7 @@ test("sync re-materializes when unwrapSingleRootDir changes", async () => {
 
 	await writeConfigWithUnwrap(false);
 	await run();
+	assert.equal(await exists(path.join(cacheDir, "local", "README.md")), false);
 	assert.equal(
 		await exists(
 			path.join(cacheDir, "local", "17", "umbraco-forms", "README.md"),
