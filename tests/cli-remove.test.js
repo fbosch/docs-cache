@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { access, readFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -130,4 +130,23 @@ test("remove accepts repo shorthands", async () => {
 	const raw = await readFile(tmpPath, "utf8");
 	const config = JSON.parse(raw);
 	assert.equal(config.sources.length, 0);
+});
+
+test("remove errors when package.json lacks docs-cache", async () => {
+	const tmpRoot = path.join(tmpdir(), `docs-cache-pkg-${Date.now()}`);
+	const packagePath = path.join(tmpRoot, "package.json");
+	await mkdir(tmpRoot, { recursive: true });
+	await writeFile(packagePath, JSON.stringify({ name: "docs-cache" }), "utf8");
+	await assert.rejects(
+		execFileAsync("node", [
+			"bin/docs-cache.mjs",
+			"remove",
+			"--config",
+			packagePath,
+			"nixos",
+		]),
+		(error) =>
+			error instanceof Error &&
+			error.message.includes("Missing docs-cache config"),
+	);
 });

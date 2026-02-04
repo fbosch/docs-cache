@@ -66,6 +66,9 @@ export const removeSources = async (params: {
 	const target = await resolveConfigTarget(params.configPath);
 	const resolvedPath = target.resolvedPath;
 	const { config, rawConfig, rawPackage } = await readConfigAtPath(target);
+	if (target.mode === "package" && !rawConfig) {
+		throw new Error(`Missing docs-cache config in ${resolvedPath}.`);
+	}
 	const { idsToRemove, missing } = resolveIdsToRemove(params.ids, config);
 	const remaining = config.sources.filter(
 		(source) => !idsToRemove.has(source.id),
