@@ -304,10 +304,14 @@ const toNoConePattern = (pattern: string) => {
 	return pattern;
 };
 
-const resolveSparseSpec = (include?: string[]) => {
+type SparseSpec =
+	| { enabled: false; mode: "cone"; patterns: string[] }
+	| { enabled: true; mode: "cone" | "no-cone"; patterns: string[] };
+
+const resolveSparseSpec = (include?: string[]): SparseSpec => {
 	const normalized = normalizeSparsePatterns(include);
 	if (normalized.length === 0) {
-		return { enabled: false, mode: "cone" as const, patterns: [] as string[] };
+		return { enabled: false, mode: "cone", patterns: [] };
 	}
 	const conePaths: string[] = [];
 	let coneEligible = true;
@@ -329,11 +333,11 @@ const resolveSparseSpec = (include?: string[]) => {
 	}
 	const uniquePaths = Array.from(new Set(conePaths.filter(Boolean)));
 	if (coneEligible && uniquePaths.length > 0) {
-		return { enabled: true, mode: "cone" as const, patterns: uniquePaths };
+		return { enabled: true, mode: "cone", patterns: uniquePaths };
 	}
 	return {
 		enabled: true,
-		mode: "no-cone" as const,
+		mode: "no-cone",
 		patterns: normalized.map(toNoConePattern),
 	};
 };
