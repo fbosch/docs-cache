@@ -84,6 +84,31 @@ test("source ID allows dots and at-signs", async () => {
 	}
 });
 
+test("source ID rejects trailing dots or spaces", async () => {
+	const ids = ["repo.", "repo ", "repo..", "repo. "];
+
+	for (const id of ids) {
+		const configPath = await writeConfig({
+			sources: [{ id, repo: "https://github.com/example/repo.git" }],
+		});
+		await assert.rejects(
+			() => loadConfig(configPath),
+			/sources\.0\.id|dots or spaces/i,
+		);
+	}
+});
+
+test("source ID rejects reserved names", async () => {
+	const ids = ["CON", "AUX", "NUL", "PRN"];
+
+	for (const id of ids) {
+		const configPath = await writeConfig({
+			sources: [{ id, repo: "https://github.com/example/repo.git" }],
+		});
+		await assert.rejects(() => loadConfig(configPath), /reserved name/i);
+	}
+});
+
 test("targetDir with absolute path is rejected", async () => {
 	const configPath = await writeConfig({
 		sources: [
