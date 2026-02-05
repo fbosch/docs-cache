@@ -12,12 +12,6 @@ const buildGitEnv = (): NodeJS.ProcessEnv => {
 	const pathExtValue =
 		process.env.PATHEXT ??
 		(process.platform === "win32" ? ".COM;.EXE;.BAT;.CMD" : undefined);
-	const gitConfigGlobal =
-		process.platform === "win32"
-			? process.env.SYSTEMROOT
-				? `${process.env.SYSTEMROOT}\\nul`
-				: "C:\\nul"
-			: "/dev/null";
 	return {
 		...process.env,
 		...(pathValue ? { PATH: pathValue, Path: pathValue } : {}),
@@ -37,7 +31,7 @@ const buildGitEnv = (): NodeJS.ProcessEnv => {
 		NO_PROXY: process.env.NO_PROXY,
 		GIT_TERMINAL_PROMPT: "0",
 		GIT_CONFIG_NOSYSTEM: "1",
-		GIT_CONFIG_GLOBAL: gitConfigGlobal,
+		GIT_CONFIG_GLOBAL: "/dev/null",
 		...(process.platform === "win32" ? {} : { GIT_ASKPASS: "/bin/false" }),
 	};
 };
