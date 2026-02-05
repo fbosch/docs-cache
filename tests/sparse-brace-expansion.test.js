@@ -97,7 +97,9 @@ test("sync expands brace patterns for git sparse-checkout", async () => {
 	const previousPathExt = process.env.PATHEXT;
 	const previousGitDir = process.env.DOCS_CACHE_GIT_DIR;
 	const nextPath =
-		process.platform === "win32" ? binDir : `${binDir}:${previousPath ?? ""}`;
+		process.platform === "win32"
+			? `${binDir};${previousPath ?? ""}`
+			: `${binDir}:${previousPath ?? ""}`;
 	const nextPathExt =
 		process.platform === "win32" ? ".CMD;.BAT;.EXE;.COM" : previousPathExt;
 
@@ -199,7 +201,9 @@ test("sync expands default brace pattern when no include specified", async () =>
 	const previousPathExt = process.env.PATHEXT;
 	const previousGitDir = process.env.DOCS_CACHE_GIT_DIR;
 	const nextPath =
-		process.platform === "win32" ? binDir : `${binDir}:${previousPath ?? ""}`;
+		process.platform === "win32"
+			? `${binDir};${previousPath ?? ""}`
+			: `${binDir}:${previousPath ?? ""}`;
 	const nextPathExt =
 		process.platform === "win32" ? ".CMD;.BAT;.EXE;.COM" : previousPathExt;
 
