@@ -264,12 +264,12 @@ const expandBracePattern = (pattern: string): string[] => {
 	const expand = (value: string) => {
 		const braceMatch = value.match(/^(.*?){([^}]+)}(.*)$/);
 		if (!braceMatch) {
-			results.push(value);
-			if (results.length > MAX_BRACE_EXPANSIONS) {
+			if (results.length >= MAX_BRACE_EXPANSIONS) {
 				throw new Error(
 					`Brace expansion exceeded ${MAX_BRACE_EXPANSIONS} patterns for '${pattern}'.`,
 				);
 			}
+			results.push(value);
 			return;
 		}
 		const [, prefix, values, suffix] = braceMatch;
@@ -278,12 +278,12 @@ const expandBracePattern = (pattern: string): string[] => {
 			.map((entry) => entry.trim())
 			.filter((entry) => entry.length > 0);
 		if (valueList.length === 0) {
-			results.push(value);
-			if (results.length > MAX_BRACE_EXPANSIONS) {
+			if (results.length >= MAX_BRACE_EXPANSIONS) {
 				throw new Error(
 					`Brace expansion exceeded ${MAX_BRACE_EXPANSIONS} patterns for '${pattern}'.`,
 				);
 			}
+			results.push(value);
 			return;
 		}
 		for (const entry of valueList) {
