@@ -49,3 +49,18 @@ pnpm.
 - Files use kebab-case (e.g. `parse-args.ts`).
 - Types/interfaces use PascalCase; functions/variables use camelCase.
 - Use `index.ts` barrels for public entrypoints.
+
+## Review guidelines
+
+When implementing PR feedback or making changes for review:
+
+- **Run all checks before pushing**: `pnpm build && pnpm test && pnpm typecheck && pnpm lint`
+- **Test cross-platform compatibility**: Windows CI often catches issues Linux doesn't
+- **Keep commits focused**: One logical change per commit with clear messages
+- **Avoid premature extraction**: Only extract shared code when you have 2+ actual uses
+- **Document edge cases**: Add comments explaining non-obvious behavior or workarounds
+- **Test git operations carefully**: Use `DOCS_CACHE_GIT_COMMAND` env var to override git path in tests
+- **Preserve existing test patterns**: Follow the style and structure of existing test files
+- **Check for regex gotchas**: Use non-greedy `.*?` instead of greedy `.*` when appropriate
+- **Validate input limits**: Add safety checks (like `MAX_BRACE_EXPANSIONS`) for user-controlled expansion
+- **Update documentation**: Ensure README reflects new features and limitations
