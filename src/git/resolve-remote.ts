@@ -1,9 +1,6 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { execa } from "execa";
 import { buildGitEnv, resolveGitCommand } from "#git/git-env";
 import { redactRepoUrl } from "#git/redact";
-
-const execFileAsync = promisify(execFile);
 
 const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
 
@@ -84,7 +81,7 @@ export const resolveRemoteCommit = async (params: ResolveRemoteParams) => {
 
 	const repoLabel = redactRepoUrl(params.repo);
 	params.logger?.(`git ls-remote ${repoLabel} ${params.ref}`);
-	const { stdout } = await execFileAsync(
+	const { stdout } = await execa(
 		resolveGitCommand(),
 		["ls-remote", params.repo, params.ref],
 		{
