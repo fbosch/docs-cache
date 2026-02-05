@@ -9,7 +9,7 @@ import { execa } from "execa";
 import { getErrnoCode } from "#core/errors";
 import { assertSafeSourceId } from "#core/source-id";
 import { exists, resolveGitCacheDir } from "#git/cache-dir";
-import { buildGitEnv } from "#git/git-env";
+import { buildGitEnv, resolveGitCommand } from "#git/git-env";
 
 const DEFAULT_TIMEOUT_MS = 120000; // 120 seconds (2 minutes)
 const DEFAULT_GIT_DEPTH = 1;
@@ -113,7 +113,7 @@ const git = async (
 	);
 	const commandLabel = `git ${commandArgs.join(" ")}`;
 	options?.logger?.(commandLabel);
-	const subprocess = execa("git", commandArgs, {
+	const subprocess = execa(resolveGitCommand(), commandArgs, {
 		cwd: options?.cwd,
 		timeout: options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
 		maxBuffer: 10 * 1024 * 1024,

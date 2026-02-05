@@ -95,11 +95,18 @@ const withModifiedPath = async (binDir, gitCacheRoot, fn) => {
 		Path: process.env.Path,
 		PATHEXT: process.env.PATHEXT,
 		DOCS_CACHE_GIT_DIR: process.env.DOCS_CACHE_GIT_DIR,
+		DOCS_CACHE_GIT_COMMAND: process.env.DOCS_CACHE_GIT_COMMAND,
 	};
 	const previousPath = process.env.PATH ?? process.env.Path;
 	const nextPath = previousPath
 		? `${binDir}${path.delimiter}${previousPath}`
 		: binDir;
+
+	// On Windows, use absolute path to git.cmd to avoid resolution issues
+	const gitCommand =
+		process.platform === "win32"
+			? path.join(binDir, "git.cmd")
+			: path.join(binDir, "git");
 
 	process.env.PATH = nextPath;
 	process.env.Path = nextPath;
@@ -107,6 +114,7 @@ const withModifiedPath = async (binDir, gitCacheRoot, fn) => {
 		process.env.PATHEXT = ".CMD;.BAT;.EXE;.COM";
 	}
 	process.env.DOCS_CACHE_GIT_DIR = gitCacheRoot;
+	process.env.DOCS_CACHE_GIT_COMMAND = gitCommand;
 
 	try {
 		return await fn();
@@ -115,6 +123,7 @@ const withModifiedPath = async (binDir, gitCacheRoot, fn) => {
 		process.env.Path = saved.Path;
 		process.env.PATHEXT = saved.PATHEXT;
 		process.env.DOCS_CACHE_GIT_DIR = saved.DOCS_CACHE_GIT_DIR;
+		process.env.DOCS_CACHE_GIT_COMMAND = saved.DOCS_CACHE_GIT_COMMAND;
 	}
 };
 

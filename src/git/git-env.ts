@@ -1,3 +1,12 @@
+const resolveGitCommand = (): string => {
+	// Allow tests to override git command path
+	const override = process.env.DOCS_CACHE_GIT_COMMAND;
+	if (override) {
+		return override;
+	}
+	return "git";
+};
+
 const buildGitEnv = (): NodeJS.ProcessEnv => {
 	const pathValue = process.env.PATH ?? process.env.Path;
 	const pathExtValue =
@@ -27,4 +36,4 @@ const buildGitEnv = (): NodeJS.ProcessEnv => {
 	};
 };
 
-export { buildGitEnv };
+export { buildGitEnv, resolveGitCommand };
