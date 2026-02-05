@@ -286,8 +286,28 @@ type CloneResult = {
 const patternHasGlob = (pattern: string) =>
 	pattern.includes("*") || pattern.includes("?") || pattern.includes("[");
 
-const normalizeSparsePatterns = (include?: string[]) =>
-	(include ?? []).map((pattern) => pattern.replace(/\\/g, "/")).filter(Boolean);
+const expandBracePattern = (pattern: string): string[] => {
+	// Match patterns like **/*.{md,mdx,txt}
+	const braceMatch = pattern.match(/^(.*)\.{([^}]+)}(.*)$/);
+	if (!braceMatch) {
+		return [pattern];
+	}
+	const [, prefix, extensions, suffix] = braceMatch;
+	const extList = extensions.split(",").map((ext) => ext.trim());
+	return extList.map((ext) => `${prefix}.${ext}${suffix}`);
+};
+
+const normalizeSparsePatterns = (include?: string[]) => {
+	const patterns = include ?? [];
+	const expanded: string[] = [];
+	for (const pattern of patterns) {
+		const normalized = pattern.replace(/\\/g, "/");
+		if (!normalized) continue;
+		// Expand brace patterns for git sparse-checkout compatibility
+		expanded.push(...expandBracePattern(normalized));
+	}
+	return expanded;
+};
 
 const isDirectoryLiteral = (pattern: string) => pattern.endsWith("/");
 
