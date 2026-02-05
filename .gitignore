@@ -12,3 +12,7 @@ coverage
 TODO.md
 .docs/
 benchmarks/
+
+*.md
+!AGENTS.md
+!README.md

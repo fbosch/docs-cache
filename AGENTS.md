@@ -14,6 +14,18 @@ pnpm.
 - Test: `pnpm test`
 - Typecheck: `pnpm typecheck`
 
+## Git workflow
+
+**IMPORTANT**: AI agents should NEVER commit or push changes without explicit user permission.
+
+- **DO NOT** run `git commit` or `git push` automatically
+- **DO NOT** create commits as part of completing a task
+- **ALWAYS** ask the user before committing or pushing
+- **ONLY** commit when the user explicitly requests it (e.g., "commit these changes", "push this to git")
+- After making changes, inform the user what was changed and let them decide when to commit
+
+The user maintains full control over git operations and commit history.
+
 ## Testing expectations
 
 - Add or update tests for behavior changes and bug fixes.
