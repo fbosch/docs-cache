@@ -100,9 +100,11 @@ These fields can be set in `defaults` and are inherited by every source unless o
 | `maxBytes`            | Maximum total bytes to materialize. Default: `200000000` (200 MB).                                                              |
 | `maxFiles`            | Maximum total files to materialize.                                                                                             |
 | `ignoreHidden`        | Skip hidden files and directories (dotfiles). Default: `false`.                                                                 |
-| `allowHosts`          | Allowed Git hosts. Default: `["github.com", "gitlab.com", "visualstudio.com"]`.                                                    |
+| `allowHosts`          | Allowed Git hosts. Default: `["github.com", "gitlab.com", "visualstudio.com"]`.                                                 |
 | `toc`                 | Generate per-source `TOC.md`. Default: `true`. Supports `true`, `false`, or a format: `"tree"` (human readable), `"compressed"` |
 | `unwrapSingleRootDir` | If the materialized output is nested under a single directory, unwrap it (recursively). Default: `true`.                        |
+
+> Brace expansion in `include` supports comma-separated lists (including multiple groups) like `**/*.{md,mdx}` and is capped at 500 expanded patterns per include entry. It does not support nested braces or numeric ranges.
 
 ### Source options
 

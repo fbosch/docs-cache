@@ -58,11 +58,8 @@ process.exit(0);
 	await writeFile(cmdPath, cmdPayload, "utf8");
 };
 
-test("sync expands brace patterns for git sparse-checkout", async () => {
-	const tmpRoot = path.join(
-		tmpdir(),
-		`docs-cache-brace-${Date.now().toString(36)}`,
-	);
+const createTestContext = async (label) => {
+	const tmpRoot = path.join(tmpdir(), `${label}-${Date.now().toString(36)}`);
 	const binDir = path.join(tmpRoot, "bin");
 	const logPath = path.join(tmpRoot, "git.log");
 	const cacheDir = path.join(tmpRoot, ".docs");
@@ -76,6 +73,65 @@ test("sync expands brace patterns for git sparse-checkout", async () => {
 	await mkdir(cachePath, { recursive: true });
 	await writeGitShim(binDir, logPath);
 	await writeFile(logPath, "", "utf8");
+
+	const cleanup = async () => {
+		await rm(tmpRoot, { recursive: true, force: true });
+	};
+
+	return {
+		binDir,
+		logPath,
+		cacheDir,
+		configPath,
+		gitCacheRoot,
+		repo,
+		cleanup,
+	};
+};
+
+const withModifiedPath = async (binDir, gitCacheRoot, fn) => {
+	const saved = {
+		PATH: process.env.PATH,
+		Path: process.env.Path,
+		PATHEXT: process.env.PATHEXT,
+		DOCS_CACHE_GIT_DIR: process.env.DOCS_CACHE_GIT_DIR,
+	};
+	const previousPath = process.env.PATH ?? process.env.Path;
+	const nextPath = previousPath
+		? `${binDir}${path.delimiter}${previousPath}`
+		: binDir;
+
+	process.env.PATH = nextPath;
+	process.env.Path = nextPath;
+	if (process.platform === "win32") {
+		process.env.PATHEXT = ".CMD;.BAT;.EXE;.COM";
+	}
+	process.env.DOCS_CACHE_GIT_DIR = gitCacheRoot;
+
+	try {
+		return await fn();
+	} finally {
+		process.env.PATH = saved.PATH;
+		process.env.Path = saved.Path;
+		process.env.PATHEXT = saved.PATHEXT;
+		process.env.DOCS_CACHE_GIT_DIR = saved.DOCS_CACHE_GIT_DIR;
+	}
+};
+
+const getSparsePatterns = (args) => {
+	const patternIndex = args.indexOf("set");
+	if (patternIndex === -1) return [];
+	const noConeIndex = args.indexOf("--no-cone");
+	const patternsStart =
+		noConeIndex !== -1 && noConeIndex > patternIndex
+			? noConeIndex + 1
+			: patternIndex + 1;
+	return args.slice(patternsStart).filter((arg) => !arg.startsWith("--"));
+};
+
+test("sync expands brace patterns for git sparse-checkout", async () => {
+	const { binDir, logPath, cacheDir, configPath, gitCacheRoot, repo, cleanup } =
+		await createTestContext("docs-cache-brace");
 
 	const config = {
 		$schema:
@@ -93,29 +149,16 @@ test("sync expands brace patterns for git sparse-checkout", async () => {
 	};
 	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 
-	const previousPath = process.env.PATH ?? process.env.Path;
-	const previousPathExt = process.env.PATHEXT;
-	const previousGitDir = process.env.DOCS_CACHE_GIT_DIR;
-	const nextPath =
-		process.platform === "win32"
-			? `${binDir};${previousPath ?? ""}`
-			: `${binDir}:${previousPath ?? ""}`;
-	const nextPathExt =
-		process.platform === "win32" ? ".CMD;.BAT;.EXE;.COM" : previousPathExt;
-
-	process.env.PATH = nextPath;
-	process.env.Path = nextPath;
-	process.env.PATHEXT = nextPathExt;
-	process.env.DOCS_CACHE_GIT_DIR = gitCacheRoot;
-
 	try {
-		await runSync({
-			configPath,
-			cacheDirOverride: cacheDir,
-			json: false,
-			lockOnly: false,
-			offline: false,
-			failOnMiss: false,
+		await withModifiedPath(binDir, gitCacheRoot, async () => {
+			await runSync({
+				configPath,
+				cacheDirOverride: cacheDir,
+				json: false,
+				lockOnly: false,
+				offline: false,
+				failOnMiss: false,
+			});
 		});
 
 		const logRaw = await readFile(logPath, "utf8");
@@ -139,9 +182,7 @@ test("sync expands brace patterns for git sparse-checkout", async () => {
 		const hasExpandedPatterns = sparseArgs.some((args) => {
 			// Should have expanded **/*.{md,mdx,txt} into:
 			// **/*.md, **/*.mdx, **/*.txt
-			const patternIndex = args.indexOf("set");
-			if (patternIndex === -1) return false;
-			const patterns = args.slice(patternIndex + 2); // skip "set" and "--no-cone"
+			const patterns = getSparsePatterns(args);
 			return (
 				patterns.includes("**/*.md") &&
 				patterns.includes("**/*.mdx") &&
@@ -154,32 +195,13 @@ test("sync expands brace patterns for git sparse-checkout", async () => {
 			`Expected brace patterns to be expanded. Got: ${JSON.stringify(sparseArgs, null, 2)}`,
 		);
 	} finally {
-		process.env.PATH = previousPath;
-		process.env.Path = previousPath;
-		process.env.PATHEXT = previousPathExt;
-		process.env.DOCS_CACHE_GIT_DIR = previousGitDir;
-		await rm(tmpRoot, { recursive: true, force: true });
+		await cleanup();
 	}
 });
 
 test("sync expands default brace pattern when no include specified", async () => {
-	const tmpRoot = path.join(
-		tmpdir(),
-		`docs-cache-default-brace-${Date.now().toString(36)}`,
-	);
-	const binDir = path.join(tmpRoot, "bin");
-	const logPath = path.join(tmpRoot, "git.log");
-	const cacheDir = path.join(tmpRoot, ".docs");
-	const configPath = path.join(tmpRoot, "docs.config.json");
-	const gitCacheRoot = path.join(tmpRoot, "git-cache");
-	const repo = "https://example.com/repo.git";
-	const repoHash = hashRepoUrl(repo);
-	const cachePath = path.join(gitCacheRoot, repoHash);
-
-	await mkdir(binDir, { recursive: true });
-	await mkdir(cachePath, { recursive: true });
-	await writeGitShim(binDir, logPath);
-	await writeFile(logPath, "", "utf8");
+	const { binDir, logPath, cacheDir, configPath, gitCacheRoot, repo, cleanup } =
+		await createTestContext("docs-cache-default-brace");
 
 	const config = {
 		$schema:
@@ -197,29 +219,16 @@ test("sync expands default brace pattern when no include specified", async () =>
 	};
 	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 
-	const previousPath = process.env.PATH ?? process.env.Path;
-	const previousPathExt = process.env.PATHEXT;
-	const previousGitDir = process.env.DOCS_CACHE_GIT_DIR;
-	const nextPath =
-		process.platform === "win32"
-			? `${binDir};${previousPath ?? ""}`
-			: `${binDir}:${previousPath ?? ""}`;
-	const nextPathExt =
-		process.platform === "win32" ? ".CMD;.BAT;.EXE;.COM" : previousPathExt;
-
-	process.env.PATH = nextPath;
-	process.env.Path = nextPath;
-	process.env.PATHEXT = nextPathExt;
-	process.env.DOCS_CACHE_GIT_DIR = gitCacheRoot;
-
 	try {
-		await runSync({
-			configPath,
-			cacheDirOverride: cacheDir,
-			json: false,
-			lockOnly: false,
-			offline: false,
-			failOnMiss: false,
+		await withModifiedPath(binDir, gitCacheRoot, async () => {
+			await runSync({
+				configPath,
+				cacheDirOverride: cacheDir,
+				json: false,
+				lockOnly: false,
+				offline: false,
+				failOnMiss: false,
+			});
 		});
 
 		const logRaw = await readFile(logPath, "utf8");
@@ -241,9 +250,7 @@ test("sync expands default brace pattern when no include specified", async () =>
 		// Check that default brace pattern was expanded
 		const sparseArgs = sparseCheckoutCalls.map((call) => JSON.parse(call));
 		const hasExpandedDefaults = sparseArgs.some((args) => {
-			const patternIndex = args.indexOf("set");
-			if (patternIndex === -1) return false;
-			const patterns = args.slice(patternIndex + 2);
+			const patterns = getSparsePatterns(args);
 			// Default is **/*.{md,mdx,markdown,mkd,txt,rst,adoc,asciidoc}
 			return (
 				patterns.includes("**/*.md") &&
@@ -258,10 +265,6 @@ test("sync expands default brace pattern when no include specified", async () =>
 			`Expected default brace patterns to be expanded. Got: ${JSON.stringify(sparseArgs, null, 2)}`,
 		);
 	} finally {
-		process.env.PATH = previousPath;
-		process.env.Path = previousPath;
-		process.env.PATHEXT = previousPathExt;
-		process.env.DOCS_CACHE_GIT_DIR = previousGitDir;
-		await rm(tmpRoot, { recursive: true, force: true });
+		await cleanup();
 	}
 });

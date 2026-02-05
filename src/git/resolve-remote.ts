@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-
+import { buildGitEnv } from "#git/git-env";
 import { redactRepoUrl } from "#git/redact";
 
 const execFileAsync = promisify(execFile);
@@ -90,6 +90,7 @@ export const resolveRemoteCommit = async (params: ResolveRemoteParams) => {
 		{
 			timeout: params.timeoutMs ?? DEFAULT_TIMEOUT_MS,
 			maxBuffer: 1024 * 1024,
+			env: buildGitEnv(),
 		},
 	);
 

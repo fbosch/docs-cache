@@ -9,40 +9,13 @@ import { execa } from "execa";
 import { getErrnoCode } from "#core/errors";
 import { assertSafeSourceId } from "#core/source-id";
 import { exists, resolveGitCacheDir } from "#git/cache-dir";
+import { buildGitEnv } from "#git/git-env";
 
 const DEFAULT_TIMEOUT_MS = 120000; // 120 seconds (2 minutes)
 const DEFAULT_GIT_DEPTH = 1;
 const DEFAULT_RM_RETRIES = 3;
 const DEFAULT_RM_BACKOFF_MS = 100;
-
-const buildGitEnv = () => {
-	const pathValue = process.env.PATH ?? process.env.Path;
-	const pathExtValue =
-		process.env.PATHEXT ??
-		(process.platform === "win32" ? ".COM;.EXE;.BAT;.CMD" : undefined);
-	return {
-		...process.env,
-		...(pathValue ? { PATH: pathValue, Path: pathValue } : {}),
-		...(pathExtValue ? { PATHEXT: pathExtValue } : {}),
-		HOME: process.env.HOME,
-		USER: process.env.USER,
-		USERPROFILE: process.env.USERPROFILE,
-		TMPDIR: process.env.TMPDIR,
-		TMP: process.env.TMP,
-		TEMP: process.env.TEMP,
-		SYSTEMROOT: process.env.SYSTEMROOT,
-		WINDIR: process.env.WINDIR,
-		SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK,
-		SSH_AGENT_PID: process.env.SSH_AGENT_PID,
-		HTTP_PROXY: process.env.HTTP_PROXY,
-		HTTPS_PROXY: process.env.HTTPS_PROXY,
-		NO_PROXY: process.env.NO_PROXY,
-		GIT_TERMINAL_PROMPT: "0",
-		GIT_CONFIG_NOSYSTEM: "1",
-		GIT_CONFIG_NOGLOBAL: "1",
-		...(process.platform === "win32" ? {} : { GIT_ASKPASS: "/bin/false" }),
-	};
-};
+const MAX_BRACE_EXPANSIONS = 500;
 
 const buildGitConfigs = (allowFileProtocol?: boolean) => [
 	"-c",
@@ -287,14 +260,40 @@ const patternHasGlob = (pattern: string) =>
 	pattern.includes("*") || pattern.includes("?") || pattern.includes("[");
 
 const expandBracePattern = (pattern: string): string[] => {
-	// Match patterns like **/*.{md,mdx,txt}
-	const braceMatch = pattern.match(/^(.*)\.{([^}]+)}(.*)$/);
-	if (!braceMatch) {
-		return [pattern];
-	}
-	const [, prefix, extensions, suffix] = braceMatch;
-	const extList = extensions.split(",").map((ext) => ext.trim());
-	return extList.map((ext) => `${prefix}.${ext}${suffix}`);
+	const results: string[] = [];
+	const expand = (value: string) => {
+		const braceMatch = value.match(/^(.*?){([^}]+)}(.*)$/);
+		if (!braceMatch) {
+			results.push(value);
+			if (results.length > MAX_BRACE_EXPANSIONS) {
+				throw new Error(
+					`Brace expansion exceeded ${MAX_BRACE_EXPANSIONS} patterns for '${pattern}'.`,
+				);
+			}
+			return;
+		}
+		const [, prefix, values, suffix] = braceMatch;
+		const valueList = values
+			.split(",")
+			.map((entry) => entry.trim())
+			.filter((entry) => entry.length > 0);
+		if (valueList.length === 0) {
+			results.push(value);
+			if (results.length > MAX_BRACE_EXPANSIONS) {
+				throw new Error(
+					`Brace expansion exceeded ${MAX_BRACE_EXPANSIONS} patterns for '${pattern}'.`,
+				);
+			}
+			return;
+		}
+		for (const entry of valueList) {
+			const expandedPattern = `${prefix}${entry}${suffix}`;
+			expand(expandedPattern);
+		}
+	};
+
+	expand(pattern);
+	return results;
 };
 
 const normalizeSparsePatterns = (include?: string[]) => {
