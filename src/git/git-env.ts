@@ -31,7 +31,7 @@ const buildGitEnv = (): NodeJS.ProcessEnv => {
 		NO_PROXY: process.env.NO_PROXY,
 		GIT_TERMINAL_PROMPT: "0",
 		GIT_CONFIG_NOSYSTEM: "1",
-		GIT_CONFIG_GLOBAL: "/dev/null",
+		GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null",
 		...(process.platform === "win32" ? {} : { GIT_ASKPASS: "/bin/false" }),
 	};
 };
