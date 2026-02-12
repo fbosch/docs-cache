@@ -14,6 +14,7 @@ Usage: ${CLI_NAME} <command> [options]
 Commands:
   add         Add sources to the config (supports github:org/repo#ref)
   remove      Remove sources from the config and targets
+  pin         Pin source refs to current commits
   sync        Synchronize cache with config
   status      Show cache status
   clean       Remove project cache
@@ -25,6 +26,8 @@ Commands:
 Global options:
   --config <path>
   --cache-dir <path>
+  --all
+  --dry-run
   --offline
   --fail-on-miss
   --lock-only
@@ -39,6 +42,10 @@ Add options:
   --target <dir>
   --target-dir <path>
   --id <id>
+
+Pin options:
+  --all
+  --dry-run
 `;
 
 const printHelp = () => {
@@ -152,6 +159,48 @@ const runRemove = async (
 			json: options.json,
 		});
 	}
+};
+
+const runPin = async (parsed: Extract<CliCommand, { command: "pin" }>) => {
+	const options = parsed.options;
+	if (options.offline) {
+		throw new Error("Pin does not support --offline.");
+	}
+	if (!options.all && parsed.ids.length === 0) {
+		throw new Error("Usage: docs-cache pin <id...> [--all]");
+	}
+	const { pinSources } = await import("#commands/pin");
+	const result = await pinSources({
+		configPath: options.config,
+		ids: parsed.ids,
+		all: options.all,
+		dryRun: options.dryRun,
+		timeoutMs: options.timeoutMs,
+	});
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+		return;
+	}
+	for (const entry of result.updated) {
+		ui.item(symbols.success, entry.id, `${entry.fromRef} -> ${entry.toRef}`);
+	}
+	for (const id of result.unchanged) {
+		ui.item(symbols.info, id, "already pinned");
+	}
+	if (result.missing.length > 0) {
+		ui.line(
+			`${symbols.warn} Missing ${result.missing.length} source${result.missing.length === 1 ? "" : "s"}: ${result.missing.join(", ")}`,
+		);
+	}
+	if (result.dryRun) {
+		ui.line(
+			`${symbols.info} Dry run: no changes written to ${pc.gray(path.relative(process.cwd(), result.configPath) || "docs.config.json")}`,
+		);
+		return;
+	}
+	ui.line(
+		`${symbols.info} Updated ${pc.gray(path.relative(process.cwd(), result.configPath) || "docs.config.json")}`,
+	);
 };
 
 const runStatus = async (
@@ -315,6 +364,9 @@ const runCommand = async (parsed: CliCommand) => {
 		case "remove":
 			await runRemove(parsed);
 			return;
+		case "pin":
+			await runPin(parsed);
+			return;
 		case "status":
 			await runStatus(parsed);
 			return;
@@ -368,6 +420,7 @@ export async function main(): Promise<void> {
 		if (
 			parsed.command !== "add" &&
 			parsed.command !== "remove" &&
+			parsed.command !== "pin" &&
 			parsed.positionals.length > 0
 		) {
 			printError(`${CLI_NAME}: unexpected arguments.`);

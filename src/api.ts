@@ -4,6 +4,7 @@ export { parseArgs } from "#cli/parse-args";
 export { cleanCache } from "#commands/clean";
 export { cleanGitCache } from "#commands/clean-git-cache";
 export { initConfig } from "#commands/init";
+export { pinSources } from "#commands/pin";
 export { pruneCache } from "#commands/prune";
 export { removeSources } from "#commands/remove";
 export { printSyncPlan, runSync } from "#commands/sync";

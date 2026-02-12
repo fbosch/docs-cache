@@ -36,6 +36,11 @@ npx docs-cache add framework/core framework/other-repo
 # Sync
 npx docs-cache sync
 
+# Pin current ref to commit SHA
+npx docs-cache pin core
+npx docs-cache pin --all
+npx docs-cache pin core --dry-run
+
 # Verify Integrity
 npx docs-cache verify
 

@@ -7,6 +7,7 @@ import type { AddEntry, CliCommand, CliOptions } from "./types";
 const COMMANDS = [
 	"add",
 	"remove",
+	"pin",
 	"sync",
 	"status",
 	"clean",
@@ -32,6 +33,7 @@ const ADD_ONLY_OPTIONS = new Set([
 	"--target-dir",
 	"--id",
 ]);
+const PIN_ONLY_OPTIONS = new Set(["--all", "--dry-run"]);
 const POSITIONAL_SKIP_OPTIONS = new Set([
 	"--config",
 	"--cache-dir",
@@ -203,9 +205,32 @@ const parsePositionals = (rawArgs: string[]) => {
 
 const assertAddOnlyOptions = (command: Command | null, rawArgs: string[]) => {
 	if (command === "add") {
+		for (const arg of rawArgs) {
+			if (PIN_ONLY_OPTIONS.has(arg)) {
+				throw new Error(`${arg} is only valid for pin.`);
+			}
+		}
+		return;
+	}
+	if (command === "pin") {
+		for (const arg of rawArgs) {
+			if (ADD_ONLY_OPTIONS.has(arg)) {
+				throw new Error(`${arg} is only valid for add.`);
+			}
+			if (!arg.startsWith("--")) {
+				continue;
+			}
+			const [flag] = arg.split("=");
+			if (ADD_ONLY_OPTIONS_WITH_VALUES.has(flag)) {
+				throw new Error(`${flag} is only valid for add.`);
+			}
+		}
 		return;
 	}
 	for (const arg of rawArgs) {
+		if (PIN_ONLY_OPTIONS.has(arg)) {
+			throw new Error(`${arg} is only valid for pin.`);
+		}
 		if (ADD_ONLY_OPTIONS.has(arg)) {
 			throw new Error(`${arg} is only valid for add.`);
 		}
@@ -227,6 +252,8 @@ const buildOptions = (result: ReturnType<ReturnType<typeof cac>["parse"]>) => {
 		failOnMiss: Boolean(result.options.failOnMiss),
 		lockOnly: Boolean(result.options.lockOnly),
 		prune: Boolean(result.options.prune),
+		all: Boolean(result.options.all),
+		dryRun: Boolean(result.options.dryRun),
 		concurrency: result.options.concurrency
 			? Number(result.options.concurrency)
 			: undefined,
@@ -294,6 +321,8 @@ const buildParsedCommand = (
 			};
 		case "remove":
 			return { command: "remove", ids: positionals, options };
+		case "pin":
+			return { command: "pin", ids: positionals, options };
 		case "sync":
 			return { command: "sync", options };
 		case "status":
@@ -320,6 +349,8 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 		cli
 			.option("--config <path>", "Path to config file")
 			.option("--cache-dir <path>", "Override cache directory")
+			.option("--all", "Apply command to all sources")
+			.option("--dry-run", "Preview changes without writing files")
 			.option("--offline", "Disable network access")
 			.option("--fail-on-miss", "Fail when required sources are missing")
 			.option("--lock-only", "Update lock without materializing files")
@@ -339,6 +370,7 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 			.option("--id <id>", "Source id");
 
 		cli.command("remove <id...>", "Remove sources from the config and targets");
+		cli.command("pin [id...]", "Pin source refs to current commit");
 		cli.command("sync", "Synchronize cache with config");
 		cli.command("status", "Show cache status");
 		cli.command("clean", "Remove project cache");
