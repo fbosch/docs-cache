@@ -200,8 +200,9 @@ test("pin normalizes whitespace around already pinned refs", async () => {
 		all: false,
 	});
 
-	assert.equal(result.updated.length, 0);
-	assert.equal(result.unchanged.length, 1);
+	assert.equal(result.updated.length, 1);
+	assert.equal(result.updated[0].id, "a");
+	assert.equal(result.unchanged.length, 0);
 	assert.equal(
 		result.pinned[0].toRef,
 		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -211,7 +212,7 @@ test("pin normalizes whitespace around already pinned refs", async () => {
 	const updated = JSON.parse(updatedRaw);
 	assert.equal(
 		updated.sources.find((source) => source.id === "a").ref,
-		"  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  ",
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	);
 });
 

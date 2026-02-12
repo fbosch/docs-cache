@@ -78,7 +78,7 @@ export const pinSources = async (params: PinParams, deps: PinDeps = {}) => {
 		if (isPinnedCommitRef(trimmedFromRef)) {
 			entriesById.set(source.id, {
 				id: source.id,
-				fromRef: trimmedFromRef,
+				fromRef,
 				toRef: trimmedFromRef,
 				repo: resolved.repo,
 			});
@@ -117,8 +117,7 @@ export const pinSources = async (params: PinParams, deps: PinDeps = {}) => {
 		if (!pin) {
 			return source;
 		}
-		const normalizedRef = source.ref?.trim();
-		if (normalizedRef === pin.toRef) {
+		if (source.ref === pin.toRef) {
 			return source;
 		}
 		return {
