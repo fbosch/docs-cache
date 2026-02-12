@@ -35,11 +35,17 @@ npx docs-cache add framework/core framework/other-repo
 
 # Sync
 npx docs-cache sync
+npx docs-cache sync core other-source
+npx docs-cache sync --frozen
 
 # Pin current ref to commit SHA
 npx docs-cache pin core
 npx docs-cache pin --all
 npx docs-cache pin core --dry-run
+
+# Update selected sources
+npx docs-cache update core
+npx docs-cache update --all --dry-run
 
 # Verify Integrity
 npx docs-cache verify
@@ -56,6 +62,29 @@ npx docs-cache clean
 ```
 
 > for more options: `npx docs-cache --help`
+
+## Recommended Workflow
+
+Use this flow to keep behavior predictable (similar to package manager manifest + lock workflows):
+
+1. Keep source intent in config (`ref: "main"`, `ref: "v1"`, or a commit SHA).
+2. Run `npx docs-cache update <id...>` (or `--all`) to refresh selected sources and lock data.
+3. Use `npx docs-cache sync --frozen` in CI to fail fast when lock data drifts.
+4. Use `npx docs-cache pin <id...>` only when you explicitly want to rewrite config refs to commit SHAs.
+
+## Command Patterns
+
+- `sync`
+  - `npx docs-cache sync` sync all sources.
+  - `npx docs-cache sync <id...>` sync only selected sources.
+  - `npx docs-cache sync --frozen` fail if resolved commits differ from the lock file.
+- `update`
+  - `npx docs-cache update <id...>` refresh selected sources and lock/materialized output.
+  - `npx docs-cache update --all` refresh all sources.
+  - `npx docs-cache update --dry-run` preview what would change without writing files.
+- `pin`
+  - `npx docs-cache pin <id...>` rewrite selected source `ref` values to resolved commit SHAs.
+  - `npx docs-cache pin --all --dry-run` preview pinning changes without rewriting config.
 
 ## Configuration
 

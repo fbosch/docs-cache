@@ -8,6 +8,7 @@ export { pinSources } from "#commands/pin";
 export { pruneCache } from "#commands/prune";
 export { removeSources } from "#commands/remove";
 export { printSyncPlan, runSync } from "#commands/sync";
+export { updateSources } from "#commands/update";
 export { verifyCache } from "#commands/verify";
 export { loadConfig } from "#config";
 export { redactRepoUrl } from "#git/redact";

@@ -193,6 +193,45 @@ test("parseArgs handles --dry-run flag for pin", async (t) => {
 	assert.equal(result.options.dryRun, true);
 });
 
+test("parseArgs handles update positional args", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs([
+		"node",
+		"docs-cache",
+		"update",
+		"source-a",
+		"source-b",
+		"--dry-run",
+	]);
+
+	assert.equal(result.command, "update");
+	assert.deepEqual(result.positionals, ["source-a", "source-b"]);
+	assert.equal(result.options.dryRun, true);
+});
+
+test("parseArgs handles sync source filters and frozen", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs([
+		"node",
+		"docs-cache",
+		"sync",
+		"source-a",
+		"--frozen",
+	]);
+
+	assert.equal(result.command, "sync");
+	assert.deepEqual(result.positionals, ["source-a"]);
+	assert.equal(result.options.frozen, true);
+});
+
 test("parseArgs silent flag defaults to false", async (t) => {
 	const module = await loadCliModule();
 	if (!module) {

@@ -15,6 +15,7 @@ Commands:
   add         Add sources to the config (supports github:org/repo#ref)
   remove      Remove sources from the config and targets
   pin         Pin source refs to current commits
+  update      Refresh selected sources and lock data
   sync        Synchronize cache with config
   status      Show cache status
   clean       Remove project cache
@@ -28,6 +29,7 @@ Global options:
   --cache-dir <path>
   --all
   --dry-run
+  --frozen
   --offline
   --fail-on-miss
   --lock-only
@@ -44,6 +46,10 @@ Add options:
   --id <id>
 
 Pin options:
+  --all
+  --dry-run
+
+Update options:
   --all
   --dry-run
 `;
@@ -203,6 +209,49 @@ const runPin = async (parsed: Extract<CliCommand, { command: "pin" }>) => {
 	);
 };
 
+const runUpdate = async (
+	parsed: Extract<CliCommand, { command: "update" }>,
+) => {
+	const options = parsed.options;
+	if (options.offline) {
+		throw new Error("Update does not support --offline.");
+	}
+	if (!options.all && parsed.ids.length === 0) {
+		throw new Error("Usage: docs-cache update <id...> [--all]");
+	}
+	const { printSyncPlan } = await import("#commands/sync");
+	const { updateSources } = await import("#commands/update");
+	const result = await updateSources({
+		configPath: options.config,
+		cacheDirOverride: options.cacheDir,
+		ids: parsed.ids,
+		all: options.all,
+		dryRun: options.dryRun,
+		json: options.json,
+		lockOnly: options.lockOnly,
+		failOnMiss: options.failOnMiss,
+		timeoutMs: options.timeoutMs,
+		verbose: options.verbose,
+		concurrency: options.concurrency,
+		frozen: options.frozen,
+	});
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+		return;
+	}
+	printSyncPlan(result.plan);
+	if (result.missing.length > 0) {
+		ui.line(
+			`${symbols.warn} Missing ${result.missing.length} source${result.missing.length === 1 ? "" : "s"}: ${result.missing.join(", ")}`,
+		);
+	}
+	if (result.dryRun) {
+		ui.line(
+			`${symbols.info} Dry run: no changes written to ${pc.gray(path.relative(process.cwd(), result.plan.configPath) || "docs.config.json")}`,
+		);
+	}
+};
+
 const runStatus = async (
 	parsed: Extract<CliCommand, { command: "status" }>,
 ) => {
@@ -297,6 +346,7 @@ const runSyncCommand = async (
 ) => {
 	const options = parsed.options;
 	const { printSyncPlan, runSync } = await import("#commands/sync");
+	const sourceFilter = parsed.ids.length > 0 ? parsed.ids : undefined;
 	const plan = await runSync({
 		configPath: options.config,
 		cacheDirOverride: options.cacheDir,
@@ -304,6 +354,8 @@ const runSyncCommand = async (
 		lockOnly: options.lockOnly,
 		offline: options.offline,
 		failOnMiss: options.failOnMiss,
+		frozen: options.frozen,
+		sourceFilter,
 		timeoutMs: options.timeoutMs,
 		verbose: options.verbose,
 	});
@@ -367,6 +419,9 @@ const runCommand = async (parsed: CliCommand) => {
 		case "pin":
 			await runPin(parsed);
 			return;
+		case "update":
+			await runUpdate(parsed);
+			return;
 		case "status":
 			await runStatus(parsed);
 			return;
@@ -421,6 +476,8 @@ export async function main(): Promise<void> {
 			parsed.command !== "add" &&
 			parsed.command !== "remove" &&
 			parsed.command !== "pin" &&
+			parsed.command !== "update" &&
+			parsed.command !== "sync" &&
 			parsed.positionals.length > 0
 		) {
 			printError(`${CLI_NAME}: unexpected arguments.`);
