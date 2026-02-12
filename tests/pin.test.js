@@ -214,3 +214,56 @@ test("pin normalizes whitespace around already pinned refs", async () => {
 		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	);
 });
+
+test("pin resolves multiple refs concurrently", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-pin-concurrency-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	await writeFile(
+		configPath,
+		`${JSON.stringify(
+			{
+				sources: [
+					{ id: "a", repo: "https://example.com/a.git", ref: "main" },
+					{ id: "b", repo: "https://example.com/b.git", ref: "main" },
+					{ id: "c", repo: "https://example.com/c.git", ref: "main" },
+				],
+			},
+			null,
+			2,
+		)}\n`,
+		"utf8",
+	);
+
+	let active = 0;
+	let maxActive = 0;
+	const result = await pinSources(
+		{
+			configPath,
+			ids: ["a", "b", "c"],
+			all: false,
+		},
+		{
+			resolveRemoteCommit: async ({ repo, ref }) => {
+				active += 1;
+				if (active > maxActive) {
+					maxActive = active;
+				}
+				await new Promise((resolve) => setTimeout(resolve, 25));
+				active -= 1;
+				return {
+					repo,
+					ref,
+					resolvedCommit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				};
+			},
+		},
+	);
+
+	assert.equal(result.updated.length, 3);
+	assert.ok(maxActive > 1);
+});

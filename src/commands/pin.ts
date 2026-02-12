@@ -8,6 +8,7 @@ import {
 import { resolveRemoteCommit } from "#git/resolve-remote";
 
 const DEFAULT_ALLOW_HOSTS = ["github.com", "gitlab.com", "visualstudio.com"];
+const PIN_RESOLVE_CONCURRENCY = 4;
 
 const isPinnedCommitRef = (ref: string) => /^[0-9a-f]{40}$/i.test(ref.trim());
 
@@ -56,13 +57,21 @@ export const pinSources = async (params: PinParams, deps: PinDeps = {}) => {
 	const resolveCommit = deps.resolveRemoteCommit ?? resolveRemoteCommit;
 
 	const entriesById = new Map<string, PinResultEntry>();
-	for (const source of config.sources) {
-		if (!selectedIds.has(source.id)) {
-			continue;
+	const sourcesToProcess = config.sources.filter((source) =>
+		selectedIds.has(source.id),
+	);
+	const queue: Array<Promise<void>> = [];
+	let cursor = 0;
+	const runNext = async () => {
+		const index = cursor;
+		cursor += 1;
+		const source = sourcesToProcess[index];
+		if (!source) {
+			return;
 		}
 		const resolved = resolvedById.get(source.id);
 		if (!resolved) {
-			continue;
+			return runNext();
 		}
 		const fromRef = source.ref ?? resolved.ref;
 		const trimmedFromRef = fromRef.trim();
@@ -73,7 +82,7 @@ export const pinSources = async (params: PinParams, deps: PinDeps = {}) => {
 				toRef: trimmedFromRef,
 				repo: resolved.repo,
 			});
-			continue;
+			return runNext();
 		}
 		const remote = await resolveCommit({
 			repo: resolved.repo,
@@ -87,7 +96,17 @@ export const pinSources = async (params: PinParams, deps: PinDeps = {}) => {
 			toRef: remote.resolvedCommit,
 			repo: remote.repo,
 		});
+		return runNext();
+	};
+
+	for (
+		let worker = 0;
+		worker < Math.min(PIN_RESOLVE_CONCURRENCY, sourcesToProcess.length);
+		worker += 1
+	) {
+		queue.push(runNext());
 	}
+	await Promise.all(queue);
 
 	if (entriesById.size === 0) {
 		throw new Error("No matching sources found to pin.");
