@@ -27,8 +27,6 @@ Commands:
 Global options:
   --config <path>
   --cache-dir <path>
-  --all
-  --dry-run
   --frozen
   --offline
   --fail-on-miss

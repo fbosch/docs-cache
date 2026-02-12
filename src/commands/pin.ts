@@ -48,10 +48,6 @@ export const pinSources = async (params: PinParams, deps: PinDeps = {}) => {
 				(id) => !config.sources.some((source) => source.id === id),
 			);
 
-	if (!params.all && selectedIds.size === 0) {
-		throw new Error("No source ids provided to pin.");
-	}
-
 	const resolvedSources = resolveSources(config);
 	const resolvedById = new Map(
 		resolvedSources.map((source) => [source.id, source]),
@@ -69,11 +65,12 @@ export const pinSources = async (params: PinParams, deps: PinDeps = {}) => {
 			continue;
 		}
 		const fromRef = source.ref ?? resolved.ref;
-		if (isPinnedCommitRef(fromRef)) {
+		const trimmedFromRef = fromRef.trim();
+		if (isPinnedCommitRef(trimmedFromRef)) {
 			entriesById.set(source.id, {
 				id: source.id,
-				fromRef,
-				toRef: fromRef,
+				fromRef: trimmedFromRef,
+				toRef: trimmedFromRef,
 				repo: resolved.repo,
 			});
 			continue;

@@ -167,3 +167,50 @@ test("pin --dry-run previews changes without writing config", async () => {
 	assert.equal(result.updated.length, 1);
 	assert.equal(before, after);
 });
+
+test("pin normalizes whitespace around already pinned refs", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-pin-trim-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const configPath = path.join(tmpRoot, "docs.config.json");
+
+	await writeFile(
+		configPath,
+		`${JSON.stringify(
+			{
+				sources: [
+					{
+						id: "a",
+						repo: "https://example.com/a.git",
+						ref: "  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  ",
+					},
+				],
+			},
+			null,
+			2,
+		)}\n`,
+		"utf8",
+	);
+
+	const result = await pinSources({
+		configPath,
+		ids: ["a"],
+		all: false,
+	});
+
+	assert.equal(result.updated.length, 0);
+	assert.equal(result.unchanged.length, 1);
+	assert.equal(
+		result.pinned[0].toRef,
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	);
+
+	const updatedRaw = await readFile(configPath, "utf8");
+	const updated = JSON.parse(updatedRaw);
+	assert.equal(
+		updated.sources.find((source) => source.id === "a").ref,
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	);
+});

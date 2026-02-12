@@ -207,7 +207,8 @@ const parsePositionals = (rawArgs: string[]) => {
 const assertAddOnlyOptions = (command: Command | null, rawArgs: string[]) => {
 	if (command === "add") {
 		for (const arg of rawArgs) {
-			if (SCOPED_SOURCE_OPTIONS.has(arg)) {
+			const [flag] = arg.split("=");
+			if (SCOPED_SOURCE_OPTIONS.has(flag)) {
 				throw new Error(`${arg} is only valid for pin or update.`);
 			}
 		}
@@ -229,7 +230,8 @@ const assertAddOnlyOptions = (command: Command | null, rawArgs: string[]) => {
 		return;
 	}
 	for (const arg of rawArgs) {
-		if (SCOPED_SOURCE_OPTIONS.has(arg)) {
+		const [flag] = arg.split("=");
+		if (SCOPED_SOURCE_OPTIONS.has(flag)) {
 			throw new Error(`${arg} is only valid for pin or update.`);
 		}
 		if (ADD_ONLY_OPTIONS.has(arg)) {
@@ -238,7 +240,6 @@ const assertAddOnlyOptions = (command: Command | null, rawArgs: string[]) => {
 		if (!arg.startsWith("--")) {
 			continue;
 		}
-		const [flag] = arg.split("=");
 		if (ADD_ONLY_OPTIONS_WITH_VALUES.has(flag)) {
 			throw new Error(`${flag} is only valid for add.`);
 		}
