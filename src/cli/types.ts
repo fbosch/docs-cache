@@ -5,6 +5,9 @@ export type CliOptions = {
 	failOnMiss: boolean;
 	lockOnly: boolean;
 	prune: boolean;
+	all: boolean;
+	dryRun: boolean;
+	frozen: boolean;
 	concurrency?: number;
 	json: boolean;
 	timeoutMs?: number;
@@ -21,7 +24,9 @@ export type AddEntry = {
 export type CliCommand =
 	| { command: "add"; entries: AddEntry[]; options: CliOptions }
 	| { command: "remove"; ids: string[]; options: CliOptions }
-	| { command: "sync"; options: CliOptions }
+	| { command: "pin"; ids: string[]; options: CliOptions }
+	| { command: "update"; ids: string[]; options: CliOptions }
+	| { command: "sync"; ids: string[]; options: CliOptions }
 	| { command: "status"; options: CliOptions }
 	| { command: "clean"; options: CliOptions }
 	| { command: "clean-cache"; options: CliOptions }

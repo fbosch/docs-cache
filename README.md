@@ -27,30 +27,37 @@ Documentation is cached in a gitignored location, exposed to agent and tool targ
 # Initialize (optional)
 npx docs-cache init
 
-# Add Sources
+# Add source(s)
 npx docs-cache add github:owner/repo#main
-npx docs-cache add gitlab:framework/core
-npx docs-cache add https://github.com/framework/core.git
-npx docs-cache add framework/core framework/other-repo
 
-# Sync
+# Sync and lock
 npx docs-cache sync
+npx docs-cache sync --frozen
 
-# Verify Integrity
+# Refresh tracked refs (write lock/materialized output)
+npx docs-cache update <source-id>
+npx docs-cache update --all --dry-run
+
+# Optional: pin config ref(s) to commit SHA
+npx docs-cache pin <source-id>
+
+# Inspect / maintain
 npx docs-cache verify
-
-# Check Status
 npx docs-cache status
-
-# Removal
-npx docs-cache remove core
-npx docs-cache remove framework/other-repo --prune
-
-# Clean
+npx docs-cache remove <source-id>
 npx docs-cache clean
 ```
 
 > for more options: `npx docs-cache --help`
+
+## Recommended Workflow
+
+Use this flow to keep behavior predictable (similar to package manager manifest + lock workflows):
+
+1. Keep source intent in config (`ref: "main"`, `ref: "v1"`, or a commit SHA).
+2. Run `npx docs-cache update <id...>` (or `--all`) to refresh selected sources and lock data.
+3. Use `npx docs-cache sync --frozen` in CI to fail fast when lock data drifts.
+4. Use `npx docs-cache pin <id...>` only when you explicitly want to rewrite config refs to commit SHAs.
 
 ## Configuration
 

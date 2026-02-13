@@ -1,0 +1,153 @@
+import { resolveSources } from "#config";
+import {
+	mergeConfigBase,
+	readConfigAtPath,
+	resolveConfigTarget,
+	writeConfigFile,
+} from "#config/io";
+import { resolveRemoteCommit } from "#git/resolve-remote";
+
+const DEFAULT_ALLOW_HOSTS = ["github.com", "gitlab.com", "visualstudio.com"];
+const PIN_RESOLVE_CONCURRENCY = 4;
+
+const isPinnedCommitRef = (ref: string) => /^[0-9a-f]{40}$/i.test(ref.trim());
+
+type PinParams = {
+	configPath?: string;
+	ids: string[];
+	all: boolean;
+	dryRun?: boolean;
+	timeoutMs?: number;
+};
+
+type PinDeps = {
+	resolveRemoteCommit?: typeof resolveRemoteCommit;
+};
+
+type PinResultEntry = {
+	id: string;
+	fromRef: string;
+	toRef: string;
+	repo: string;
+};
+
+export const pinSources = async (params: PinParams, deps: PinDeps = {}) => {
+	if (!params.all && params.ids.length === 0) {
+		throw new Error("Usage: docs-cache pin <id...> [--all]");
+	}
+
+	const target = await resolveConfigTarget(params.configPath);
+	const resolvedPath = target.resolvedPath;
+	const { config, rawConfig, rawPackage } = await readConfigAtPath(target);
+
+	const selectedIds = params.all
+		? new Set(config.sources.map((source) => source.id))
+		: new Set(params.ids);
+	const missing = params.all
+		? []
+		: params.ids.filter(
+				(id) => !config.sources.some((source) => source.id === id),
+			);
+
+	const resolvedSources = resolveSources(config);
+	const resolvedById = new Map(
+		resolvedSources.map((source) => [source.id, source]),
+	);
+	const allowHosts = config.defaults?.allowHosts ?? DEFAULT_ALLOW_HOSTS;
+	const resolveCommit = deps.resolveRemoteCommit ?? resolveRemoteCommit;
+
+	const entriesById = new Map<string, PinResultEntry>();
+	const sourcesToProcess = config.sources.filter((source) =>
+		selectedIds.has(source.id),
+	);
+	const queue: Array<Promise<void>> = [];
+	let cursor = 0;
+	const runNext = async () => {
+		const index = cursor;
+		cursor += 1;
+		const source = sourcesToProcess[index];
+		if (!source) {
+			return;
+		}
+		const resolved = resolvedById.get(source.id);
+		if (!resolved) {
+			return runNext();
+		}
+		const fromRef = source.ref ?? resolved.ref;
+		const trimmedFromRef = fromRef.trim();
+		if (isPinnedCommitRef(trimmedFromRef)) {
+			entriesById.set(source.id, {
+				id: source.id,
+				fromRef,
+				toRef: trimmedFromRef,
+				repo: resolved.repo,
+			});
+			return runNext();
+		}
+		const remote = await resolveCommit({
+			repo: resolved.repo,
+			ref: resolved.ref,
+			allowHosts,
+			timeoutMs: params.timeoutMs,
+		});
+		entriesById.set(source.id, {
+			id: source.id,
+			fromRef,
+			toRef: remote.resolvedCommit,
+			repo: remote.repo,
+		});
+		return runNext();
+	};
+
+	for (
+		let worker = 0;
+		worker < Math.min(PIN_RESOLVE_CONCURRENCY, sourcesToProcess.length);
+		worker += 1
+	) {
+		queue.push(runNext());
+	}
+	await Promise.all(queue);
+
+	if (entriesById.size === 0) {
+		throw new Error("No matching sources found to pin.");
+	}
+
+	const nextSources = config.sources.map((source) => {
+		const pin = entriesById.get(source.id);
+		if (!pin) {
+			return source;
+		}
+		if (source.ref === pin.toRef) {
+			return source;
+		}
+		return {
+			...source,
+			ref: pin.toRef,
+		};
+	});
+
+	if (!params.dryRun) {
+		const nextConfig = mergeConfigBase(rawConfig ?? config, nextSources);
+		await writeConfigFile({
+			mode: target.mode,
+			resolvedPath,
+			config: nextConfig,
+			rawPackage,
+		});
+	}
+
+	const pinned = Array.from(entriesById.values());
+	const updated = pinned.filter((entry) => entry.fromRef !== entry.toRef);
+	const unchanged = pinned
+		.filter((entry) => entry.fromRef === entry.toRef)
+		.map((entry) => entry.id);
+
+	return {
+		configPath: resolvedPath,
+		dryRun: Boolean(params.dryRun),
+		pinned,
+		updated,
+		unchanged,
+		missing,
+	};
+};

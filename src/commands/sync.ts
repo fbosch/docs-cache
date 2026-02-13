@@ -845,6 +845,20 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 			`Missing required source(s): ${requiredMissing.map((result) => result.id).join(", ")}.`,
 		);
 	}
+	if (options.frozen) {
+		const drifted = plan.results.filter(
+			(result) => result.status !== "up-to-date",
+		);
+		if (drifted.length > 0) {
+			throw new Error(
+				`Frozen sync failed: lock is out of date for source(s): ${drifted
+					.map((result) => result.id)
+					.join(
+						", ",
+					)}. Run docs-cache update or docs-cache sync to refresh the lock.`,
+			);
+		}
+	}
 	if (!options.lockOnly) {
 		const defaults = plan.defaults;
 		const runFetch = deps.fetchSource ?? fetchSource;

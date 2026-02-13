@@ -145,6 +145,110 @@ test("parseArgs accepts clean-cache command", async (t) => {
 	assert.equal(result.command, "clean-cache");
 });
 
+test("parseArgs handles pin positional args", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs([
+		"node",
+		"docs-cache",
+		"pin",
+		"source-a",
+		"source-b",
+	]);
+
+	assert.equal(result.command, "pin");
+	assert.deepEqual(result.positionals, ["source-a", "source-b"]);
+});
+
+test("parseArgs handles --all flag for pin", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs(["node", "docs-cache", "pin", "--all"]);
+
+	assert.equal(result.command, "pin");
+	assert.equal(result.options.all, true);
+});
+
+test("parseArgs handles --dry-run flag for pin", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs([
+		"node",
+		"docs-cache",
+		"pin",
+		"source-a",
+		"--dry-run",
+	]);
+
+	assert.equal(result.command, "pin");
+	assert.equal(result.options.dryRun, true);
+});
+
+test("parseArgs handles update positional args", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs([
+		"node",
+		"docs-cache",
+		"update",
+		"source-a",
+		"source-b",
+		"--dry-run",
+	]);
+
+	assert.equal(result.command, "update");
+	assert.deepEqual(result.positionals, ["source-a", "source-b"]);
+	assert.equal(result.options.dryRun, true);
+});
+
+test("parseArgs handles sync source filters and frozen", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs([
+		"node",
+		"docs-cache",
+		"sync",
+		"source-a",
+		"--frozen",
+	]);
+
+	assert.equal(result.command, "sync");
+	assert.deepEqual(result.positionals, ["source-a"]);
+	assert.equal(result.options.frozen, true);
+});
+
+test("parseArgs handles equals-form scoped flag on pin", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs([
+		"node",
+		"docs-cache",
+		"pin",
+		"source-a",
+		"--all=true",
+	]);
+	assert.equal(result.command, "pin");
+	assert.equal(result.options.all, true);
+});
+
 test("parseArgs silent flag defaults to false", async (t) => {
 	const module = await loadCliModule();
 	if (!module) {

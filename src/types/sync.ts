@@ -5,6 +5,7 @@ export type SyncOptions = {
 	lockOnly: boolean;
 	offline: boolean;
 	failOnMiss: boolean;
+	frozen?: boolean;
 	verbose?: boolean;
 	concurrency?: number;
 	sourceFilter?: string[];
