@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import pc from "picocolors";
-import type { DocsCacheLock } from "#cache/lock";
+import type { DocsCacheLock, DocsCacheLockSource } from "#cache/lock";
 import { readLock, resolveLockPath, writeLock } from "#cache/lock";
 import { MANIFEST_FILENAME } from "#cache/manifest";
 import { computeManifestHash, materializeSource } from "#cache/materialize";
@@ -240,7 +240,15 @@ const buildLock = async (
 ) => {
 	const toolVersion = await loadToolVersion();
 	const now = new Date().toISOString();
-	const sources = { ...(previous?.sources ?? {}) };
+	const configSourceIds = new Set(plan.sources.map((source) => source.id));
+	const sources: Record<string, DocsCacheLockSource> = {};
+	if (previous?.sources) {
+		for (const [id, source] of Object.entries(previous.sources)) {
+			if (configSourceIds.has(id)) {
+				sources[id] = source;
+			}
+		}
+	}
 	for (const result of plan.results) {
 		const prior = sources[result.id];
 		sources[result.id] = buildLockSource(result, prior, now);
