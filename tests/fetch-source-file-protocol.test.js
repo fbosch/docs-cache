@@ -445,6 +445,7 @@ test("concurrent syncs for the same repo clone only once", async () => {
 		sources: [
 			{ id: "a", repo, include: ["docs"] },
 			{ id: "b", repo, include: ["docs"] },
+			{ id: "c", repo, include: ["docs"] },
 		],
 	};
 	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
@@ -473,7 +474,7 @@ test("concurrent syncs for the same repo clone only once", async () => {
 				lockOnly: false,
 				offline: false,
 				failOnMiss: false,
-				concurrency: 2,
+				concurrency: 3,
 			},
 			{
 				resolveRemoteCommit: async () => ({
