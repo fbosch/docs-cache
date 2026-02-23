@@ -207,107 +207,98 @@ test("sync preserves lock entries for sources still in config", async () => {
 	assert.equal(lock2.sources["source-one"].resolvedCommit, "fixed-commit");
 });
 
-test(
-	"sync preserves all lock entries when using sourceFilter for a subset of sources",
-	async () => {
-		const tmpRoot = path.join(
-			tmpdir(),
-			`docs-cache-lock-preserve-source-filter-${Date.now().toString(36)}`,
-		);
-		await mkdir(tmpRoot, { recursive: true });
-		const cacheDir = path.join(tmpRoot, ".docs");
-		const repoDir = path.join(tmpRoot, "repo");
-		const configPath = path.join(tmpRoot, "docs.config.json");
-		const lockPath = path.join(tmpRoot, "docs-lock.json");
+test("sync preserves all lock entries when using sourceFilter for a subset of sources", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-lock-preserve-source-filter-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const repoDir = path.join(tmpRoot, "repo");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+	const lockPath = path.join(tmpRoot, "docs-lock.json");
 
-		await mkdir(repoDir, { recursive: true });
-		await writeFile(path.join(repoDir, "a.md"), "alpha", "utf8");
+	await mkdir(repoDir, { recursive: true });
+	await writeFile(path.join(repoDir, "a.md"), "alpha", "utf8");
 
-		const config = {
-			$schema:
-				"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
-			sources: [
-				{
-					id: "source-one",
-					repo: "https://example.com/source-one.git",
-					include: ["**/*.md"],
-				},
-				{
-					id: "source-two",
-					repo: "https://example.com/source-two.git",
-					include: ["**/*.md"],
-				},
-			],
-		};
-		await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
-
-		const resolveRemoteCommit = async ({ repo }) => ({
-			repo,
-			ref: "HEAD",
-			resolvedCommit: repo.endsWith("source-one.git")
-				? "commit-source-one"
-				: "commit-source-two",
-		});
-
-		const fetchSource = async () => ({
-			repoDir,
-			cleanup: async () => undefined,
-			fromCache: false,
-		});
-
-		// Initial sync to populate lock for both sources
-		await runSync(
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
 			{
-				configPath,
-				cacheDirOverride: cacheDir,
-				json: false,
-				lockOnly: false,
-				offline: false,
-				failOnMiss: false,
+				id: "source-one",
+				repo: "https://example.com/source-one.git",
+				include: ["**/*.md"],
 			},
 			{
-				resolveRemoteCommit,
-				fetchSource,
+				id: "source-two",
+				repo: "https://example.com/source-two.git",
+				include: ["**/*.md"],
 			},
-		);
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 
-		// Sync again, but only for source-one using sourceFilter
-		await runSync(
-			{
-				configPath,
-				cacheDirOverride: cacheDir,
-				json: false,
-				lockOnly: false,
-				offline: false,
-				failOnMiss: false,
-				sourceFilter: ["source-one"],
-			},
-			{
-				resolveRemoteCommit,
-				fetchSource,
-			},
-		);
+	const resolveRemoteCommit = async ({ repo }) => ({
+		repo,
+		ref: "HEAD",
+		resolvedCommit: repo.endsWith("source-one.git")
+			? "commit-source-one"
+			: "commit-source-two",
+	});
 
-		// Verify both sources are still in lock with their respective commits
-		const lockContent = await readFile(lockPath, "utf8");
-		const lock = JSON.parse(lockContent);
+	const fetchSource = async () => ({
+		repoDir,
+		cleanup: async () => undefined,
+		fromCache: false,
+	});
 
-		assert.ok(
-			lock.sources["source-one"],
-			"source-one should still be in lock after filtered sync",
-		);
-		assert.ok(
-			lock.sources["source-two"],
-			"source-two should still be in lock after filtered sync",
-		);
+	// Initial sync to populate lock for both sources
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
+		},
+		{
+			resolveRemoteCommit,
+			fetchSource,
+		},
+	);
 
-		assert.equal(
-			lock.sources["source-one"].resolvedCommit,
-			"commit-source-one",
-		);
-		assert.equal(
-			lock.sources["source-two"].resolvedCommit,
-			"commit-source-two",
-		);
-	},
-);
+	// Sync again, but only for source-one using sourceFilter
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
+			sourceFilter: ["source-one"],
+		},
+		{
+			resolveRemoteCommit,
+			fetchSource,
+		},
+	);
+
+	// Verify both sources are still in lock with their respective commits
+	const lockContent = await readFile(lockPath, "utf8");
+	const lock = JSON.parse(lockContent);
+
+	assert.ok(
+		lock.sources["source-one"],
+		"source-one should still be in lock after filtered sync",
+	);
+	assert.ok(
+		lock.sources["source-two"],
+		"source-two should still be in lock after filtered sync",
+	);
+
+	assert.equal(lock.sources["source-one"].resolvedCommit, "commit-source-one");
+	assert.equal(lock.sources["source-two"].resolvedCommit, "commit-source-two");
+});
