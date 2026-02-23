@@ -561,12 +561,34 @@ const handleMissingCache = async (
 	return { usedCache: false, worktreeUsed: false };
 };
 
+const cloneOrUpdateInFlight = new Map<string, Promise<CloneResult>>();
+
 // Clone or update a repository using persistent cache
-const cloneOrUpdateRepo = async (
+const cloneOrUpdateRepo = (
 	params: FetchParams,
 	outDir: string,
 ): Promise<CloneResult> => {
 	const cachePath = getPersistentCachePath(params.repo);
+	const inflight = cloneOrUpdateInFlight.get(cachePath);
+	if (inflight !== undefined) {
+		return inflight.then(() => cloneOrUpdateRepo(params, outDir));
+	}
+	const promise = (async () => {
+		try {
+			return await cloneOrUpdateRepoImpl(params, outDir, cachePath);
+		} finally {
+			cloneOrUpdateInFlight.delete(cachePath);
+		}
+	})();
+	cloneOrUpdateInFlight.set(cachePath, promise);
+	return promise;
+};
+
+const cloneOrUpdateRepoImpl = async (
+	params: FetchParams,
+	outDir: string,
+	cachePath: string,
+): Promise<CloneResult> => {
 	const cacheExists = await exists(cachePath);
 	const cacheValid = cacheExists && (await isValidGitRepo(cachePath));
 	const isCommitRef = /^[0-9a-f]{7,40}$/i.test(params.ref);
