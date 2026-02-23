@@ -240,7 +240,9 @@ const buildLock = async (
 ) => {
 	const toolVersion = await loadToolVersion();
 	const now = new Date().toISOString();
-	const configSourceIds = new Set(plan.sources.map((source) => source.id));
+	const configSourceIds = new Set(
+		plan.config.sources.map((source) => source.id),
+	);
 	const sources: Record<string, DocsCacheLockSource> = {};
 	if (previous?.sources) {
 		for (const [id, source] of Object.entries(previous.sources)) {
