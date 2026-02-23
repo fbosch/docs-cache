@@ -422,3 +422,82 @@ test("sync fetches missing commit from local cache", async () => {
 		await rm(tmpRoot, { recursive: true, force: true });
 	}
 });
+
+test("concurrent syncs for the same repo clone only once", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-concurrent-${Date.now().toString(36)}`,
+	);
+	const binDir = path.join(tmpRoot, "bin");
+	const logPath = path.join(tmpRoot, "git.log");
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const configPath = path.join(tmpRoot, "docs.config.json");
+	const gitCacheRoot = path.join(tmpRoot, "git-cache");
+	const repo = "https://example.com/concurrent-repo.git";
+
+	await mkdir(binDir, { recursive: true });
+	await writeGitShim(binDir, logPath);
+	await writeFile(logPath, "", "utf8");
+
+	const config = {
+		$schema:
+			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
+		sources: [
+			{ id: "a", repo, include: ["docs"] },
+			{ id: "b", repo, include: ["docs"] },
+		],
+	};
+	await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+
+	const previousPath = process.env.PATH ?? process.env.Path;
+	const previousPathExt = process.env.PATHEXT;
+	const previousGitDir = process.env.DOCS_CACHE_GIT_DIR;
+	const nextPath =
+		process.platform === "win32"
+			? binDir
+			: `${binDir}${path.delimiter}${previousPath ?? ""}`;
+	process.env.PATH = nextPath;
+	process.env.Path = nextPath;
+	if (process.platform === "win32") {
+		process.env.PATHEXT = previousPathExt ?? ".COM;.EXE;.BAT;.CMD";
+	}
+	process.env.DOCS_CACHE_GIT_DIR = gitCacheRoot;
+	process.env.GIT_TERMINAL_PROMPT = "0";
+
+	try {
+		await runSync(
+			{
+				configPath,
+				cacheDirOverride: cacheDir,
+				json: false,
+				lockOnly: false,
+				offline: false,
+				failOnMiss: false,
+				concurrency: 2,
+			},
+			{
+				resolveRemoteCommit: async () => ({
+					repo,
+					ref: "HEAD",
+					resolvedCommit: "abc123",
+				}),
+			},
+		);
+
+		const logRaw = await readFile(logPath, "utf8");
+		const entries = logRaw
+			.split("\n")
+			.filter(Boolean)
+			.map((line) => JSON.parse(line));
+		const clones = entries.filter(
+			(args) => args.includes("clone") && args.includes(repo),
+		);
+		assert.equal(clones.length, 1, "expected repo to be cloned exactly once");
+	} finally {
+		process.env.PATH = previousPath;
+		process.env.Path = previousPath;
+		process.env.PATHEXT = previousPathExt;
+		process.env.DOCS_CACHE_GIT_DIR = previousGitDir;
+		await rm(tmpRoot, { recursive: true, force: true });
+	}
+});

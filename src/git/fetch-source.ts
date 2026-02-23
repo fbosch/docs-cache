@@ -571,10 +571,7 @@ const cloneOrUpdateRepo = (
 	const cachePath = getPersistentCachePath(params.repo);
 	const inflight = cloneOrUpdateInFlight.get(cachePath);
 	if (inflight !== undefined) {
-		return inflight.then(
-			() => cloneOrUpdateRepo(params, outDir),
-			() => cloneOrUpdateRepo(params, outDir),
-		);
+		return inflight.then(() => cloneOrUpdateRepo(params, outDir));
 	}
 	const promise = (async () => {
 		try {
