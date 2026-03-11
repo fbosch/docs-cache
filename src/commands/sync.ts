@@ -8,7 +8,7 @@ import { MANIFEST_FILENAME } from "#cache/manifest";
 import { computeManifestHash, materializeSource } from "#cache/materialize";
 import { applyTargetDir } from "#cache/targets";
 import { writeToc } from "#cache/toc";
-import { TaskReporter } from "#cli/task-reporter";
+import type { TaskReporter } from "#cli/task-reporter";
 import { isSilentMode, symbols, ui } from "#cli/ui";
 import { verifyCache } from "#commands/verify";
 import {
@@ -844,7 +844,9 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 	const isTestRunner = process.argv.includes("--test");
 	const useLiveOutput =
 		!options.json && !isSilentMode() && process.stdout.isTTY && !isTestRunner;
-	const reporter = useLiveOutput ? new TaskReporter() : null;
+	const reporter = useLiveOutput
+		? new (await import("#cli/task-reporter")).TaskReporter()
+		: null;
 	const previous = plan.lockData;
 	const requiredMissing = plan.results.filter((result) => {
 		const source = plan.sources.find((entry) => entry.id === result.id);
