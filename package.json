@@ -135,5 +135,10 @@
 		"*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
 			"biome check --write --no-errors-on-unmatched"
 		]
+	},
+	"pnpm": {
+		"overrides": {
+			"minimatch@>=10.0.0 <10.2.3": "10.2.4"
+		}
 	}
 }
