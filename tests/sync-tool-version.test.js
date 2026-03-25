@@ -49,7 +49,7 @@ test("sync writes lock toolVersion from package.json", async () => {
 	);
 	const lock = JSON.parse(lockRaw);
 	const pkgRaw = await readFile(
-		path.resolve(process.cwd(), "package.json"),
+		new URL("../package.json", import.meta.url),
 		"utf8",
 	);
 	const pkg = JSON.parse(pkgRaw);

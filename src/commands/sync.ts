@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import pc from "picocolors";
 import type { DocsCacheLock, DocsCacheLockSource } from "#cache/lock";
 import { readLock, resolveLockPath, writeLock } from "#cache/lock";
@@ -69,6 +70,9 @@ const normalizePatterns = (patterns?: string[]) => {
 		.filter((pattern) => pattern.length > 0);
 	return Array.from(new Set(normalized)).sort();
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value);
 
 const RULES_HASH_BLACKLIST = [
 	"id",
@@ -187,35 +191,56 @@ export const getSyncPlan = async (
 	};
 };
 
+const TOOL_PACKAGE_NAME = "docs-cache";
+
+const readToolVersionFromPackageFile = async (packagePath: string) => {
+	try {
+		const raw = await readFile(packagePath, "utf8");
+		const parsed: unknown = JSON.parse(raw.toString());
+		if (!isRecord(parsed)) {
+			return null;
+		}
+		const pkgName = parsed.name;
+		const pkgVersion = parsed.version;
+		if (pkgName !== TOOL_PACKAGE_NAME) {
+			return null;
+		}
+		if (typeof pkgVersion !== "string" || pkgVersion.length === 0) {
+			return null;
+		}
+		return pkgVersion;
+	} catch {
+		return null;
+	}
+};
+
+const findToolVersionFrom = async (startDir: string) => {
+	let currentDir = startDir;
+	while (true) {
+		const packagePath = path.join(currentDir, "package.json");
+		const version = await readToolVersionFromPackageFile(packagePath);
+		if (version) {
+			return version;
+		}
+		const parentDir = path.dirname(currentDir);
+		if (parentDir === currentDir) {
+			return null;
+		}
+		currentDir = parentDir;
+	}
+};
+
 const loadToolVersion = async () => {
-	const cwdPath = path.resolve(process.cwd(), "package.json");
-	try {
-		const raw = await readFile(cwdPath, "utf8");
-		const pkg = JSON.parse(raw.toString());
-		return typeof pkg.version === "string" ? pkg.version : "0.0.0";
-	} catch {
-		// fallback to bundle-relative location
+	const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+	const moduleVersion = await findToolVersionFrom(moduleDir);
+	if (moduleVersion) {
+		return moduleVersion;
 	}
-	try {
-		const raw = await readFile(
-			new URL("../package.json", import.meta.url),
-			"utf8",
-		);
-		const pkg = JSON.parse(raw.toString());
-		return typeof pkg.version === "string" ? pkg.version : "0.0.0";
-	} catch {
-		// fallback to dist/chunks relative location
+	const cwdVersion = await findToolVersionFrom(process.cwd());
+	if (cwdVersion) {
+		return cwdVersion;
 	}
-	try {
-		const raw = await readFile(
-			new URL("../../package.json", import.meta.url),
-			"utf8",
-		);
-		const pkg = JSON.parse(raw.toString());
-		return typeof pkg.version === "string" ? pkg.version : "0.0.0";
-	} catch {
-		return "0.0.0";
-	}
+	return "0.0.0";
 };
 
 const buildLockSource = (
