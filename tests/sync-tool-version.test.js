@@ -33,15 +33,29 @@ test("sync writes lock toolVersion from package.json", async () => {
 		),
 		"utf8",
 	);
+	await writeFile(
+		path.join(tmpRoot, "package.json"),
+		JSON.stringify({
+			name: "not-docs-cache",
+			version: "9.9.9",
+		}),
+		"utf8",
+	);
 
-	await runSync({
-		configPath,
-		cacheDirOverride: cacheDir,
-		json: true,
-		lockOnly: true,
-		offline: true,
-		failOnMiss: false,
-	});
+	const originalCwd = process.cwd();
+	try {
+		process.chdir(tmpRoot);
+		await runSync({
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: true,
+			lockOnly: true,
+			offline: true,
+			failOnMiss: false,
+		});
+	} finally {
+		process.chdir(originalCwd);
+	}
 
 	const lockRaw = await readFile(
 		path.join(tmpRoot, DEFAULT_LOCK_FILENAME),
@@ -49,7 +63,7 @@ test("sync writes lock toolVersion from package.json", async () => {
 	);
 	const lock = JSON.parse(lockRaw);
 	const pkgRaw = await readFile(
-		path.resolve(process.cwd(), "package.json"),
+		new URL("../package.json", import.meta.url),
 		"utf8",
 	);
 	const pkg = JSON.parse(pkgRaw);
