@@ -47,5 +47,5 @@ test("writeLock produces readable JSON", async (t) => {
 	};
 	await module.writeLock(tmpPath, lock);
 	const parsed = await module.readLock(tmpPath);
-	assert.equal(parsed.toolVersion, lock.toolVersion);
+	assert.deepEqual(parsed, lock);
 });

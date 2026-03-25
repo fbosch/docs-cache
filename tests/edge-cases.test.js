@@ -222,7 +222,6 @@ test("lock file with invalid version", async () => {
 
 	const invalidLock = {
 		version: 2,
-		generatedAt: new Date().toISOString(),
 		toolVersion: "0.1.0",
 		sources: {},
 	};
@@ -249,7 +248,7 @@ test("lock file with missing required fields", async () => {
 
 	const invalidLock = {
 		version: 1,
-		// missing generatedAt, toolVersion, sources
+		// missing toolVersion, sources
 	};
 	await writeFile(lockPath, JSON.stringify(invalidLock, null, 2), "utf8");
 
@@ -259,7 +258,7 @@ test("lock file with missing required fields", async () => {
 	} = await import("node:fs/promises");
 	const raw = await read(lockPath, "utf8");
 	const parsed = JSON.parse(raw);
-	assert.equal(parsed.generatedAt, undefined);
+	assert.equal(parsed.toolVersion, undefined);
 });
 
 test("lock file with negative bytes", async () => {
@@ -272,7 +271,6 @@ test("lock file with negative bytes", async () => {
 
 	const invalidLock = {
 		version: 1,
-		generatedAt: new Date().toISOString(),
 		toolVersion: "0.1.0",
 		sources: {
 			test: {
@@ -282,7 +280,6 @@ test("lock file with negative bytes", async () => {
 				bytes: -100,
 				fileCount: 5,
 				manifestSha256: "def456",
-				updatedAt: new Date().toISOString(),
 			},
 		},
 	};
