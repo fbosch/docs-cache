@@ -1,6 +1,5 @@
 {
 	"version": 1,
-	"generatedAt": "2026-01-30T12:00:00+01:00",
 	"toolVersion": "0.1.0",
 	"sources": {
 		"vitest": {
@@ -10,8 +9,7 @@
 			"bytes": 123456,
 			"fileCount": 512,
 			"manifestSha256": "abcd",
-			"rulesSha256": "efgh",
-			"updatedAt": "2026-01-30T12:00:00+01:00"
+			"rulesSha256": "efgh"
 		}
 	}
 }

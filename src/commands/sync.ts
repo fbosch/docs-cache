@@ -221,7 +221,6 @@ const loadToolVersion = async () => {
 const buildLockSource = (
 	result: SyncResult,
 	prior: DocsCacheLock["sources"][string] | undefined,
-	now: string,
 ) => ({
 	repo: result.repo,
 	ref: result.ref,
@@ -231,7 +230,6 @@ const buildLockSource = (
 	manifestSha256:
 		result.manifestSha256 ?? prior?.manifestSha256 ?? result.resolvedCommit,
 	rulesSha256: result.rulesSha256 ?? prior?.rulesSha256,
-	updatedAt: now,
 });
 
 const buildLock = async (
@@ -239,7 +237,6 @@ const buildLock = async (
 	previous: Awaited<ReturnType<typeof readLock>> | null,
 ) => {
 	const toolVersion = await loadToolVersion();
-	const now = new Date().toISOString();
 	const configSourceIds = new Set(
 		plan.config.sources.map((source) => source.id),
 	);
@@ -253,11 +250,10 @@ const buildLock = async (
 	}
 	for (const result of plan.results) {
 		const prior = sources[result.id];
-		sources[result.id] = buildLockSource(result, prior, now);
+		sources[result.id] = buildLockSource(result, prior);
 	}
 	return {
 		version: 1 as const,
-		generatedAt: now,
 		toolVersion,
 		sources,
 	};

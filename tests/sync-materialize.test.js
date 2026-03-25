@@ -230,7 +230,6 @@ test("sync re-materializes when docs missing even if commit unchanged", async ()
 		path.join(tmpRoot, DEFAULT_LOCK_FILENAME),
 		JSON.stringify({
 			version: 1,
-			generatedAt: new Date().toISOString(),
 			toolVersion: "0.1.0",
 			sources: {
 				local: {
@@ -240,7 +239,6 @@ test("sync re-materializes when docs missing even if commit unchanged", async ()
 					bytes: 0,
 					fileCount: 0,
 					manifestSha256: "abc123",
-					updatedAt: new Date().toISOString(),
 				},
 			},
 		}),
@@ -315,7 +313,6 @@ test("sync offline materializes from cache when lock exists", async () => {
 		path.join(tmpRoot, DEFAULT_LOCK_FILENAME),
 		JSON.stringify({
 			version: 1,
-			generatedAt: new Date().toISOString(),
 			toolVersion: "0.1.0",
 			sources: {
 				local: {
@@ -325,7 +322,6 @@ test("sync offline materializes from cache when lock exists", async () => {
 					bytes: 0,
 					fileCount: 0,
 					manifestSha256: "abc123",
-					updatedAt: new Date().toISOString(),
 				},
 			},
 		}),
