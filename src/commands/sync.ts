@@ -194,7 +194,7 @@ const TOOL_PACKAGE_NAME = "docs-cache";
 const readToolVersionFromPackageFile = async (packagePath: string) => {
 	try {
 		const raw = await readFile(packagePath, "utf8");
-		const parsed: unknown = JSON.parse(raw.toString());
+		const parsed: unknown = JSON.parse(raw);
 		if (!isRecord(parsed)) {
 			return null;
 		}
