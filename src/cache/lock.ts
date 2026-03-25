@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { isRecord } from "#core/is-record";
 
 export interface DocsCacheLockSource {
 	repo: string;
@@ -18,9 +19,6 @@ export interface DocsCacheLock {
 }
 
 export const DEFAULT_LOCK_FILENAME = "docs-lock.json";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value);
 
 const assertString = (value: unknown, label: string): string => {
 	if (typeof value !== "string" || value.length === 0) {

@@ -19,6 +19,7 @@ import {
 	type DocsCacheResolvedSource,
 	loadConfig,
 } from "#config";
+import { isRecord } from "#core/is-record";
 import { resolveCacheDir, resolveTargetDir } from "#core/paths";
 import { fetchSource } from "#git/fetch-source";
 import { resolveRemoteCommit } from "#git/resolve-remote";
@@ -70,9 +71,6 @@ const normalizePatterns = (patterns?: string[]) => {
 		.filter((pattern) => pattern.length > 0);
 	return Array.from(new Set(normalized)).sort();
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value);
 
 const RULES_HASH_BLACKLIST = [
 	"id",
