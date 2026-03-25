@@ -9,12 +9,10 @@ export interface DocsCacheLockSource {
 	fileCount: number;
 	manifestSha256: string;
 	rulesSha256?: string;
-	updatedAt: string;
 }
 
 export interface DocsCacheLock {
 	version: 1;
-	generatedAt: string;
 	toolVersion: string;
 	sources: Record<string, DocsCacheLockSource>;
 }
@@ -54,7 +52,6 @@ export const validateLock = (input: unknown): DocsCacheLock => {
 	if (version !== 1) {
 		throw new Error("Lock file version must be 1.");
 	}
-	const generatedAt = assertString(input.generatedAt, "generatedAt");
 	const toolVersion = assertString(input.toolVersion, "toolVersion");
 	if (!isRecord(input.sources)) {
 		throw new Error("sources must be an object.");
@@ -84,12 +81,10 @@ export const validateLock = (input: unknown): DocsCacheLock => {
 				value.rulesSha256 === undefined
 					? undefined
 					: assertString(value.rulesSha256, `sources.${key}.rulesSha256`),
-			updatedAt: assertString(value.updatedAt, `sources.${key}.updatedAt`),
 		};
 	}
 	return {
 		version: 1,
-		generatedAt,
 		toolVersion,
 		sources,
 	};

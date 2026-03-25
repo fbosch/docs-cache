@@ -42,11 +42,10 @@ test("writeLock produces readable JSON", async (t) => {
 	const tmpPath = path.join(tmpdir(), `docs-lock-${Date.now()}.json`);
 	const lock = {
 		version: 1,
-		generatedAt: "2026-01-30T12:00:00+01:00",
 		toolVersion: "0.1.0",
 		sources: {},
 	};
 	await module.writeLock(tmpPath, lock);
 	const parsed = await module.readLock(tmpPath);
-	assert.equal(parsed.generatedAt, lock.generatedAt);
+	assert.equal(parsed.toolVersion, lock.toolVersion);
 });

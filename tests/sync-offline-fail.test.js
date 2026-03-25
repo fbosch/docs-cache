@@ -75,7 +75,6 @@ test("sync offline uses lock entries without resolving remotes", async () => {
 		lockPath,
 		JSON.stringify({
 			version: 1,
-			generatedAt: new Date().toISOString(),
 			toolVersion: "0.1.0",
 			sources: {
 				local: {
@@ -85,7 +84,6 @@ test("sync offline uses lock entries without resolving remotes", async () => {
 					bytes: 4,
 					fileCount: 1,
 					manifestSha256: "abc123",
-					updatedAt: new Date().toISOString(),
 				},
 			},
 		}),
@@ -145,7 +143,6 @@ test("sync offline fails when lock exists but cache missing", async () => {
 		lockPath,
 		JSON.stringify({
 			version: 1,
-			generatedAt: new Date().toISOString(),
 			toolVersion: "0.1.0",
 			sources: {
 				local: {
@@ -155,7 +152,6 @@ test("sync offline fails when lock exists but cache missing", async () => {
 					bytes: 4,
 					fileCount: 1,
 					manifestSha256: "abc123",
-					updatedAt: new Date().toISOString(),
 				},
 			},
 		}),
