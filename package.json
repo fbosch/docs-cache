@@ -129,7 +129,7 @@
 		"top": 10
 	},
 	"simple-git-hooks": {
-		"pre-commit": "pnpm lint-staged && pnpm typecheck"
+		"pre-commit": "pnpm lint && pnpm lint-staged && pnpm typecheck"
 	},
 	"lint-staged": {
 		"*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
