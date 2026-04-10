@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.13](https://github.com/fbosch/docs-cache/compare/v0.5.12...v0.5.13) (2026-04-10)
+
+
+### Bug Fixes
+
+* **ci:** upgrade npm for trusted publishing ([#40](https://github.com/fbosch/docs-cache/issues/40)) ([cb9b7f0](https://github.com/fbosch/docs-cache/commit/cb9b7f0e42a5aa6d1244ae5679770691b979e007))
+
 ## [0.5.12](https://github.com/fbosch/docs-cache/compare/v0.5.11...v0.5.12) (2026-04-10)
 
 
