@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.14](https://github.com/fbosch/docs-cache/compare/v0.5.13...v0.5.14) (2026-04-10)
+
+
+### Bug Fixes
+
+* **ci:** use npm 11 via npx for publishing ([#43](https://github.com/fbosch/docs-cache/issues/43)) ([1e59f1a](https://github.com/fbosch/docs-cache/commit/1e59f1affdfcf22ccbfeaa214ebab8a2c0b65be8))
+
 ## [0.5.13](https://github.com/fbosch/docs-cache/compare/v0.5.12...v0.5.13) (2026-04-10)
 
 
