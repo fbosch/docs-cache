@@ -788,7 +788,7 @@ const createJobRunner = (params: {
 		let index = 0;
 		const runNext = async () => {
 			const job = jobs[index];
-			if (!job || !job.source) {
+			if (!job?.source) {
 				return;
 			}
 			index += 1;
