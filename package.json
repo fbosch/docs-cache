@@ -97,7 +97,7 @@
 		"cli-truncate": "^4.0.0",
 		"execa": "^9.6.1",
 		"fast-glob": "^3.3.3",
-		"log-update": "^7.0.2",
+		"log-update": "7.0.2",
 		"picocolors": "^1.1.1",
 		"picomatch": "^4.0.4",
 		"zod": "^4.3.6"
