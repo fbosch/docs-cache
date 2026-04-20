@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.16](https://github.com/fbosch/docs-cache/compare/v0.5.15...v0.5.16) (2026-04-20)
+
+
+### Bug Fixes
+
+* preserve symlink target when source is parent ([#46](https://github.com/fbosch/docs-cache/issues/46)) ([bff9b5c](https://github.com/fbosch/docs-cache/commit/bff9b5c5bccbe1449384aa3f931a307aab5cd0a8))
+
 ## [0.5.15](https://github.com/fbosch/docs-cache/compare/v0.5.14...v0.5.15) (2026-04-10)
 
 
