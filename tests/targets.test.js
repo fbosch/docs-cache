@@ -69,3 +69,28 @@ test("applyTargetDir uses relative symlink targets on non-Windows", {
 	const linkTarget = await readlink(targetDir);
 	assert.equal(linkTarget, path.relative(parentDir, sourceDir));
 });
+
+test("applyTargetDir creates usable symlink when source equals target parent", {
+	skip: process.platform === "win32",
+}, async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-target-self-parent-${Date.now().toString(36)}`,
+	);
+	const sourceDir = path.join(tmpRoot, "source");
+	const targetDir = path.join(sourceDir, "linked");
+
+	await mkdir(sourceDir, { recursive: true });
+	await writeFile(path.join(sourceDir, "README.md"), "hello", "utf8");
+
+	await applyTargetDir({
+		sourceDir,
+		targetDir,
+		mode: "symlink",
+	});
+
+	const data = await readFile(path.join(targetDir, "README.md"), "utf8");
+	assert.equal(data, "hello");
+	const linkTarget = await readlink(targetDir);
+	assert.equal(linkTarget, ".");
+});
