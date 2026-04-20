@@ -72,7 +72,7 @@ export const applyTargetDir = async (params: TargetParams) => {
 		const linkTarget =
 			process.platform === "win32"
 				? sourceDir
-				: path.relative(parentDir, sourceDir);
+				: path.relative(parentDir, sourceDir) || ".";
 		await deps.symlink(linkTarget, params.targetDir, type);
 	} catch (error) {
 		const code = getErrnoCode(error);
