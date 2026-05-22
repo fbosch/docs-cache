@@ -6,6 +6,7 @@ export type SyncOptions = {
 	offline: boolean;
 	failOnMiss: boolean;
 	frozen?: boolean;
+	install?: boolean;
 	verbose?: boolean;
 	concurrency?: number;
 	sourceFilter?: string[];

@@ -16,6 +16,7 @@ Commands:
   remove      Remove sources from the config and targets
   pin         Pin source refs to current commits
   update      Refresh selected sources and lock data
+  install     Install cache from lock data
   sync        Synchronize cache with config
   status      Show cache status
   clean       Remove project cache
@@ -267,6 +268,35 @@ const runStatus = async (
 	printStatus(status);
 };
 
+const runInstallCommand = async (
+	parsed: Extract<CliCommand, { command: "install" }>,
+) => {
+	const options = parsed.options;
+	if (options.lockOnly) {
+		throw new Error("Install does not support --lock-only.");
+	}
+	const { printSyncPlan, runSync } = await import("#commands/sync");
+	const sourceFilter = parsed.ids.length > 0 ? parsed.ids : undefined;
+	const plan = await runSync({
+		configPath: options.config,
+		cacheDirOverride: options.cacheDir,
+		json: options.json,
+		lockOnly: false,
+		offline: options.offline,
+		failOnMiss: options.failOnMiss,
+		install: true,
+		sourceFilter,
+		timeoutMs: options.timeoutMs,
+		verbose: options.verbose,
+		concurrency: options.concurrency,
+	});
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
+		return;
+	}
+	printSyncPlan(plan);
+};
+
 const runClean = async (parsed: Extract<CliCommand, { command: "clean" }>) => {
 	const options = parsed.options;
 	const { cleanCache } = await import("#commands/clean");
@@ -420,6 +450,9 @@ const runCommand = async (parsed: CliCommand) => {
 		case "update":
 			await runUpdate(parsed);
 			return;
+		case "install":
+			await runInstallCommand(parsed);
+			return;
 		case "status":
 			await runStatus(parsed);
 			return;
@@ -475,6 +508,7 @@ export async function main(): Promise<void> {
 			parsed.command !== "remove" &&
 			parsed.command !== "pin" &&
 			parsed.command !== "update" &&
+			parsed.command !== "install" &&
 			parsed.command !== "sync" &&
 			parsed.positionals.length > 0
 		) {

@@ -232,6 +232,23 @@ test("parseArgs handles sync source filters and frozen", async (t) => {
 	assert.equal(result.options.frozen, true);
 });
 
+test("parseArgs accepts install source filters", async (t) => {
+	const module = await loadCliModule();
+	if (!module) {
+		t.skip("CLI not built yet");
+		return;
+	}
+	const result = module.parseArgs([
+		"node",
+		"docs-cache",
+		"install",
+		"source-a",
+	]);
+
+	assert.equal(result.command, "install");
+	assert.deepEqual(result.positionals, ["source-a"]);
+});
+
 test("parseArgs handles equals-form scoped flag on pin", async (t) => {
 	const module = await loadCliModule();
 	if (!module) {

@@ -26,6 +26,7 @@ export type CliCommand =
 	| { command: "remove"; ids: string[]; options: CliOptions }
 	| { command: "pin"; ids: string[]; options: CliOptions }
 	| { command: "update"; ids: string[]; options: CliOptions }
+	| { command: "install"; ids: string[]; options: CliOptions }
 	| { command: "sync"; ids: string[]; options: CliOptions }
 	| { command: "status"; options: CliOptions }
 	| { command: "clean"; options: CliOptions }
