@@ -790,6 +790,23 @@ const assertInstallLock = (plan: SyncPlan) => {
 	const changed = plan.results.filter(
 		(result) => result.lockRulesSha256 !== result.rulesSha256,
 	);
+	const driftedSources = plan.sources.filter((source) => {
+		const lockEntry = plan.lockData?.sources[source.id];
+		return lockEntry?.repo !== source.repo || lockEntry.ref !== source.ref;
+	});
+	changed.push(
+		...driftedSources
+			.filter((source) => !changed.some((result) => result.id === source.id))
+			.map((source) => {
+				const result = plan.results.find((entry) => entry.id === source.id);
+				if (!result) {
+					throw new Error(
+						`Install failed: source ${source.id} is missing from plan.`,
+					);
+				}
+				return result;
+			}),
+	);
 	if (changed.length > 0) {
 		throw new Error(
 			`Install failed: lock is out of date for source(s): ${changed

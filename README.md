@@ -140,9 +140,9 @@ Use `postinstall` to ensure documentation is available locally immediately after
 
 ```json
 {
-	"scripts": {
-		"postinstall": "npx docs-cache install"
-	}
+  "scripts": {
+    "postinstall": "npx docs-cache install"
+  }
 }
 ```
 

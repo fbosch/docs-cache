@@ -100,7 +100,11 @@ test("install materializes from lock without rewriting it", async () => {
 					`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
 				);
 				await writeFile(path.join(outDir, "README.md"), "hello", "utf8");
-				return { bytes: 5, fileCount: 1 };
+				return {
+					bytes: 5,
+					fileCount: 1,
+					manifestSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+				};
 			},
 		},
 	);
@@ -138,6 +142,50 @@ test("install fails when lock rules do not match config", async () => {
 		})}\n`,
 		"utf8",
 	);
+
+	await assert.rejects(
+		() =>
+			runSync({
+				configPath,
+				json: false,
+				lockOnly: false,
+				offline: false,
+				failOnMiss: false,
+				install: true,
+			}),
+		/Install failed: lock is out of date/i,
+	);
+});
+
+test("install fails when lock repo or ref does not match config", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-install-drift-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const configPath = await writeConfig(tmpRoot);
+
+	await runSync(
+		{
+			configPath,
+			json: false,
+			lockOnly: true,
+			offline: false,
+			failOnMiss: false,
+		},
+		{
+			resolveRemoteCommit: async () => ({
+				repo: "https://example.com/repo.git",
+				ref: "main",
+				resolvedCommit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			}),
+		},
+	);
+
+	await writeConfig(tmpRoot, {
+		repo: "https://example.com/other.git",
+		ref: "v1",
+	});
 
 	await assert.rejects(
 		() =>
