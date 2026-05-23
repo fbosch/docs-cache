@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/fbosch/docs-cache/compare/v0.5.16...v0.6.0) (2026-05-23)
+
+
+### Features
+
+* install from lockfile ([#48](https://github.com/fbosch/docs-cache/issues/48)) ([f13465a](https://github.com/fbosch/docs-cache/commit/f13465a27a4bd569c5386dd2bf0a54c104c70309))
+
 ## [0.5.16](https://github.com/fbosch/docs-cache/compare/v0.5.15...v0.5.16) (2026-04-20)
 
 
