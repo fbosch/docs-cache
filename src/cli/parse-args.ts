@@ -9,6 +9,7 @@ const COMMANDS = [
 	"remove",
 	"pin",
 	"update",
+	"install",
 	"sync",
 	"status",
 	"clean",
@@ -328,6 +329,8 @@ const buildParsedCommand = (
 			return { command: "pin", ids: positionals, options };
 		case "update":
 			return { command: "update", ids: positionals, options };
+		case "install":
+			return { command: "install", ids: positionals, options };
 		case "sync":
 			return { command: "sync", ids: positionals, options };
 		case "status":
@@ -378,6 +381,7 @@ export const parseArgs = (argv = process.argv): ParsedArgs => {
 		cli.command("remove <id...>", "Remove sources from the config and targets");
 		cli.command("pin [id...]", "Pin source refs to current commit");
 		cli.command("update [id...]", "Refresh selected sources and lock data");
+		cli.command("install [id...]", "Install cache from lock data");
 		cli.command("sync [id...]", "Synchronize cache with config");
 		cli.command("status", "Show cache status");
 		cli.command("clean", "Remove project cache");

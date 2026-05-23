@@ -32,6 +32,7 @@ npx docs-cache add github:owner/repo#main
 
 # Sync and lock
 npx docs-cache sync
+npx docs-cache install
 npx docs-cache sync --frozen
 
 # Refresh tracked refs (write lock/materialized output)
@@ -56,8 +57,9 @@ Use this flow to keep behavior predictable (similar to package manager manifest 
 
 1. Keep source intent in config (`ref: "main"`, `ref: "v1"`, or a commit SHA).
 2. Run `npx docs-cache update <id...>` (or `--all`) to refresh selected sources and lock data.
-3. Use `npx docs-cache sync --frozen` in CI to fail fast when lock data drifts.
-4. Use `npx docs-cache pin <id...>` only when you explicitly want to rewrite config refs to commit SHAs.
+3. Use `npx docs-cache install` to restore cache/targets from `docs-lock.json` without rewriting the lock file.
+4. Use `npx docs-cache sync --frozen` in CI to fail fast when lock data drifts.
+5. Use `npx docs-cache pin <id...>` only when you explicitly want to rewrite config refs to commit SHAs.
 
 ## Configuration
 
@@ -139,7 +141,7 @@ Use `postinstall` to ensure documentation is available locally immediately after
 ```json
 {
   "scripts": {
-    "postinstall": "npx docs-cache sync --prune"
+    "postinstall": "npx docs-cache install"
   }
 }
 ```

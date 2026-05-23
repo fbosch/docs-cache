@@ -156,6 +156,15 @@ export const getSyncPlan = async (
 		filteredSources.map(async (source) => {
 			const lockEntry = lockData?.sources?.[source.id];
 			const rulesSha256 = computeRulesSha(source, defaults);
+			if (options.install) {
+				return buildInstallResult({
+					source,
+					lockEntry,
+					defaults,
+					resolvedCacheDir,
+					rulesSha256,
+				});
+			}
 			if (options.offline) {
 				return buildOfflineResult({
 					source,
@@ -354,6 +363,32 @@ const buildOfflineResult = async (params: {
 		...base,
 		status: lockEntry && docsPresent ? "up-to-date" : "missing",
 	};
+};
+
+const buildInstallResult = async (params: {
+	source: DocsCacheResolvedSource;
+	lockEntry: DocsCacheLock["sources"][string] | undefined;
+	defaults: DocsCacheDefaults;
+	resolvedCacheDir: string;
+	rulesSha256: string;
+}): Promise<SyncResult> => {
+	const { source, lockEntry, defaults, resolvedCacheDir, rulesSha256 } = params;
+	const docsPresent = await hasDocs(resolvedCacheDir, source.id);
+	const resolvedCommit = lockEntry?.resolvedCommit ?? "missing";
+	const base = buildSyncResultBase({
+		source,
+		lockEntry,
+		defaults,
+		resolvedCommit,
+		rulesSha256,
+	});
+	if (!lockEntry) {
+		return { ...base, status: "missing" };
+	}
+	if (lockEntry.rulesSha256 !== rulesSha256) {
+		return { ...base, status: "changed" };
+	}
+	return { ...base, status: docsPresent ? "up-to-date" : "changed" };
 };
 
 const buildOnlineResult = async (params: {
@@ -734,6 +769,55 @@ const reportVerifyFailures = (
 	}
 };
 
+const assertInstallLock = (plan: SyncPlan) => {
+	if (!plan.lockData) {
+		throw new Error(
+			"Install requires docs-lock.json. Run docs-cache sync first.",
+		);
+	}
+	const missing = plan.sources.filter(
+		(source) => !plan.lockData?.sources[source.id],
+	);
+	if (missing.length > 0) {
+		throw new Error(
+			`Install failed: lock is missing source(s): ${missing
+				.map((source) => source.id)
+				.join(
+					", ",
+				)}. Run docs-cache update or docs-cache sync to refresh the lock.`,
+		);
+	}
+	const changed = plan.results.filter(
+		(result) => result.lockRulesSha256 !== result.rulesSha256,
+	);
+	const driftedSources = plan.sources.filter((source) => {
+		const lockEntry = plan.lockData?.sources[source.id];
+		return lockEntry?.repo !== source.repo || lockEntry.ref !== source.ref;
+	});
+	changed.push(
+		...driftedSources
+			.filter((source) => !changed.some((result) => result.id === source.id))
+			.map((source) => {
+				const result = plan.results.find((entry) => entry.id === source.id);
+				if (!result) {
+					throw new Error(
+						`Install failed: source ${source.id} is missing from plan.`,
+					);
+				}
+				return result;
+			}),
+	);
+	if (changed.length > 0) {
+		throw new Error(
+			`Install failed: lock is out of date for source(s): ${changed
+				.map((result) => result.id)
+				.join(
+					", ",
+				)}. Run docs-cache update or docs-cache sync to refresh the lock.`,
+		);
+	}
+};
+
 const finalizeSync = async (params: {
 	plan: SyncPlan;
 	previous: Awaited<ReturnType<typeof readLock>> | null;
@@ -743,8 +827,15 @@ const finalizeSync = async (params: {
 	warningCount: number;
 }) => {
 	const { plan, previous, reporter, options, startTime, warningCount } = params;
-	const lock = await buildLock(plan, previous);
-	await writeLock(plan.lockPath, lock);
+	const lock = options.install ? previous : await buildLock(plan, previous);
+	if (!lock) {
+		throw new Error(
+			"Install requires docs-lock.json. Run docs-cache sync first.",
+		);
+	}
+	if (!options.install) {
+		await writeLock(plan.lockPath, lock);
+	}
 	const { totalBytes, totalFiles } = summarizePlan(plan);
 	if (reporter) {
 		const summary = `${symbols.info} ${formatBytes(totalBytes)} · ${totalFiles} files`;
@@ -806,8 +897,8 @@ const createJobRunner = (params: {
 
 			const fetch = await runFetch({
 				sourceId: source.id,
-				repo: source.repo,
-				ref: source.ref,
+				repo: options.install ? (lockEntry?.repo ?? source.repo) : source.repo,
+				ref: options.install ? (lockEntry?.ref ?? source.ref) : source.ref,
 				resolvedCommit: result.resolvedCommit,
 				cacheDir: plan.cacheDir,
 				include: source.include ?? defaults.include,
@@ -855,6 +946,9 @@ const createJobRunner = (params: {
 };
 
 export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
+	if (options.install && options.lockOnly) {
+		throw new Error("Install does not support lockOnly.");
+	}
 	const startTime = process.hrtime.bigint();
 	let warningCount = 0;
 	const plan = await getSyncPlan(options, deps);
@@ -865,6 +959,9 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		!options.json && !isSilentMode() && process.stdout.isTTY && !isTestRunner;
 	const reporter = useLiveOutput ? new TaskReporter() : null;
 	const previous = plan.lockData;
+	if (options.install) {
+		assertInstallLock(plan);
+	}
 	const requiredMissing = plan.results.filter((result) => {
 		const source = plan.sources.find((entry) => entry.id === result.id);
 		return result.status === "missing" && (source?.required ?? true);
