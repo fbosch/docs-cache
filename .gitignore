@@ -11,6 +11,7 @@ docs.config.json
 coverage
 TODO.md
 .docs/
+.serena/
 benchmarks/
 
 *.md
