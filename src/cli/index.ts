@@ -8,6 +8,14 @@ import type { CliCommand } from "#cli/types";
 import { setSilentMode, setVerboseMode, symbols, ui } from "#cli/ui";
 
 export const CLI_NAME = "docs-cache";
+const COMMANDS_WITH_POSITIONALS = new Set([
+	"add",
+	"remove",
+	"pin",
+	"update",
+	"install",
+	"sync",
+]);
 
 const HELP_TEXT = `
 Usage: ${CLI_NAME} <command> [options]
@@ -560,12 +568,7 @@ export async function main(): Promise<void> {
 		}
 
 		if (
-			parsed.command !== "add" &&
-			parsed.command !== "remove" &&
-			parsed.command !== "pin" &&
-			parsed.command !== "update" &&
-			parsed.command !== "install" &&
-			parsed.command !== "sync" &&
+			!COMMANDS_WITH_POSITIONALS.has(parsed.command) &&
 			parsed.positionals.length > 0
 		) {
 			printError(`${CLI_NAME}: unexpected arguments.`);
