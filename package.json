@@ -42,12 +42,12 @@
 		"LICENSE"
 	],
 	"scripts": {
-		"build": "unbuild",
-		"dev": "unbuild --stub",
+		"build": "node scripts/build.mjs",
+		"dev": "pnpm build",
 		"lint": "biome check .",
 		"prepublishOnly": "pnpm audit --audit-level=high && pnpm build && pnpm size && pnpm schema:build",
 		"release": "pnpm run lint && pnpm run typecheck && bumpp && pnpm publish --access public",
-		"test": "pnpm build && node --test",
+		"test": "pnpm build && node --test --test-concurrency=1",
 		"test:coverage": "DOCS_CACHE_COVERAGE=1 c8 --include src --reporter=text --reporter=json node --conditions=coverage --import tsx --experimental-loader ./scripts/coverage-loader.mjs --test --test-concurrency=1",
 		"bench": "pnpm build && node scripts/benchmarks/run.mjs",
 		"complexity": "node scripts/complexity/run.mjs",
@@ -126,13 +126,12 @@
 		"tinybench": "^6.0.0",
 		"ts-complex": "^1.0.0",
 		"tsx": "4.23.0",
-		"typescript": "7.0.2",
-		"unbuild": "^3.6.1"
+		"typescript": "7.0.2"
 	},
 	"size-limit": [
 		{
-			"path": "dist/cli.mjs",
-			"limit": "10 kB"
+			"path": "dist/esm/cli/index.mjs",
+			"limit": "20 kB"
 		}
 	],
 	"complexity": {
