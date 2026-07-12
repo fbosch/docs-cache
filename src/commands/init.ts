@@ -210,15 +210,15 @@ const writeStandaloneConfig = async (
 	};
 };
 
-export const initConfig = async (
-	options: InitOptions,
-	deps: PromptDeps = {},
-) => {
-	const confirm = deps.confirm ?? clackConfirm;
-	const isCancel = deps.isCancel ?? clackIsCancel;
-	const select = deps.select ?? clackSelect;
-	const text = deps.text ?? clackText;
-	const cwd = options.cwd ?? process.cwd();
+const getConfirm = (deps: PromptDeps) => deps.confirm ?? clackConfirm;
+
+const getIsCancel = (deps: PromptDeps) => deps.isCancel ?? clackIsCancel;
+
+const getSelect = (deps: PromptDeps) => deps.select ?? clackSelect;
+
+const getText = (deps: PromptDeps) => deps.text ?? clackText;
+
+const getInitContext = async (cwd: string) => {
 	const { existingConfigPaths, defaultConfigPath, packagePath } =
 		await findExistingConfigPaths(cwd);
 	if (existingConfigPaths.length > 0) {
@@ -226,6 +226,41 @@ export const initConfig = async (
 			`Config already exists at ${existingConfigPaths.join(", ")}. Init aborted.`,
 		);
 	}
+	return { defaultConfigPath, packagePath };
+};
+
+const writeInitConfig = async (params: {
+	configPath: string;
+	config: DocsCacheConfig;
+	gitignore: boolean;
+}) => {
+	if (path.basename(params.configPath) === "package.json") {
+		return writePackageConfig(
+			params.configPath,
+			params.config,
+			params.gitignore,
+		);
+	}
+	if (await exists(params.configPath)) {
+		throw new Error(`Config already exists at ${params.configPath}.`);
+	}
+	return writeStandaloneConfig(
+		params.configPath,
+		params.config,
+		params.gitignore,
+	);
+};
+
+export const initConfig = async (
+	options: InitOptions,
+	deps: PromptDeps = {},
+) => {
+	const confirm = getConfirm(deps);
+	const isCancel = getIsCancel(deps);
+	const select = getSelect(deps);
+	const text = getText(deps);
+	const cwd = options.cwd ?? process.cwd();
+	const { defaultConfigPath, packagePath } = await getInitContext(cwd);
 	const configPath = await selectConfigPath(
 		packagePath,
 		defaultConfigPath,
@@ -250,11 +285,9 @@ export const initConfig = async (
 		answers.toc,
 		answers.opencode,
 	);
-	if (path.basename(resolvedConfigPath) === "package.json") {
-		return writePackageConfig(resolvedConfigPath, config, answers.gitignore);
-	}
-	if (await exists(resolvedConfigPath)) {
-		throw new Error(`Config already exists at ${resolvedConfigPath}.`);
-	}
-	return writeStandaloneConfig(resolvedConfigPath, config, answers.gitignore);
+	return writeInitConfig({
+		configPath: resolvedConfigPath,
+		config,
+		gitignore: answers.gitignore,
+	});
 };
