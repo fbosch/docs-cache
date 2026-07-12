@@ -4,7 +4,7 @@ import { assertSafeSourceId } from "#core/source-id";
 export const TargetModeSchema = z.enum(["symlink", "copy"]);
 export const CacheModeSchema = z.enum(["materialize"]);
 export const TocFormatSchema = z.enum(["tree", "compressed"]);
-export const OpenCodeSchema = z.union([
+const OpenCodeSchema = z.union([
 	z.literal(false),
 	z
 		.object({
