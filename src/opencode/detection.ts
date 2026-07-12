@@ -42,35 +42,38 @@ const projectDirectories = (rootDir: string, startDir: string) => {
 	}
 };
 
-export const getOpenCodeConfigCandidates = async (startDir: string) => {
-	const candidates = [
-		...configFilesIn(
-			path.join(
-				process.env.XDG_CONFIG_HOME ?? path.join(homedir(), ".config"),
-				"opencode",
-			),
-		),
+const configFilesInEnvDirectory = (name: string) => {
+	const directory = process.env[name];
+	return directory ? configFilesIn(path.resolve(directory)) : [];
+};
+
+const projectConfigCandidates = async (startDir: string) => {
+	const rootDir = await findProjectRoot(startDir);
+	const directories = projectDirectories(rootDir, path.resolve(startDir));
+	return [
+		...directories.flatMap(configFilesIn),
+		...[...directories]
+			.reverse()
+			.flatMap((directory) => configFilesIn(path.join(directory, ".opencode"))),
 	];
-	if (process.env.OPENCODE_CONFIG) {
-		candidates.push(path.resolve(process.env.OPENCODE_CONFIG));
-	}
-	if (!process.env.OPENCODE_DISABLE_PROJECT_CONFIG) {
-		const rootDir = await findProjectRoot(startDir);
-		const directories = projectDirectories(rootDir, path.resolve(startDir));
-		for (const directory of directories) {
-			candidates.push(...configFilesIn(directory));
-		}
-		for (const directory of [...directories].reverse()) {
-			candidates.push(...configFilesIn(path.join(directory, ".opencode")));
-		}
-	}
-	candidates.push(...configFilesIn(path.join(homedir(), ".opencode")));
-	if (process.env.OPENCODE_CONFIG_DIR) {
-		candidates.push(
-			...configFilesIn(path.resolve(process.env.OPENCODE_CONFIG_DIR)),
-		);
-	}
-	return candidates;
+};
+
+export const getOpenCodeConfigCandidates = async (startDir: string) => {
+	const userConfigDir =
+		process.env.XDG_CONFIG_HOME ?? path.join(homedir(), ".config");
+	const projectCandidates = process.env.OPENCODE_DISABLE_PROJECT_CONFIG
+		? []
+		: await projectConfigCandidates(startDir);
+	const explicitConfig = process.env.OPENCODE_CONFIG
+		? [path.resolve(process.env.OPENCODE_CONFIG)]
+		: [];
+	return [
+		...configFilesIn(path.join(userConfigDir, "opencode")),
+		...explicitConfig,
+		...projectCandidates,
+		...configFilesIn(path.join(homedir(), ".opencode")),
+		...configFilesInEnvDirectory("OPENCODE_CONFIG_DIR"),
+	];
 };
 
 export const detectOpenCodeConfig = async (startDir: string) => {

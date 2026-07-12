@@ -49,65 +49,83 @@ const assertPositiveNumber = (value: unknown, label: string): number => {
 	return numberValue;
 };
 
+const validateLockSource = (
+	value: unknown,
+	key: string,
+): DocsCacheLockSource => {
+	if (!isRecord(value)) {
+		throw new Error(`sources.${key} must be an object.`);
+	}
+	return {
+		repo: assertString(value.repo, `sources.${key}.repo`),
+		ref: assertString(value.ref, `sources.${key}.ref`),
+		resolvedCommit: assertString(
+			value.resolvedCommit,
+			`sources.${key}.resolvedCommit`,
+		),
+		bytes: assertPositiveNumber(value.bytes, `sources.${key}.bytes`),
+		fileCount: assertPositiveNumber(
+			value.fileCount,
+			`sources.${key}.fileCount`,
+		),
+		manifestSha256: assertString(
+			value.manifestSha256,
+			`sources.${key}.manifestSha256`,
+		),
+		rulesSha256:
+			value.rulesSha256 === undefined
+				? undefined
+				: assertString(value.rulesSha256, `sources.${key}.rulesSha256`),
+	};
+};
+
+const validateSources = (input: unknown) => {
+	if (!isRecord(input)) {
+		throw new Error("sources must be an object.");
+	}
+	const sources: Record<string, DocsCacheLockSource> = {};
+	for (const [key, value] of Object.entries(input)) {
+		sources[key] = validateLockSource(value, key);
+	}
+	return sources;
+};
+
+const validateOpenCodeAliases = (value: unknown) => {
+	if (!Array.isArray(value)) {
+		throw new Error("opencode.aliases must be an array.");
+	}
+	const aliases = value.map((alias, index) =>
+		assertString(alias, `opencode.aliases.${index}`),
+	);
+	if (new Set(aliases).size !== aliases.length) {
+		throw new Error("opencode.aliases must not contain duplicates.");
+	}
+	return aliases;
+};
+
+const validateOpenCodeLock = (value: unknown): DocsCacheOpenCodeLock => {
+	if (!isRecord(value)) {
+		throw new Error("opencode must be an object.");
+	}
+	return {
+		configPath: assertString(value.configPath, "opencode.configPath"),
+		aliases: validateOpenCodeAliases(value.aliases),
+	};
+};
+
+const validateOptionalOpenCodeLock = (value: unknown) =>
+	value === undefined ? undefined : validateOpenCodeLock(value);
+
 export const validateLock = (input: unknown): DocsCacheLock => {
 	if (!isRecord(input)) {
 		throw new Error("Lock file must be a JSON object.");
 	}
-	const version = input.version;
-	if (version !== 1) {
+	if (input.version !== 1) {
 		throw new Error("Lock file version must be 1.");
 	}
 	const toolVersion = assertString(input.toolVersion, "toolVersion");
-	if (!isRecord(input.sources)) {
-		throw new Error("sources must be an object.");
-	}
-	const sources: Record<string, DocsCacheLockSource> = {};
-	for (const [key, value] of Object.entries(input.sources)) {
-		if (!isRecord(value)) {
-			throw new Error(`sources.${key} must be an object.`);
-		}
-		sources[key] = {
-			repo: assertString(value.repo, `sources.${key}.repo`),
-			ref: assertString(value.ref, `sources.${key}.ref`),
-			resolvedCommit: assertString(
-				value.resolvedCommit,
-				`sources.${key}.resolvedCommit`,
-			),
-			bytes: assertPositiveNumber(value.bytes, `sources.${key}.bytes`),
-			fileCount: assertPositiveNumber(
-				value.fileCount,
-				`sources.${key}.fileCount`,
-			),
-			manifestSha256: assertString(
-				value.manifestSha256,
-				`sources.${key}.manifestSha256`,
-			),
-			rulesSha256:
-				value.rulesSha256 === undefined
-					? undefined
-					: assertString(value.rulesSha256, `sources.${key}.rulesSha256`),
-		};
-	}
-	let opencode: DocsCacheOpenCodeLock | undefined;
-	if (input.opencode !== undefined) {
-		if (!isRecord(input.opencode)) {
-			throw new Error("opencode must be an object.");
-		}
-		const configPath = assertString(
-			input.opencode.configPath,
-			"opencode.configPath",
-		);
-		if (!Array.isArray(input.opencode.aliases)) {
-			throw new Error("opencode.aliases must be an array.");
-		}
-		const aliases = input.opencode.aliases.map((alias, index) =>
-			assertString(alias, `opencode.aliases.${index}`),
-		);
-		if (new Set(aliases).size !== aliases.length) {
-			throw new Error("opencode.aliases must not contain duplicates.");
-		}
-		opencode = { configPath, aliases };
-	}
+	const sources = validateSources(input.sources);
+	const opencode = validateOptionalOpenCodeLock(input.opencode);
 	return {
 		version: 1,
 		toolVersion,

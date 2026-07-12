@@ -62,21 +62,31 @@ const printError = (message: string) => {
 	process.stderr.write(`${symbols.error} ${message}\n`);
 };
 
-const resolveOpenCodeConsentForSync = async (
+const canPromptForOpenCodeConsent = (
+	options: Extract<CliCommand, { command: "sync" }>["options"],
+) => options.json === false && options.frozen !== true && process.stdin.isTTY;
+
+const getOpenCodeConsentContext = async (
 	options: Extract<CliCommand, { command: "sync" }>["options"],
 ) => {
 	const { loadConfig } = await import("#config");
-	const { saveOpenCodeConsent } = await import("#opencode/consent");
 	const { detectOpenCodeConfig } = await import("#opencode/detection");
 	const { config, resolvedPath } = await loadConfig(options.config);
 	if (config.opencode !== undefined) {
-		return;
+		return null;
 	}
 	const detected = await detectOpenCodeConfig(path.dirname(resolvedPath));
 	if (!detected) {
-		return;
+		return null;
 	}
-	if (options.json || options.frozen || !process.stdin.isTTY) {
+	return detected;
+};
+
+const saveOpenCodeConsentFromPrompt = async (
+	options: Extract<CliCommand, { command: "sync" }>["options"],
+	detected: string,
+) => {
+	if (!canPromptForOpenCodeConsent(options)) {
 		process.stderr.write(
 			`${symbols.info} OpenCode config detected at ${detected}; run docs-cache sync interactively to choose reference syncing.\n`,
 		);
@@ -89,10 +99,21 @@ const resolveOpenCodeConsentForSync = async (
 	if (isCancel(answer)) {
 		throw new Error("Sync cancelled.");
 	}
+	const { saveOpenCodeConsent } = await import("#opencode/consent");
 	await saveOpenCodeConsent({
 		configPath: options.config,
 		opencode: answer ? { configPath: detected } : false,
 	});
+};
+
+const resolveOpenCodeConsentForSync = async (
+	options: Extract<CliCommand, { command: "sync" }>["options"],
+) => {
+	const detected = await getOpenCodeConsentContext(options);
+	if (!detected) {
+		return;
+	}
+	await saveOpenCodeConsentFromPrompt(options, detected);
 };
 
 const runAdd = async (parsed: Extract<CliCommand, { command: "add" }>) => {

@@ -20,22 +20,46 @@ const statePathFor = (configPath: string) => {
 	return path.join(stateDirectory(), `${hash}.json`);
 };
 
-const validateOwnership = (value: unknown): DocsCacheOpenCodeLock => {
-	if (!isRecord(value) || value.version !== 1) {
+const isValidAliases = (aliases: unknown): aliases is string[] =>
+	Array.isArray(aliases) &&
+	aliases.every(
+		(alias): alias is string => typeof alias === "string" && alias.length > 0,
+	);
+
+const getOwnershipRecord = (value: unknown) => {
+	if (!isRecord(value)) {
 		throw new Error("Invalid local OpenCode ownership state.");
 	}
+	return value;
+};
+
+const assertOwnershipVersion = (value: Record<string, unknown>) => {
+	if (value.version !== 1) {
+		throw new Error("Invalid local OpenCode ownership state.");
+	}
+};
+
+const getOwnershipConfigPath = (value: Record<string, unknown>) => {
 	if (typeof value.configPath !== "string" || value.configPath.length === 0) {
 		throw new Error("Invalid local OpenCode ownership configPath.");
 	}
-	if (
-		!Array.isArray(value.aliases) ||
-		!value.aliases.every(
-			(alias): alias is string => typeof alias === "string" && alias.length > 0,
-		)
-	) {
+	return value.configPath;
+};
+
+const getOwnershipAliases = (value: Record<string, unknown>) => {
+	if (!isValidAliases(value.aliases)) {
 		throw new Error("Invalid local OpenCode ownership aliases.");
 	}
-	return { configPath: value.configPath, aliases: value.aliases };
+	return value.aliases;
+};
+
+const validateOwnership = (value: unknown): DocsCacheOpenCodeLock => {
+	const record = getOwnershipRecord(value);
+	assertOwnershipVersion(record);
+	return {
+		configPath: getOwnershipConfigPath(record),
+		aliases: getOwnershipAliases(record),
+	};
 };
 
 export const readOpenCodeOwnership = async (configPath: string) => {

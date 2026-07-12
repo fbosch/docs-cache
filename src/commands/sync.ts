@@ -972,34 +972,85 @@ const createJobRunner = (params: {
 	};
 };
 
-export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
+const assertValidSyncOptions = (options: SyncOptions) => {
 	if (options.install && options.lockOnly) {
 		throw new Error("Install does not support lockOnly.");
 	}
-	const startTime = process.hrtime.bigint();
-	let warningCount = 0;
-	const plan = await getSyncPlan(options, deps);
+};
+
+const createSyncReporter = (options: SyncOptions) => {
 	const isTestRunner = process.argv.includes("--test");
-	const useLiveOutput =
-		!options.json && !isSilentMode() && process.stdout.isTTY && !isTestRunner;
-	const reporter = useLiveOutput ? new TaskReporter() : null;
-	const previous = plan.lockData;
-	const shouldPlanOpenCodeReferences =
-		!options.install && (!options.lockOnly || options.frozen);
-	const ownership = shouldPlanOpenCodeReferences
-		? await readOpenCodeOwnership(plan.configPath)
-		: undefined;
-	const openCodeReferences = shouldPlanOpenCodeReferences
-		? await planOpenCodeReferences({
-				opencode: plan.config.opencode,
-				ownership,
-				sources: plan.config.sources,
-				cacheDir: plan.cacheDir,
-			})
-		: undefined;
+	const useLiveOutput = [
+		options.json === false,
+		isSilentMode() === false,
+		process.stdout.isTTY,
+		isTestRunner === false,
+	].every(Boolean);
+	return useLiveOutput ? new TaskReporter() : null;
+};
+
+const shouldPlanOpenCodeReferences = (options: SyncOptions) =>
+	options.install !== true &&
+	(options.lockOnly !== true || Boolean(options.frozen));
+
+const planOpenCodeSync = async (plan: SyncPlan, options: SyncOptions) => {
+	if (!shouldPlanOpenCodeReferences(options)) {
+		return { ownership: undefined, references: undefined };
+	}
+	const ownership = await readOpenCodeOwnership(plan.configPath);
+	const references = await planOpenCodeReferences({
+		opencode: plan.config.opencode,
+		ownership,
+		sources: plan.config.sources,
+		cacheDir: plan.cacheDir,
+	});
+	return { ownership, references };
+};
+
+const assertFrozenSync = (
+	plan: SyncPlan,
+	openCodeReferences:
+		| Awaited<ReturnType<typeof planOpenCodeReferences>>
+		| undefined,
+) => {
+	const drifted = plan.results.filter(
+		(result) => result.status !== "up-to-date",
+	);
+	if (drifted.length > 0) {
+		throw new Error(
+			`Frozen sync failed: lock is out of date for source(s): ${drifted
+				.map((result) => result.id)
+				.join(
+					", ",
+				)}. Run docs-cache update or docs-cache sync to refresh the lock.`,
+		);
+	}
+	if (openCodeReferences?.drift.length) {
+		throw new Error(
+			`Frozen sync failed: OpenCode references are out of date for alias(es): ${openCodeReferences.drift.join(", ")}. Run docs-cache sync to refresh them.`,
+		);
+	}
+};
+
+const assertSyncPreconditions = (
+	plan: SyncPlan,
+	options: SyncOptions,
+	openCodeReferences:
+		| Awaited<ReturnType<typeof planOpenCodeReferences>>
+		| undefined,
+) => {
+	assertInstallPrecondition(plan, options);
+	assertRequiredSources(plan, options);
+	assertFrozenPrecondition(plan, options, openCodeReferences);
+};
+
+const assertInstallPrecondition = (plan: SyncPlan, options: SyncOptions) => {
 	if (options.install) {
 		assertInstallLock(plan);
 	}
+};
+
+const assertRequiredSources = (plan: SyncPlan, options: SyncOptions) => {
 	const requiredMissing = plan.results.filter((result) => {
 		const source = plan.sources.find((entry) => entry.id === result.id);
 		return result.status === "missing" && (source?.required ?? true);
@@ -1009,52 +1060,213 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 			`Missing required source(s): ${requiredMissing.map((result) => result.id).join(", ")}.`,
 		);
 	}
-	if (options.frozen) {
-		const drifted = plan.results.filter(
-			(result) => result.status !== "up-to-date",
-		);
-		if (drifted.length > 0) {
-			throw new Error(
-				`Frozen sync failed: lock is out of date for source(s): ${drifted
-					.map((result) => result.id)
-					.join(
-						", ",
-					)}. Run docs-cache update or docs-cache sync to refresh the lock.`,
-			);
-		}
-		if (openCodeReferences?.drift.length) {
-			throw new Error(
-				`Frozen sync failed: OpenCode references are out of date for alias(es): ${openCodeReferences.drift.join(", ")}. Run docs-cache sync to refresh them.`,
-			);
-		}
-	}
-	await mkdir(plan.cacheDir, { recursive: true });
-	if (!options.lockOnly) {
-		const defaults = plan.defaults;
-		const runFetch = deps.fetchSource ?? fetchSource;
-		const runMaterialize = deps.materializeSource ?? materializeSource;
-		const docsPresence = new Map<string, boolean>();
-		const runJobs = createJobRunner({
-			plan,
-			options,
-			defaults,
-			reporter,
-			runFetch,
-			runMaterialize,
-		});
+};
 
-		const initialJobs = await buildJobs(plan, options, docsPresence);
-		await runJobs(initialJobs);
-		await ensureTargets(plan, defaults);
-		warningCount += await verifyAndRepairCache({
-			plan,
-			options,
-			docsPresence,
-			defaults,
-			reporter,
-			runJobs,
-		});
+const assertFrozenPrecondition = (
+	plan: SyncPlan,
+	options: SyncOptions,
+	openCodeReferences:
+		| Awaited<ReturnType<typeof planOpenCodeReferences>>
+		| undefined,
+) => {
+	if (options.frozen) {
+		assertFrozenSync(plan, openCodeReferences);
 	}
+};
+
+const syncCache = async (params: {
+	plan: SyncPlan;
+	options: SyncOptions;
+	deps: SyncDeps;
+	reporter: TaskReporter | null;
+}) => {
+	const { plan, options, deps, reporter } = params;
+	if (options.lockOnly) {
+		return 0;
+	}
+	const defaults = plan.defaults;
+	const runFetch = deps.fetchSource ?? fetchSource;
+	const runMaterialize = deps.materializeSource ?? materializeSource;
+	const docsPresence = new Map<string, boolean>();
+	const runJobs = createJobRunner({
+		plan,
+		options,
+		defaults,
+		reporter,
+		runFetch,
+		runMaterialize,
+	});
+	const initialJobs = await buildJobs(plan, options, docsPresence);
+	await runJobs(initialJobs);
+	await ensureTargets(plan, defaults);
+	return verifyAndRepairCache({
+		plan,
+		options,
+		docsPresence,
+		defaults,
+		reporter,
+		runJobs,
+	});
+};
+
+const shouldApplyOpenCodeReferences = (options: SyncOptions) =>
+	[
+		options.lockOnly !== true,
+		options.install !== true,
+		options.frozen !== true,
+	].every(Boolean);
+
+const shouldPersistOpenCodeOwnership = (
+	plan: SyncPlan,
+	shouldApply: boolean,
+	openCodeReferences:
+		| Awaited<ReturnType<typeof planOpenCodeReferences>>
+		| undefined,
+) =>
+	[
+		shouldApply,
+		plan.config.opencode !== undefined,
+		plan.config.opencode !== false,
+		openCodeReferences?.nextState !== undefined,
+	].every(Boolean);
+
+const applyOpenCodeReferences = async (
+	shouldApply: boolean,
+	openCodeReferences:
+		| Awaited<ReturnType<typeof planOpenCodeReferences>>
+		| undefined,
+) => {
+	if (shouldApply) {
+		await openCodeReferences?.apply();
+	}
+};
+
+const writeSyncState = async (params: {
+	plan: SyncPlan;
+	lock: DocsCacheLock;
+	options: SyncOptions;
+	shouldPersistOwnership: boolean;
+	openCodeReferences:
+		| Awaited<ReturnType<typeof planOpenCodeReferences>>
+		| undefined;
+}) => {
+	const { plan, lock, options, shouldPersistOwnership, openCodeReferences } =
+		params;
+	await writeOpenCodeOwnershipIfNeeded(
+		plan,
+		shouldPersistOwnership,
+		openCodeReferences,
+	);
+	if (!options.install) {
+		await writeLock(plan.lockPath, lock);
+	}
+};
+
+const writeOpenCodeOwnershipIfNeeded = async (
+	plan: SyncPlan,
+	shouldPersistOwnership: boolean,
+	openCodeReferences:
+		| Awaited<ReturnType<typeof planOpenCodeReferences>>
+		| undefined,
+) => {
+	if (shouldPersistOwnership && openCodeReferences?.nextState) {
+		await writeOpenCodeOwnership(plan.configPath, openCodeReferences.nextState);
+	}
+};
+
+const collectRollbackFailure = async (
+	rollback: () => Promise<void>,
+	failures: unknown[],
+) => {
+	try {
+		await rollback();
+	} catch (error) {
+		failures.push(error);
+	}
+};
+
+const rollbackOpenCodeState = async (params: {
+	plan: SyncPlan;
+	shouldPersistOwnership: boolean;
+	shouldApply: boolean;
+	ownership: DocsCacheOpenCodeLock | undefined;
+	openCodeReferences:
+		| Awaited<ReturnType<typeof planOpenCodeReferences>>
+		| undefined;
+}) => {
+	const failures: unknown[] = [];
+	if (params.shouldPersistOwnership) {
+		await collectRollbackFailure(
+			() => restoreOpenCodeOwnership(params.plan.configPath, params.ownership),
+			failures,
+		);
+	}
+	if (params.shouldApply) {
+		await collectRollbackFailure(
+			async () => params.openCodeReferences?.rollback(),
+			failures,
+		);
+	}
+	return failures;
+};
+
+const persistSyncState = async (params: {
+	plan: SyncPlan;
+	lock: DocsCacheLock;
+	options: SyncOptions;
+	ownership: DocsCacheOpenCodeLock | undefined;
+	openCodeReferences:
+		| Awaited<ReturnType<typeof planOpenCodeReferences>>
+		| undefined;
+}) => {
+	const { plan, lock, options, ownership, openCodeReferences } = params;
+	const shouldApply = shouldApplyOpenCodeReferences(options);
+	const shouldPersistOwnership = shouldPersistOpenCodeOwnership(
+		plan,
+		shouldApply,
+		openCodeReferences,
+	);
+	await applyOpenCodeReferences(shouldApply, openCodeReferences);
+	try {
+		await writeSyncState({
+			plan,
+			lock,
+			options,
+			shouldPersistOwnership,
+			openCodeReferences,
+		});
+	} catch (error) {
+		const rollbackFailures = await rollbackOpenCodeState({
+			plan,
+			shouldPersistOwnership,
+			shouldApply,
+			ownership,
+			openCodeReferences,
+		});
+		if (rollbackFailures.length > 0) {
+			throw new AggregateError(
+				[error, ...rollbackFailures],
+				"Failed to persist OpenCode state and roll back cleanly.",
+				{ cause: error },
+			);
+		}
+		throw error;
+	}
+};
+
+export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
+	assertValidSyncOptions(options);
+	const startTime = process.hrtime.bigint();
+	const plan = await getSyncPlan(options, deps);
+	const reporter = createSyncReporter(options);
+	const previous = plan.lockData;
+	const { ownership, references: openCodeReferences } = await planOpenCodeSync(
+		plan,
+		options,
+	);
+	assertSyncPreconditions(plan, options, openCodeReferences);
+	await mkdir(plan.cacheDir, { recursive: true });
+	const warningCount = await syncCache({ plan, options, deps, reporter });
 	const opencode =
 		options.lockOnly || options.install
 			? undefined
@@ -1065,54 +1277,13 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		options,
 		opencode,
 	});
-	const shouldApplyOpenCodeReferences =
-		!options.lockOnly &&
-		!options.install &&
-		!options.frozen &&
-		openCodeReferences !== undefined;
-	const shouldPersistOpenCodeOwnership =
-		shouldApplyOpenCodeReferences &&
-		plan.config.opencode !== undefined &&
-		plan.config.opencode !== false &&
-		openCodeReferences?.nextState !== undefined;
-	if (shouldApplyOpenCodeReferences) {
-		await openCodeReferences?.apply();
-	}
-	try {
-		if (shouldPersistOpenCodeOwnership && openCodeReferences?.nextState) {
-			await writeOpenCodeOwnership(
-				plan.configPath,
-				openCodeReferences.nextState,
-			);
-		}
-		if (!options.install) {
-			await writeLock(plan.lockPath, lock);
-		}
-	} catch (error) {
-		const rollbackFailures: unknown[] = [];
-		if (shouldPersistOpenCodeOwnership) {
-			try {
-				await restoreOpenCodeOwnership(plan.configPath, ownership);
-			} catch (rollbackError) {
-				rollbackFailures.push(rollbackError);
-			}
-		}
-		if (shouldApplyOpenCodeReferences) {
-			try {
-				await openCodeReferences?.rollback();
-			} catch (rollbackError) {
-				rollbackFailures.push(rollbackError);
-			}
-		}
-		if (rollbackFailures.length > 0) {
-			throw new AggregateError(
-				[error, ...rollbackFailures],
-				"Failed to persist OpenCode state and roll back cleanly.",
-				{ cause: error },
-			);
-		}
-		throw error;
-	}
+	await persistSyncState({
+		plan,
+		lock,
+		options,
+		ownership,
+		openCodeReferences,
+	});
 	return finalizeSync({
 		plan,
 		lock,

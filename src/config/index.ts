@@ -86,17 +86,29 @@ const pruneDefaults = (
 	return result;
 };
 
+const buildConfigBaseline = (config: DocsCacheConfig): DocsCacheConfig => ({
+	...DEFAULT_CONFIG,
+	$schema: config.$schema,
+	defaults: {
+		...DEFAULT_CONFIG.defaults,
+		...(config.targetMode ? { targetMode: config.targetMode } : undefined),
+	},
+});
+
+const removeEmptyConfigValues = (config: DocsCacheConfig) => {
+	if (!config.defaults || Object.keys(config.defaults).length === 0) {
+		delete config.defaults;
+	}
+	if (config.opencode === undefined) {
+		delete config.opencode;
+	}
+	return config;
+};
+
 export const stripDefaultConfigValues = (
 	config: DocsCacheConfig,
 ): DocsCacheConfig => {
-	const baseline: DocsCacheConfig = {
-		...DEFAULT_CONFIG,
-		$schema: config.$schema,
-		defaults: {
-			...DEFAULT_CONFIG.defaults,
-			...(config.targetMode ? { targetMode: config.targetMode } : undefined),
-		},
-	};
+	const baseline = buildConfigBaseline(config);
 	const pruned = pruneDefaults(
 		config as unknown as Record<string, unknown>,
 		baseline as unknown as Record<string, unknown>,
@@ -109,13 +121,7 @@ export const stripDefaultConfigValues = (
 		defaults: pruned.defaults as DocsCacheConfig["defaults"],
 		sources: config.sources,
 	};
-	if (!next.defaults || Object.keys(next.defaults).length === 0) {
-		delete next.defaults;
-	}
-	if (next.opencode === undefined) {
-		delete next.opencode;
-	}
-	return next;
+	return removeEmptyConfigValues(next);
 };
 
 export const validateConfig = (input: unknown): DocsCacheConfig => {

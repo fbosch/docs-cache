@@ -39,8 +39,7 @@ const exists = async (filePath: string) => {
 	}
 };
 
-const parseDocument = async (filePath: string): Promise<OpenCodeDocument> => {
-	const raw = await readFile(filePath, "utf8");
+const parseDocumentValue = (raw: string, filePath: string) => {
 	const errors: ParseError[] = [];
 	const value = parse(raw, errors, {
 		allowTrailingComma: true,
@@ -52,11 +51,24 @@ const parseDocument = async (filePath: string): Promise<OpenCodeDocument> => {
 	if (!isRecord(value)) {
 		throw new Error(`OpenCode config at ${filePath} must be an object.`);
 	}
+	return value;
+};
+
+const getDocumentReferences = (
+	value: Record<string, unknown>,
+	filePath: string,
+) => {
 	const references = value.references;
 	if (references !== undefined && !isRecord(references)) {
 		throw new Error(`OpenCode references in ${filePath} must be an object.`);
 	}
-	return { references: references ?? {}, raw };
+	return references ?? {};
+};
+
+const parseDocument = async (filePath: string): Promise<OpenCodeDocument> => {
+	const raw = await readFile(filePath, "utf8");
+	const value = parseDocumentValue(raw, filePath);
+	return { references: getDocumentReferences(value, filePath), raw };
 };
 
 const getRepositoryLabel = (repo: string) => {
@@ -104,27 +116,43 @@ const updateReferences = (params: {
 	return next;
 };
 
-const findDrift = (params: {
-	references: Record<string, unknown>;
-	desired: Map<string, Reference>;
-	stale: Set<string>;
-}) => {
+const findDesiredDrift = (
+	references: Record<string, unknown>,
+	desired: Map<string, Reference>,
+) => {
 	const drift: string[] = [];
-	for (const [alias, reference] of params.desired) {
+	for (const [alias, reference] of desired) {
 		if (
-			!Object.hasOwn(params.references, alias) ||
-			JSON.stringify(params.references[alias]) !== JSON.stringify(reference)
+			!Object.hasOwn(references, alias) ||
+			JSON.stringify(references[alias]) !== JSON.stringify(reference)
 		) {
-			drift.push(alias);
-		}
-	}
-	for (const alias of params.stale) {
-		if (Object.hasOwn(params.references, alias)) {
 			drift.push(alias);
 		}
 	}
 	return drift;
 };
+
+const findStaleDrift = (
+	references: Record<string, unknown>,
+	stale: Set<string>,
+) => {
+	const drift: string[] = [];
+	for (const alias of stale) {
+		if (Object.hasOwn(references, alias)) {
+			drift.push(alias);
+		}
+	}
+	return drift;
+};
+
+const findDrift = (params: {
+	references: Record<string, unknown>;
+	desired: Map<string, Reference>;
+	stale: Set<string>;
+}) => [
+	...findDesiredDrift(params.references, params.desired),
+	...findStaleDrift(params.references, params.stale),
+];
 
 const assertNoUserAliasCollisions = (
 	references: Record<string, unknown>,
@@ -151,6 +179,44 @@ const noOpPlan = (
 	rollback: async () => undefined,
 });
 
+const rollbackChanges = async (changes: FileChange[]) => {
+	for (const change of [...changes].reverse()) {
+		await writeFileAtomically(change.filePath, change.raw);
+	}
+};
+
+const restoreAppliedChanges = async (changes: FileChange[]) => {
+	const failures: unknown[] = [];
+	for (const change of [...changes].reverse()) {
+		try {
+			await writeFileAtomically(change.filePath, change.raw);
+		} catch (error) {
+			failures.push(error);
+		}
+	}
+	return failures;
+};
+
+const applyChanges = async (changes: FileChange[]) => {
+	const written: FileChange[] = [];
+	try {
+		for (const change of changes) {
+			await writeFileAtomically(change.filePath, change.next);
+			written.push(change);
+		}
+	} catch (error) {
+		const rollbackFailures = await restoreAppliedChanges(written);
+		if (rollbackFailures.length > 0) {
+			throw new AggregateError(
+				[error, ...rollbackFailures],
+				"Failed to apply OpenCode references and roll back cleanly.",
+				{ cause: error },
+			);
+		}
+		throw error;
+	}
+};
+
 const createPlan = (
 	changes: FileChange[],
 	nextState: DocsCacheOpenCodeLock | null,
@@ -160,37 +226,8 @@ const createPlan = (
 	return {
 		drift,
 		nextState,
-		apply: async () => {
-			const written: FileChange[] = [];
-			try {
-				for (const change of changed) {
-					await writeFileAtomically(change.filePath, change.next);
-					written.push(change);
-				}
-			} catch (error) {
-				const rollbackFailures: unknown[] = [];
-				for (const change of written.reverse()) {
-					try {
-						await writeFileAtomically(change.filePath, change.raw);
-					} catch (rollbackError) {
-						rollbackFailures.push(rollbackError);
-					}
-				}
-				if (rollbackFailures.length > 0) {
-					throw new AggregateError(
-						[error, ...rollbackFailures],
-						"Failed to apply OpenCode references and roll back cleanly.",
-						{ cause: error },
-					);
-				}
-				throw error;
-			}
-		},
-		rollback: async () => {
-			for (const change of [...changed].reverse()) {
-				await writeFileAtomically(change.filePath, change.raw);
-			}
-		},
+		apply: async () => applyChanges(changed),
+		rollback: async () => rollbackChanges(changed),
 	};
 };
 
@@ -214,6 +251,38 @@ const buildFileChange = (params: {
 	}),
 });
 
+const getConfigPath = async (opencode: Exclude<DocsCacheOpenCode, false>) => {
+	const configPath = path.resolve(opencode.configPath);
+	if (!(await exists(configPath))) {
+		throw new Error(`Configured OpenCode config not found at ${configPath}.`);
+	}
+	return configPath;
+};
+
+const getManagedAliases = (
+	ownership: DocsCacheOpenCodeLock | undefined,
+	configPath: string,
+) => new Set(ownership?.configPath === configPath ? ownership.aliases : []);
+
+const getPreviousFileChange = async (
+	ownership: DocsCacheOpenCodeLock | undefined,
+	configPath: string,
+) => {
+	if (!ownership || ownership.configPath === configPath) {
+		return null;
+	}
+	if (!(await exists(ownership.configPath))) {
+		return null;
+	}
+	const document = await parseDocument(ownership.configPath);
+	return buildFileChange({
+		configPath: await realpath(ownership.configPath),
+		document,
+		desired: new Map(),
+		stale: new Set(ownership.aliases),
+	});
+};
+
 export const planOpenCodeReferences = async (params: {
 	opencode: DocsCacheOpenCode | undefined;
 	ownership: DocsCacheOpenCodeLock | undefined;
@@ -227,10 +296,7 @@ export const planOpenCodeReferences = async (params: {
 		return noOpPlan(undefined);
 	}
 
-	const configPath = path.resolve(params.opencode.configPath);
-	if (!(await exists(configPath))) {
-		throw new Error(`Configured OpenCode config not found at ${configPath}.`);
-	}
+	const configPath = await getConfigPath(params.opencode);
 	const document = await parseDocument(configPath);
 	const writePath = await realpath(configPath);
 	const desired = new Map(
@@ -239,9 +305,7 @@ export const planOpenCodeReferences = async (params: {
 			buildReference(source, params.cacheDir),
 		]),
 	);
-	const managed = new Set(
-		params.ownership?.configPath === configPath ? params.ownership.aliases : [],
-	);
+	const managed = getManagedAliases(params.ownership, configPath);
 	assertNoUserAliasCollisions(
 		document.references,
 		desired,
@@ -251,30 +315,19 @@ export const planOpenCodeReferences = async (params: {
 	const stale = new Set(
 		Array.from(managed).filter((alias) => !desired.has(alias)),
 	);
-	const changes = [
-		buildFileChange({
-			configPath: writePath,
-			document,
-			desired,
-			stale,
-		}),
-	];
-	if (
-		params.ownership?.configPath &&
-		params.ownership.configPath !== configPath &&
-		(await exists(params.ownership.configPath))
-	) {
-		const previousDocument = await parseDocument(params.ownership.configPath);
-		const previousWritePath = await realpath(params.ownership.configPath);
-		changes.unshift(
-			buildFileChange({
-				configPath: previousWritePath,
-				document: previousDocument,
-				desired: new Map(),
-				stale: new Set(params.ownership.aliases),
-			}),
-		);
-	}
+	const currentChange = buildFileChange({
+		configPath: writePath,
+		document,
+		desired,
+		stale,
+	});
+	const previousChange = await getPreviousFileChange(
+		params.ownership,
+		configPath,
+	);
+	const changes = previousChange
+		? [previousChange, currentChange]
+		: [currentChange];
 	return createPlan(changes, {
 		configPath,
 		aliases: Array.from(desired.keys()),

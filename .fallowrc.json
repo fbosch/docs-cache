@@ -12,44 +12,6 @@
 	},
 	"health": {
 		"maxCyclomatic": 20,
-		"coverage": "coverage/coverage-final.json",
-		"thresholdOverrides": [
-			{
-				"files": ["src/commands/sync.ts"],
-				"functions": ["runSync"],
-				"maxCrap": 2000,
-				"reason": "shortcut: function-level coverage does not map this orchestrator reliably; remove when coverage instrumentation can attribute its branches."
-			},
-			{
-				"files": ["src/commands/sync.ts"],
-				"functions": ["buildLock"],
-				"maxCrap": 200,
-				"reason": "shortcut: function-level coverage does not map this lock merger reliably; remove when coverage instrumentation can attribute its branches."
-			},
-			{
-				"files": ["src/cache/lock.ts"],
-				"functions": ["validateLock"],
-				"maxCrap": 200,
-				"reason": "shortcut: function-level coverage does not map this validator reliably; remove when coverage instrumentation can attribute its branches."
-			},
-			{
-				"files": ["src/config/index.ts"],
-				"functions": ["validateConfig"],
-				"maxCrap": 200,
-				"reason": "shortcut: function-level coverage does not map this validator reliably; remove when coverage instrumentation can attribute its branches."
-			},
-			{
-				"files": ["src/commands/init.ts"],
-				"functions": ["promptInitAnswers", "initConfig"],
-				"maxCrap": 200,
-				"reason": "shortcut: function-level coverage does not map interactive prompt branches reliably; remove when coverage instrumentation can attribute them."
-			},
-			{
-				"files": ["src/opencode/references.ts"],
-				"functions": ["planOpenCodeReferences"],
-				"maxCrap": 200,
-				"reason": "shortcut: function-level coverage does not map JSONC reconciliation branches reliably; remove when coverage instrumentation can attribute them."
-			}
-		]
+		"coverage": "coverage/coverage-final.json"
 	}
 }
