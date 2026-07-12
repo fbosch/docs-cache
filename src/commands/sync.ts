@@ -39,6 +39,7 @@ type SyncDeps = {
 	resolveRemoteCommit?: typeof resolveRemoteCommit;
 	fetchSource?: typeof fetchSource;
 	materializeSource?: typeof materializeSource;
+	writeToc?: typeof writeToc;
 };
 
 const formatBytes = (value: number) => {
@@ -856,13 +857,12 @@ const buildFinalLock = async (params: {
 
 const finalizeSync = async (params: {
 	plan: SyncPlan;
-	lock: DocsCacheLock;
 	reporter: TaskReporter | null;
 	options: SyncOptions;
 	startTime: bigint;
 	warningCount: number;
 }) => {
-	const { plan, lock, reporter, options, startTime, warningCount } = params;
+	const { plan, reporter, options, startTime, warningCount } = params;
 	const { totalBytes, totalFiles } = summarizePlan(plan);
 	if (reporter) {
 		const summary = `${symbols.info} ${formatBytes(totalBytes)} · ${totalFiles} files`;
@@ -874,15 +874,23 @@ const finalizeSync = async (params: {
 			`${symbols.info} Completed in ${elapsedMs.toFixed(0)}ms · ${formatBytes(totalBytes)} · ${totalFiles} files${warningCount ? ` · ${warningCount} warning${warningCount === 1 ? "" : "s"}` : ""}`,
 		);
 	}
-	await writeToc({
+	plan.lockExists = true;
+	return plan;
+};
+
+const writeSyncToc = async (params: {
+	plan: SyncPlan;
+	lock: DocsCacheLock;
+	runWriteToc: typeof writeToc;
+}) => {
+	const { plan, lock, runWriteToc } = params;
+	await runWriteToc({
 		cacheDir: plan.cacheDir,
 		configPath: plan.configPath,
 		lock,
 		sources: plan.sources,
 		results: plan.results,
 	});
-	plan.lockExists = true;
-	return plan;
 };
 
 const createJobRunner = (params: {
@@ -1003,6 +1011,7 @@ const planOpenCodeSync = async (plan: SyncPlan, options: SyncOptions) => {
 		ownership,
 		sources: plan.config.sources,
 		cacheDir: plan.cacheDir,
+		configPath: plan.configPath,
 	});
 	return { ownership, references };
 };
@@ -1169,8 +1178,11 @@ const writeOpenCodeOwnershipIfNeeded = async (
 		| Awaited<ReturnType<typeof planOpenCodeReferences>>
 		| undefined,
 ) => {
-	if (shouldPersistOwnership && openCodeReferences?.nextState) {
-		await writeOpenCodeOwnership(plan.configPath, openCodeReferences.nextState);
+	if (shouldPersistOwnership && openCodeReferences?.ownershipState) {
+		await writeOpenCodeOwnership(
+			plan.configPath,
+			openCodeReferences.ownershipState,
+		);
 	}
 };
 
@@ -1277,6 +1289,11 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		options,
 		opencode,
 	});
+	await writeSyncToc({
+		plan,
+		lock,
+		runWriteToc: deps.writeToc ?? writeToc,
+	});
 	await persistSyncState({
 		plan,
 		lock,
@@ -1286,7 +1303,6 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 	});
 	return finalizeSync({
 		plan,
-		lock,
 		reporter,
 		options,
 		startTime,

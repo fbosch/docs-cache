@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
-import { lstat, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import {
+	lstat,
+	mkdir,
+	readFile,
+	rm,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { parse } from "jsonc-parser";
 
-import { runSync } from "../dist/api.mjs";
+import { planOpenCodeReferences, runSync } from "../dist/api.mjs";
 
 process.env.XDG_STATE_HOME = path.join(
 	tmpdir(),
@@ -23,15 +30,20 @@ const createRoot = async (name) => {
 
 const writeDocsConfig = async (root, sources, opencode) => {
 	const configPath = path.join(root, "docs.config.json");
+	const projectOpenCode =
+		opencode && typeof opencode === "object"
+			? { configPath: path.relative(root, opencode.configPath) }
+			: opencode;
 	await writeFile(
 		configPath,
-		`${JSON.stringify({ opencode, sources }, null, 2)}\n`,
+		`${JSON.stringify({ opencode: projectOpenCode, sources }, null, 2)}\n`,
 		"utf8",
 	);
 	return configPath;
 };
 
 const sync = async (configPath, cacheDir, options = {}) => {
+	const { writeToc, ...syncOptions } = options;
 	const repoDir = path.join(path.dirname(configPath), "repo");
 	await mkdir(repoDir, { recursive: true });
 	await writeFile(path.join(repoDir, "README.md"), "hello", "utf8");
@@ -43,7 +55,7 @@ const sync = async (configPath, cacheDir, options = {}) => {
 			lockOnly: false,
 			offline: false,
 			failOnMiss: false,
-			...options,
+			...syncOptions,
 		},
 		{
 			resolveRemoteCommit: async ({ repo }) => ({
@@ -67,6 +79,7 @@ const sync = async (configPath, cacheDir, options = {}) => {
 				);
 				return { bytes: 5, fileCount: 1, manifestSha256: "manifest" };
 			},
+			writeToc,
 		},
 	);
 };
@@ -118,7 +131,7 @@ test("sync creates canonical OpenCode references and preserves JSONC", async () 
 		await readFile(path.join(root, "docs-lock.json"), "utf8"),
 	);
 	assert.deepEqual(lock.opencode, {
-		configPath: openCodePath,
+		configPath: "opencode.jsonc",
 		aliases: ["hyprland-wiki"],
 	});
 });
@@ -369,7 +382,7 @@ test("sync leaves existing references unchanged after integration is disabled", 
 		await readFile(path.join(root, "docs-lock.json"), "utf8"),
 	);
 	assert.deepEqual(lock.opencode, {
-		configPath: openCodePath,
+		configPath: "opencode.json",
 		aliases: ["docs"],
 	});
 	await writeDocsConfig(root, sources, { configPath: openCodePath });
@@ -387,5 +400,57 @@ test("sync fails when the remembered OpenCode config no longer exists", async ()
 	await assert.rejects(
 		() => sync(configPath, path.join(root, ".docs")),
 		/Configured OpenCode config not found/i,
+	);
+});
+
+test("OpenCode reference writes restore earlier files when a later write fails", async () => {
+	const root = await createRoot("reference-rollback");
+	const firstOpenCodePath = path.join(root, "first-opencode.json");
+	const secondOpenCodePath = path.join(root, "second-opencode.json");
+	const configPath = path.join(root, "docs.config.json");
+	const original = `{ "references": { "docs": { "path": "/old" } } }\n`;
+	await writeFile(firstOpenCodePath, original, "utf8");
+	await writeFile(secondOpenCodePath, "{}\n", "utf8");
+	await writeFile(configPath, `${JSON.stringify({ sources: [] })}\n`, "utf8");
+
+	const plan = await planOpenCodeReferences({
+		opencode: { configPath: "second-opencode.json" },
+		ownership: { configPath: firstOpenCodePath, aliases: ["docs"] },
+		sources: [{ id: "docs", repo: "https://github.com/example/docs.git" }],
+		cacheDir: path.join(root, ".docs"),
+		configPath,
+	});
+	await rm(secondOpenCodePath);
+	await mkdir(secondOpenCodePath);
+
+	await assert.rejects(() => plan.apply());
+	assert.equal(await readFile(firstOpenCodePath, "utf8"), original);
+});
+
+test("sync leaves OpenCode and lock state unchanged when TOC generation fails", async () => {
+	const root = await createRoot("toc-rollback");
+	const cacheDir = path.join(root, ".docs");
+	const openCodePath = path.join(root, "opencode.json");
+	await writeFile(openCodePath, "{}\n", "utf8");
+	const configPath = await writeDocsConfig(
+		root,
+		[{ id: "docs", repo: "https://github.com/example/docs.git" }],
+		{ configPath: openCodePath },
+	);
+	const before = await readFile(openCodePath, "utf8");
+
+	await assert.rejects(
+		() =>
+			sync(configPath, cacheDir, {
+				writeToc: async () => {
+					throw new Error("TOC write failed");
+				},
+			}),
+		/TOC write failed/,
+	);
+	assert.equal(await readFile(openCodePath, "utf8"), before);
+	await assert.rejects(
+		() => readFile(path.join(root, "docs-lock.json"), "utf8"),
+		/ENOENT/,
 	);
 });

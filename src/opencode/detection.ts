@@ -12,9 +12,14 @@ const exists = async (filePath: string) => {
 };
 
 const configFilesIn = (directory: string) => [
-	path.join(directory, "opencode.json"),
 	path.join(directory, "opencode.jsonc"),
+	path.join(directory, "opencode.json"),
 ];
+
+const isProjectConfigDisabled = () => {
+	const value = process.env.OPENCODE_DISABLE_PROJECT_CONFIG;
+	return value === "true" || value === "1";
+};
 
 const findProjectRoot = async (startDir: string) => {
 	let directory = path.resolve(startDir);
@@ -61,7 +66,7 @@ const projectConfigCandidates = async (startDir: string) => {
 export const getOpenCodeConfigCandidates = async (startDir: string) => {
 	const userConfigDir =
 		process.env.XDG_CONFIG_HOME ?? path.join(homedir(), ".config");
-	const projectCandidates = process.env.OPENCODE_DISABLE_PROJECT_CONFIG
+	const projectCandidates = isProjectConfigDisabled()
 		? []
 		: await projectConfigCandidates(startDir);
 	const explicitConfig = process.env.OPENCODE_CONFIG

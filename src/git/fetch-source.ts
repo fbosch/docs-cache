@@ -16,6 +16,11 @@ const DEFAULT_GIT_DEPTH = 1;
 const DEFAULT_RM_RETRIES = 3;
 const DEFAULT_RM_BACKOFF_MS = 100;
 const MAX_BRACE_EXPANSIONS = 500;
+const RETRYABLE_REMOVE_ERROR_CODES = new Set<string | undefined>([
+	"ENOTEMPTY",
+	"EBUSY",
+	"EPERM",
+]);
 
 const buildGitConfigs = (allowFileProtocol?: boolean) => [
 	"-c",
@@ -132,7 +137,7 @@ const removeDir = async (dirPath: string, retries = DEFAULT_RM_RETRIES) => {
 			return;
 		} catch (error) {
 			const code = getErrnoCode(error);
-			if (code !== "ENOTEMPTY" && code !== "EBUSY" && code !== "EPERM") {
+			if (!RETRYABLE_REMOVE_ERROR_CODES.has(code)) {
 				throw error;
 			}
 			if (attempt === retries) {

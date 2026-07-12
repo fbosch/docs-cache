@@ -19,6 +19,7 @@ type OpenCodeDocument = {
 export type OpenCodeReferencePlan = {
 	drift: string[];
 	nextState: DocsCacheOpenCodeLock | null | undefined;
+	ownershipState: DocsCacheOpenCodeLock | undefined;
 	apply: () => Promise<void>;
 	rollback: () => Promise<void>;
 };
@@ -175,6 +176,7 @@ const noOpPlan = (
 ): OpenCodeReferencePlan => ({
 	drift: [],
 	nextState,
+	ownershipState: undefined,
 	apply: async () => undefined,
 	rollback: async () => undefined,
 });
@@ -220,12 +222,14 @@ const applyChanges = async (changes: FileChange[]) => {
 const createPlan = (
 	changes: FileChange[],
 	nextState: DocsCacheOpenCodeLock | null,
+	ownershipState: DocsCacheOpenCodeLock,
 ): OpenCodeReferencePlan => {
 	const changed = changes.filter((change) => change.next !== change.raw);
 	const drift = changes.flatMap((change) => change.drift);
 	return {
 		drift,
 		nextState,
+		ownershipState,
 		apply: async () => applyChanges(changed),
 		rollback: async () => rollbackChanges(changed),
 	};
@@ -251,8 +255,53 @@ const buildFileChange = (params: {
 	}),
 });
 
-const getConfigPath = async (opencode: Exclude<DocsCacheOpenCode, false>) => {
-	const configPath = path.resolve(opencode.configPath);
+const resolveOpenCodeConfigPath = (
+	configPath: string,
+	opencodeConfigPath: string,
+) => path.resolve(path.dirname(configPath), opencodeConfigPath);
+
+export const getProjectOpenCodeConfigPath = (
+	configPath: string,
+	opencodeConfigPath: string,
+) => {
+	const relativePath = path.relative(
+		path.dirname(configPath),
+		opencodeConfigPath,
+	);
+	if (
+		relativePath === "" ||
+		relativePath.split(path.sep, 1)[0] === ".." ||
+		path.isAbsolute(relativePath)
+	) {
+		return null;
+	}
+	return relativePath.split(path.sep).join("/");
+};
+
+const requireProjectOpenCodeConfigPath = (
+	configPath: string,
+	opencodeConfigPath: string,
+) => {
+	const projectConfigPath = getProjectOpenCodeConfigPath(
+		configPath,
+		opencodeConfigPath,
+	);
+	if (projectConfigPath) {
+		return projectConfigPath;
+	}
+	throw new Error(
+		`OpenCode config at ${opencodeConfigPath} must be within the docs-cache project.`,
+	);
+};
+
+const getConfigPath = async (
+	opencode: Exclude<DocsCacheOpenCode, false>,
+	docsConfigPath: string,
+) => {
+	const configPath = resolveOpenCodeConfigPath(
+		docsConfigPath,
+		opencode.configPath,
+	);
 	if (!(await exists(configPath))) {
 		throw new Error(`Configured OpenCode config not found at ${configPath}.`);
 	}
@@ -302,6 +351,7 @@ export const planOpenCodeReferences = async (params: {
 	ownership: DocsCacheOpenCodeLock | undefined;
 	sources: DocsCacheSource[];
 	cacheDir: string;
+	configPath: string;
 }): Promise<OpenCodeReferencePlan> => {
 	if (params.opencode === undefined) {
 		return noOpPlan(undefined);
@@ -310,7 +360,7 @@ export const planOpenCodeReferences = async (params: {
 		return noOpPlan(undefined);
 	}
 
-	const configPath = await getConfigPath(params.opencode);
+	const configPath = await getConfigPath(params.opencode, params.configPath);
 	const document = await parseDocument(configPath);
 	const writePath = await realpath(configPath);
 	const desired = new Map(
@@ -342,8 +392,14 @@ export const planOpenCodeReferences = async (params: {
 	const changes = previousChange
 		? [previousChange, currentChange]
 		: [currentChange];
-	return createPlan(changes, {
+	const aliases = Array.from(desired.keys());
+	const projectConfigPath = requireProjectOpenCodeConfigPath(
+		params.configPath,
 		configPath,
-		aliases: Array.from(desired.keys()),
-	});
+	);
+	return createPlan(
+		changes,
+		{ configPath: projectConfigPath, aliases },
+		{ configPath: writePath, aliases },
+	);
 };

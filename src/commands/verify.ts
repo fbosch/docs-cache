@@ -11,6 +11,10 @@ type VerifyOptions = {
 	cacheDirOverride?: string;
 	json: boolean;
 };
+const MISSING_PATH_ERROR_CODES = new Set<string | undefined>([
+	"ENOENT",
+	"ENOTDIR",
+]);
 
 const exists = async (target: string) => {
 	try {
@@ -54,7 +58,7 @@ export const verifyCache = async (options: VerifyOptions) => {
 					}
 				} catch (error) {
 					const code = getErrnoCode(error);
-					if (code === "ENOENT" || code === "ENOTDIR") {
+					if (MISSING_PATH_ERROR_CODES.has(code)) {
 						missingCount += 1;
 						continue;
 					}
@@ -82,7 +86,7 @@ export const verifyCache = async (options: VerifyOptions) => {
 			};
 		} catch (error) {
 			const code = getErrnoCode(error);
-			if (code === "ENOENT" || code === "ENOTDIR") {
+			if (MISSING_PATH_ERROR_CODES.has(code)) {
 				return {
 					ok: false,
 					issues: [

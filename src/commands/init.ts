@@ -16,6 +16,7 @@ import {
 } from "#config";
 import { ensureGitignoreEntry, getGitignoreStatus } from "#core/gitignore";
 import { detectOpenCodeConfig } from "#opencode/detection";
+import { getProjectOpenCodeConfigPath } from "#opencode/references";
 
 type InitOptions = {
 	cacheDirOverride?: string;
@@ -269,9 +270,15 @@ export const initConfig = async (
 	);
 	const resolvedConfigPath = path.resolve(cwd, configPath);
 	const cacheDir = options.cacheDirOverride ?? DEFAULT_CACHE_DIR;
-	const opencodeConfigPath = await detectOpenCodeConfig(
+	const detectedOpenCodeConfigPath = await detectOpenCodeConfig(
 		path.dirname(resolvedConfigPath),
 	);
+	const opencodeConfigPath = detectedOpenCodeConfigPath
+		? getProjectOpenCodeConfigPath(
+				resolvedConfigPath,
+				detectedOpenCodeConfigPath,
+			)
+		: null;
 	const answers = await promptInitAnswers(
 		cacheDir,
 		cwd,

@@ -222,7 +222,7 @@ test("init remembers accepted OpenCode reference syncing for the highest-priorit
 	const config = JSON.parse(
 		await readFile(path.join(tmpRoot, "docs.config.json"), "utf8"),
 	);
-	assert.deepEqual(config.opencode, { configPath: openCodePath });
+	assert.deepEqual(config.opencode, { configPath: ".opencode/opencode.jsonc" });
 });
 
 test("init remembers when OpenCode reference syncing is declined", async () => {
@@ -232,17 +232,27 @@ test("init remembers when OpenCode reference syncing is declined", async () => {
 	);
 	await mkdir(tmpRoot, { recursive: true });
 	await writeFile(path.join(tmpRoot, "opencode.jsonc"), "{}\n", "utf8");
+	const previousCustomDir = process.env.OPENCODE_CONFIG_DIR;
+	process.env.OPENCODE_CONFIG_DIR = tmpRoot;
 
-	await initConfig(
-		{ json: false, cwd: tmpRoot },
-		stubPrompts({
-			location: "config",
-			cacheDir: ".docs",
-			toc: true,
-			gitignore: false,
-			opencode: false,
-		}),
-	);
+	try {
+		await initConfig(
+			{ json: false, cwd: tmpRoot },
+			stubPrompts({
+				location: "config",
+				cacheDir: ".docs",
+				toc: true,
+				gitignore: false,
+				opencode: false,
+			}),
+		);
+	} finally {
+		if (previousCustomDir === undefined) {
+			delete process.env.OPENCODE_CONFIG_DIR;
+		} else {
+			process.env.OPENCODE_CONFIG_DIR = previousCustomDir;
+		}
+	}
 
 	const config = JSON.parse(
 		await readFile(path.join(tmpRoot, "docs.config.json"), "utf8"),

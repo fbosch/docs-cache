@@ -3,7 +3,7 @@ import process from "node:process";
 import { confirm, isCancel } from "@clack/prompts";
 import pc from "picocolors";
 import { ExitCode } from "#cli/exit-code";
-import { parseArgs } from "#cli/parse-args";
+import { type ParsedArgs, parseArgs } from "#cli/parse-args";
 import type { CliCommand } from "#cli/types";
 import { setSilentMode, setVerboseMode, symbols, ui } from "#cli/ui";
 
@@ -16,6 +16,9 @@ const COMMANDS_WITH_POSITIONALS = new Set([
 	"install",
 	"sync",
 ]);
+
+const hasUnexpectedPositionals = (command: string, positionals: string[]) =>
+	!COMMANDS_WITH_POSITIONALS.has(command) && positionals.length > 0;
 
 const HELP_TEXT = `
 Usage: ${CLI_NAME} <command> [options]
@@ -79,6 +82,7 @@ const getOpenCodeConsentContext = async (
 ) => {
 	const { loadConfig } = await import("#config");
 	const { detectOpenCodeConfig } = await import("#opencode/detection");
+	const { getProjectOpenCodeConfigPath } = await import("#opencode/references");
 	const { config, resolvedPath } = await loadConfig(options.config);
 	if (config.opencode !== undefined) {
 		return null;
@@ -87,7 +91,7 @@ const getOpenCodeConsentContext = async (
 	if (!detected) {
 		return null;
 	}
-	return detected;
+	return getProjectOpenCodeConfigPath(resolvedPath, detected);
 };
 
 const saveOpenCodeConsentFromPrompt = async (
@@ -543,6 +547,24 @@ const runCommand = async (parsed: CliCommand) => {
 	}
 };
 
+const handleEarlyExit = (parsed: ParsedArgs) => {
+	if (parsed.help) {
+		printHelp();
+		process.exit(ExitCode.Success);
+	}
+
+	if (!parsed.command) {
+		printHelp();
+		process.exit(ExitCode.InvalidArgument);
+	}
+
+	if (hasUnexpectedPositionals(parsed.command, parsed.positionals)) {
+		printError(`${CLI_NAME}: unexpected arguments.`);
+		printHelp();
+		process.exit(ExitCode.InvalidArgument);
+	}
+};
+
 /**
  * The main entry point of the CLI
  */
@@ -557,25 +579,7 @@ export async function main(): Promise<void> {
 		setSilentMode(parsed.options.silent);
 		setVerboseMode(parsed.options.verbose);
 
-		if (parsed.help) {
-			printHelp();
-			process.exit(ExitCode.Success);
-		}
-
-		if (!parsed.command) {
-			printHelp();
-			process.exit(ExitCode.InvalidArgument);
-		}
-
-		if (
-			!COMMANDS_WITH_POSITIONALS.has(parsed.command) &&
-			parsed.positionals.length > 0
-		) {
-			printError(`${CLI_NAME}: unexpected arguments.`);
-			printHelp();
-			process.exit(ExitCode.InvalidArgument);
-		}
-
+		handleEarlyExit(parsed);
 		await runCommand(parsed.parsed);
 	} catch (error) {
 		errorHandler(error);
