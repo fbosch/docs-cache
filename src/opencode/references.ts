@@ -259,24 +259,38 @@ const getConfigPath = async (opencode: Exclude<DocsCacheOpenCode, false>) => {
 	return configPath;
 };
 
-const getManagedAliases = (
+const resolveExistingPath = async (filePath: string) => {
+	if (!(await exists(filePath))) {
+		return null;
+	}
+	return realpath(filePath);
+};
+
+const getManagedAliases = async (
 	ownership: DocsCacheOpenCodeLock | undefined,
 	configPath: string,
-) => new Set(ownership?.configPath === configPath ? ownership.aliases : []);
+) => {
+	if (!ownership) {
+		return new Set<string>();
+	}
+	const ownershipPath = await resolveExistingPath(ownership.configPath);
+	return new Set(ownershipPath === configPath ? ownership.aliases : []);
+};
 
 const getPreviousFileChange = async (
 	ownership: DocsCacheOpenCodeLock | undefined,
 	configPath: string,
 ) => {
-	if (!ownership || ownership.configPath === configPath) {
+	if (!ownership) {
 		return null;
 	}
-	if (!(await exists(ownership.configPath))) {
+	const previousWritePath = await resolveExistingPath(ownership.configPath);
+	if (!previousWritePath || previousWritePath === configPath) {
 		return null;
 	}
 	const document = await parseDocument(ownership.configPath);
 	return buildFileChange({
-		configPath: await realpath(ownership.configPath),
+		configPath: previousWritePath,
 		document,
 		desired: new Map(),
 		stale: new Set(ownership.aliases),
@@ -305,7 +319,7 @@ export const planOpenCodeReferences = async (params: {
 			buildReference(source, params.cacheDir),
 		]),
 	);
-	const managed = getManagedAliases(params.ownership, configPath);
+	const managed = await getManagedAliases(params.ownership, writePath);
 	assertNoUserAliasCollisions(
 		document.references,
 		desired,
@@ -323,7 +337,7 @@ export const planOpenCodeReferences = async (params: {
 	});
 	const previousChange = await getPreviousFileChange(
 		params.ownership,
-		configPath,
+		writePath,
 	);
 	const changes = previousChange
 		? [previousChange, currentChange]

@@ -170,6 +170,31 @@ test("sync preserves a symlinked OpenCode config", {
 	});
 });
 
+test("sync recognizes managed references through alternate config paths", {
+	skip: process.platform === "win32",
+}, async () => {
+	const root = await createRoot("alternate-path");
+	const cacheDir = path.join(root, ".docs");
+	const targetPath = path.join(root, "managed-opencode.jsonc");
+	const symlinkPath = path.join(root, "opencode.jsonc");
+	await writeFile(targetPath, "{}\n", "utf8");
+	await symlink(path.basename(targetPath), symlinkPath);
+	const sources = [{ id: "docs", repo: "https://github.com/example/docs.git" }];
+	const configPath = await writeDocsConfig(root, sources, {
+		configPath: symlinkPath,
+	});
+
+	await sync(configPath, cacheDir);
+	await writeDocsConfig(root, sources, { configPath: targetPath });
+	await sync(configPath, cacheDir);
+
+	const config = parse(await readFile(targetPath, "utf8"));
+	assert.deepEqual(config.references.docs, {
+		path: path.join(cacheDir, "docs"),
+		description: "Use for documentation from example/docs.",
+	});
+});
+
 test("sync fails before overwriting a user-owned OpenCode reference", async () => {
 	const root = await createRoot("collision");
 	const cacheDir = path.join(root, ".docs");
