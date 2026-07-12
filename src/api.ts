@@ -14,3 +14,9 @@ export { loadConfig } from "#config";
 export { redactRepoUrl } from "#git/redact";
 export { enforceHostAllowlist, parseLsRemote } from "#git/resolve-remote";
 export { resolveRepoInput } from "#git/resolve-repo";
+export { saveOpenCodeConsent } from "#opencode/consent";
+export {
+	detectOpenCodeConfig,
+	getOpenCodeConfigCandidates,
+} from "#opencode/detection";
+export { planOpenCodeReferences } from "#opencode/references";

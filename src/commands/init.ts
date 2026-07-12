@@ -10,10 +10,12 @@ import {
 	DEFAULT_CACHE_DIR,
 	DEFAULT_CONFIG_FILENAME,
 	type DocsCacheConfig,
+	type DocsCacheOpenCode,
 	stripDefaultConfigValues,
 	writeConfig,
 } from "#config";
 import { ensureGitignoreEntry, getGitignoreStatus } from "#core/gitignore";
+import { detectOpenCodeConfig } from "#opencode/detection";
 
 type InitOptions = {
 	cacheDirOverride?: string;
@@ -91,6 +93,7 @@ const promptInitAnswers = async (
 	confirm: typeof clackConfirm,
 	text: typeof clackText,
 	isCancel: typeof clackIsCancel,
+	opencodeConfigPath: string | null,
 ) => {
 	const cacheDirAnswer = await text({
 		message: "Cache directory",
@@ -120,14 +123,30 @@ const promptInitAnswers = async (
 		}
 		gitignoreAnswer = reply;
 	}
+	let opencode: DocsCacheOpenCode | undefined;
+	if (opencodeConfigPath) {
+		const reply = await confirm({
+			message: `Sync documentation as OpenCode references using ${opencodeConfigPath}`,
+			initialValue: true,
+		});
+		if (isCancel(reply)) {
+			throw new Error("Init cancelled.");
+		}
+		opencode = reply ? { configPath: opencodeConfigPath } : false;
+	}
 	return {
 		cacheDir: cacheDirValue,
 		toc: tocAnswer,
 		gitignore: gitignoreAnswer,
+		opencode,
 	};
 };
 
-const buildBaseConfig = (cacheDir: string, toc: boolean): DocsCacheConfig => {
+const buildBaseConfig = (
+	cacheDir: string,
+	toc: boolean,
+	opencode: DocsCacheOpenCode | undefined,
+): DocsCacheConfig => {
 	const config: DocsCacheConfig = {
 		$schema:
 			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
@@ -138,6 +157,9 @@ const buildBaseConfig = (cacheDir: string, toc: boolean): DocsCacheConfig => {
 	}
 	if (!toc) {
 		config.defaults = { toc: false };
+	}
+	if (opencode !== undefined) {
+		config.opencode = opencode;
 	}
 	return config;
 };
@@ -210,16 +232,24 @@ export const initConfig = async (
 		select,
 		isCancel,
 	);
+	const resolvedConfigPath = path.resolve(cwd, configPath);
 	const cacheDir = options.cacheDirOverride ?? DEFAULT_CACHE_DIR;
+	const opencodeConfigPath = await detectOpenCodeConfig(
+		path.dirname(resolvedConfigPath),
+	);
 	const answers = await promptInitAnswers(
 		cacheDir,
 		cwd,
 		confirm,
 		text,
 		isCancel,
+		opencodeConfigPath,
 	);
-	const resolvedConfigPath = path.resolve(cwd, configPath);
-	const config = buildBaseConfig(answers.cacheDir, answers.toc);
+	const config = buildBaseConfig(
+		answers.cacheDir,
+		answers.toc,
+		answers.opencode,
+	);
 	if (path.basename(resolvedConfigPath) === "package.json") {
 		return writePackageConfig(resolvedConfigPath, config, answers.gitignore);
 	}

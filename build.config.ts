@@ -48,6 +48,10 @@ export default defineBuildConfig({
 					replacement: path.resolve("src/git/$1"),
 				},
 				{
+					find: /^#opencode\/(.*)$/,
+					replacement: path.resolve("src/opencode/$1"),
+				},
+				{
 					find: /^#types\/(.*)$/,
 					replacement: path.resolve("src/types/$1"),
 				},

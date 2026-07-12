@@ -1,5 +1,6 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { writeFileAtomically } from "#core/atomic-write";
 import { isRecord } from "#core/is-record";
 
 export interface DocsCacheLockSource {
@@ -12,10 +13,16 @@ export interface DocsCacheLockSource {
 	rulesSha256?: string;
 }
 
+export interface DocsCacheOpenCodeLock {
+	configPath: string;
+	aliases: string[];
+}
+
 export interface DocsCacheLock {
 	version: 1;
 	toolVersion: string;
 	sources: Record<string, DocsCacheLockSource>;
+	opencode?: DocsCacheOpenCodeLock;
 }
 
 export const DEFAULT_LOCK_FILENAME = "docs-lock.json";
@@ -81,10 +88,31 @@ export const validateLock = (input: unknown): DocsCacheLock => {
 					: assertString(value.rulesSha256, `sources.${key}.rulesSha256`),
 		};
 	}
+	let opencode: DocsCacheOpenCodeLock | undefined;
+	if (input.opencode !== undefined) {
+		if (!isRecord(input.opencode)) {
+			throw new Error("opencode must be an object.");
+		}
+		const configPath = assertString(
+			input.opencode.configPath,
+			"opencode.configPath",
+		);
+		if (!Array.isArray(input.opencode.aliases)) {
+			throw new Error("opencode.aliases must be an array.");
+		}
+		const aliases = input.opencode.aliases.map((alias, index) =>
+			assertString(alias, `opencode.aliases.${index}`),
+		);
+		if (new Set(aliases).size !== aliases.length) {
+			throw new Error("opencode.aliases must not contain duplicates.");
+		}
+		opencode = { configPath, aliases };
+	}
 	return {
 		version: 1,
 		toolVersion,
 		sources,
+		...(opencode ? { opencode } : {}),
 	};
 };
 
@@ -111,5 +139,5 @@ export const readLock = async (lockPath: string) => {
 
 export const writeLock = async (lockPath: string, lock: DocsCacheLock) => {
 	const data = `${JSON.stringify(lock, null, 2)}\n`;
-	await writeFile(lockPath, data, "utf8");
+	await writeFileAtomically(lockPath, data);
 };

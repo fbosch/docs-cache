@@ -119,6 +119,9 @@ export const mergeConfigBase = (
 	if (config.targetMode) {
 		nextConfig.targetMode = config.targetMode;
 	}
+	if (config.opencode !== undefined) {
+		nextConfig.opencode = config.opencode;
+	}
 	return nextConfig;
 };
 

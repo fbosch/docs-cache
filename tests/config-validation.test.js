@@ -100,3 +100,14 @@ test("loadConfig supports package.json docs-cache config", async () => {
 	const { config } = await loadConfig(packagePath);
 	assert.equal(config.sources.length, 1);
 });
+
+test("loadConfig validates OpenCode aliases only when integration is enabled", async () => {
+	const configPath = await writeConfig({
+		opencode: { configPath: "/tmp/opencode.json" },
+		sources: [{ id: "invalid alias", repo: "https://example.com/repo.git" }],
+	});
+	await assert.rejects(
+		() => loadConfig(configPath),
+		/OpenCode integration is enabled/i,
+	);
+});

@@ -1,5 +1,6 @@
 import path from "node:path";
 import process from "node:process";
+import { confirm, isCancel } from "@clack/prompts";
 import pc from "picocolors";
 import { ExitCode } from "#cli/exit-code";
 import { parseArgs } from "#cli/parse-args";
@@ -59,6 +60,39 @@ const printHelp = () => {
 
 const printError = (message: string) => {
 	process.stderr.write(`${symbols.error} ${message}\n`);
+};
+
+const resolveOpenCodeConsentForSync = async (
+	options: Extract<CliCommand, { command: "sync" }>["options"],
+) => {
+	const { loadConfig } = await import("#config");
+	const { saveOpenCodeConsent } = await import("#opencode/consent");
+	const { detectOpenCodeConfig } = await import("#opencode/detection");
+	const { config, resolvedPath } = await loadConfig(options.config);
+	if (config.opencode !== undefined) {
+		return;
+	}
+	const detected = await detectOpenCodeConfig(path.dirname(resolvedPath));
+	if (!detected) {
+		return;
+	}
+	if (options.json || options.frozen || !process.stdin.isTTY) {
+		process.stderr.write(
+			`${symbols.info} OpenCode config detected at ${detected}; run docs-cache sync interactively to choose reference syncing.\n`,
+		);
+		return;
+	}
+	const answer = await confirm({
+		message: `Sync documentation as OpenCode references using ${detected}`,
+		initialValue: true,
+	});
+	if (isCancel(answer)) {
+		throw new Error("Sync cancelled.");
+	}
+	await saveOpenCodeConsent({
+		configPath: options.config,
+		opencode: answer ? { configPath: detected } : false,
+	});
 };
 
 const runAdd = async (parsed: Extract<CliCommand, { command: "add" }>) => {
@@ -373,6 +407,7 @@ const runSyncCommand = async (
 	parsed: Extract<CliCommand, { command: "sync" }>,
 ) => {
 	const options = parsed.options;
+	await resolveOpenCodeConsentForSync(options);
 	const { printSyncPlan, runSync } = await import("#commands/sync");
 	const sourceFilter = parsed.ids.length > 0 ? parsed.ids : undefined;
 	const plan = await runSync({

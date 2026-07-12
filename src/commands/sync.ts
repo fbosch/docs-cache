@@ -3,7 +3,11 @@ import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pc from "picocolors";
-import type { DocsCacheLock, DocsCacheLockSource } from "#cache/lock";
+import type {
+	DocsCacheLock,
+	DocsCacheLockSource,
+	DocsCacheOpenCodeLock,
+} from "#cache/lock";
 import { readLock, resolveLockPath, writeLock } from "#cache/lock";
 import { MANIFEST_FILENAME } from "#cache/manifest";
 import { computeManifestHash, materializeSource } from "#cache/materialize";
@@ -23,6 +27,12 @@ import { isRecord } from "#core/is-record";
 import { resolveCacheDir, resolveTargetDir } from "#core/paths";
 import { fetchSource } from "#git/fetch-source";
 import { resolveRemoteCommit } from "#git/resolve-remote";
+import {
+	readOpenCodeOwnership,
+	restoreOpenCodeOwnership,
+	writeOpenCodeOwnership,
+} from "#opencode/ownership";
+import { planOpenCodeReferences } from "#opencode/references";
 import type { SyncOptions, SyncResult } from "#types/sync";
 
 type SyncDeps = {
@@ -267,6 +277,7 @@ const buildLockSource = (
 const buildLock = async (
 	plan: Awaited<ReturnType<typeof getSyncPlan>>,
 	previous: Awaited<ReturnType<typeof readLock>> | null,
+	opencode: DocsCacheOpenCodeLock | null | undefined,
 ) => {
 	const toolVersion = await loadToolVersion();
 	const configSourceIds = new Set(
@@ -288,6 +299,13 @@ const buildLock = async (
 		version: 1 as const,
 		toolVersion,
 		sources,
+		...(opencode === undefined
+			? previous?.opencode
+				? { opencode: previous.opencode }
+				: {}
+			: opencode
+				? { opencode }
+				: {}),
 	};
 };
 
@@ -818,24 +836,33 @@ const assertInstallLock = (plan: SyncPlan) => {
 	}
 };
 
-const finalizeSync = async (params: {
+const buildFinalLock = async (params: {
 	plan: SyncPlan;
 	previous: Awaited<ReturnType<typeof readLock>> | null;
-	reporter: TaskReporter | null;
 	options: SyncOptions;
-	startTime: bigint;
-	warningCount: number;
+	opencode: DocsCacheOpenCodeLock | null | undefined;
 }) => {
-	const { plan, previous, reporter, options, startTime, warningCount } = params;
-	const lock = options.install ? previous : await buildLock(plan, previous);
+	const { plan, previous, options, opencode } = params;
+	const lock = options.install
+		? previous
+		: await buildLock(plan, previous, opencode);
 	if (!lock) {
 		throw new Error(
 			"Install requires docs-lock.json. Run docs-cache sync first.",
 		);
 	}
-	if (!options.install) {
-		await writeLock(plan.lockPath, lock);
-	}
+	return lock;
+};
+
+const finalizeSync = async (params: {
+	plan: SyncPlan;
+	lock: DocsCacheLock;
+	reporter: TaskReporter | null;
+	options: SyncOptions;
+	startTime: bigint;
+	warningCount: number;
+}) => {
+	const { plan, lock, reporter, options, startTime, warningCount } = params;
 	const { totalBytes, totalFiles } = summarizePlan(plan);
 	if (reporter) {
 		const summary = `${symbols.info} ${formatBytes(totalBytes)} · ${totalFiles} files`;
@@ -952,13 +979,18 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 	const startTime = process.hrtime.bigint();
 	let warningCount = 0;
 	const plan = await getSyncPlan(options, deps);
-	await mkdir(plan.cacheDir, { recursive: true });
-
 	const isTestRunner = process.argv.includes("--test");
 	const useLiveOutput =
 		!options.json && !isSilentMode() && process.stdout.isTTY && !isTestRunner;
 	const reporter = useLiveOutput ? new TaskReporter() : null;
 	const previous = plan.lockData;
+	const ownership = await readOpenCodeOwnership(plan.configPath);
+	const openCodeReferences = await planOpenCodeReferences({
+		opencode: plan.config.opencode,
+		ownership,
+		sources: plan.config.sources,
+		cacheDir: plan.cacheDir,
+	});
 	if (options.install) {
 		assertInstallLock(plan);
 	}
@@ -984,7 +1016,13 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					)}. Run docs-cache update or docs-cache sync to refresh the lock.`,
 			);
 		}
+		if (openCodeReferences.drift.length > 0) {
+			throw new Error(
+				`Frozen sync failed: OpenCode references are out of date for alias(es): ${openCodeReferences.drift.join(", ")}. Run docs-cache sync to refresh them.`,
+			);
+		}
 	}
+	await mkdir(plan.cacheDir, { recursive: true });
 	if (!options.lockOnly) {
 		const defaults = plan.defaults;
 		const runFetch = deps.fetchSource ?? fetchSource;
@@ -1011,9 +1049,48 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 			runJobs,
 		});
 	}
-	return finalizeSync({
+	const opencode =
+		options.lockOnly || options.install
+			? undefined
+			: openCodeReferences.nextState;
+	const lock = await buildFinalLock({
 		plan,
 		previous,
+		options,
+		opencode,
+	});
+	const shouldApplyOpenCodeReferences =
+		!options.lockOnly && !options.install && !options.frozen;
+	const shouldPersistOpenCodeOwnership =
+		shouldApplyOpenCodeReferences &&
+		plan.config.opencode !== undefined &&
+		plan.config.opencode !== false &&
+		openCodeReferences.nextState !== undefined;
+	if (shouldApplyOpenCodeReferences) {
+		await openCodeReferences.apply();
+	}
+	try {
+		if (shouldPersistOpenCodeOwnership && openCodeReferences.nextState) {
+			await writeOpenCodeOwnership(
+				plan.configPath,
+				openCodeReferences.nextState,
+			);
+		}
+		if (!options.install) {
+			await writeLock(plan.lockPath, lock);
+		}
+	} catch (error) {
+		if (shouldPersistOpenCodeOwnership) {
+			await restoreOpenCodeOwnership(plan.configPath, ownership);
+		}
+		if (shouldApplyOpenCodeReferences) {
+			await openCodeReferences.rollback();
+		}
+		throw error;
+	}
+	return finalizeSync({
+		plan,
+		lock,
 		reporter,
 		options,
 		startTime,

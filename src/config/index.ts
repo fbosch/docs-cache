@@ -5,6 +5,7 @@ import type {
 	DocsCacheConfig,
 	DocsCacheDefaults,
 	DocsCacheIntegrity,
+	DocsCacheOpenCode,
 	DocsCacheResolvedSource,
 	DocsCacheSource,
 	TocFormat,
@@ -17,6 +18,7 @@ export type {
 	DocsCacheConfig,
 	DocsCacheDefaults,
 	DocsCacheIntegrity,
+	DocsCacheOpenCode,
 	DocsCacheResolvedSource,
 	DocsCacheSource,
 	TocFormat,
@@ -103,11 +105,15 @@ export const stripDefaultConfigValues = (
 		$schema: pruned.$schema as DocsCacheConfig["$schema"],
 		cacheDir: pruned.cacheDir as DocsCacheConfig["cacheDir"],
 		targetMode: pruned.targetMode as DocsCacheConfig["targetMode"],
+		opencode: pruned.opencode as DocsCacheConfig["opencode"],
 		defaults: pruned.defaults as DocsCacheConfig["defaults"],
 		sources: config.sources,
 	};
 	if (!next.defaults || Object.keys(next.defaults).length === 0) {
 		delete next.defaults;
+	}
+	if (next.opencode === undefined) {
+		delete next.opencode;
 	}
 	return next;
 };
@@ -140,6 +146,7 @@ export const validateConfig = (input: unknown): DocsCacheConfig => {
 	return {
 		cacheDir,
 		targetMode: targetModeOverride,
+		opencode: configInput.opencode,
 		defaults,
 		sources: configInput.sources as DocsCacheSource[],
 	};

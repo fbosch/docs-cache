@@ -17,6 +17,9 @@ const stubPrompts = (answers, callbacks = {}) => ({
 			}
 			return answers.gitignore ?? true;
 		}
+		if (options.message?.startsWith("Sync documentation as OpenCode")) {
+			return answers.opencode ?? false;
+		}
 		return false;
 	},
 	isCancel: () => false,
@@ -174,4 +177,58 @@ test("init skips gitignore prompt when entry exists", async () => {
 	);
 
 	assert.equal(prompted, false);
+});
+
+test("init remembers accepted OpenCode reference syncing for the highest-priority config", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-init-opencode-${Date.now().toString(36)}`,
+	);
+	const openCodeDir = path.join(tmpRoot, ".opencode");
+	await mkdir(openCodeDir, { recursive: true });
+	await writeFile(path.join(tmpRoot, ".git"), "gitdir: /tmp/unused\n", "utf8");
+	await writeFile(path.join(tmpRoot, "opencode.json"), "{}\n", "utf8");
+	const openCodePath = path.join(openCodeDir, "opencode.jsonc");
+	await writeFile(openCodePath, "{}\n", "utf8");
+
+	await initConfig(
+		{ json: false, cwd: tmpRoot },
+		stubPrompts({
+			location: "config",
+			cacheDir: ".docs",
+			toc: true,
+			gitignore: false,
+			opencode: true,
+		}),
+	);
+
+	const config = JSON.parse(
+		await readFile(path.join(tmpRoot, "docs.config.json"), "utf8"),
+	);
+	assert.deepEqual(config.opencode, { configPath: openCodePath });
+});
+
+test("init remembers when OpenCode reference syncing is declined", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-init-opencode-decline-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	await writeFile(path.join(tmpRoot, "opencode.jsonc"), "{}\n", "utf8");
+
+	await initConfig(
+		{ json: false, cwd: tmpRoot },
+		stubPrompts({
+			location: "config",
+			cacheDir: ".docs",
+			toc: true,
+			gitignore: false,
+			opencode: false,
+		}),
+	);
+
+	const config = JSON.parse(
+		await readFile(path.join(tmpRoot, "docs.config.json"), "utf8"),
+	);
+	assert.equal(config.opencode, false);
 });

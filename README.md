@@ -10,7 +10,7 @@ Deterministic local caching of external documentation for agents and developers
 
 Provides agents and developers with local access to external documentation without committing it to the repository.
 
-Documentation is cached in a gitignored location, exposed to agent and tool targets via links or copies, and updated through sync commands or postinstall hooks.
+Documentation is cached in a gitignored location and exposed directly to OpenCode as local references. Optional links or copies remain available for other tools.
 
 ## Features
 
@@ -18,8 +18,9 @@ Documentation is cached in a gitignored location, exposed to agent and tool targ
 - **Deterministic**: `docs-lock.json` pins commits and file metadata.
 - **Fast**: Local cache avoids network roundtrips after sync.
 - **Flexible**: Cache full repos or just the subdirectories you need.
+- **OpenCode-aware**: Detected OpenCode configs can expose every source as an `@` reference.
 
-> **Note**: Sources are downloaded to a local cache. If you provide a `targetDir`, `docs-cache` creates a symlink or copy from the cache to that target directory.
+> **Note**: Sources always materialize in the local cache. `targetDir` is optional and only creates a symlink or copy for tools that need a separate physical path.
 
 ## Usage
 
@@ -58,7 +59,7 @@ Use this flow to keep behavior predictable (similar to package manager manifest 
 1. Keep source intent in config (`ref: "main"`, `ref: "v1"`, or a commit SHA).
 2. Run `npx docs-cache update <id...>` (or `--all`) to refresh selected sources and lock data.
 3. Use `npx docs-cache install` to restore cache/targets from `docs-lock.json` without rewriting the lock file.
-4. Use `npx docs-cache sync --frozen` in CI to fail fast when lock data drifts.
+4. Use `npx docs-cache sync --frozen` in CI to fail fast when lock data or managed OpenCode references drift.
 5. Use `npx docs-cache pin <id...>` only when you explicitly want to rewrite config refs to commit SHAs.
 
 ## Configuration
@@ -68,14 +69,13 @@ Use this flow to keep behavior predictable (similar to package manager manifest 
 ```jsonc
 {
   "$schema": "https://github.com/fbosch/docs-cache/blob/master/docs.config.schema.json",
-  "sources": [
-    {
-      "id": "framework",
-      "repo": "https://github.com/framework/core.git",
-      "ref": "main", // or specific commit hash
-      "targetDir": "./agents/skills/framework-skill/references", // symlink/copy target
-      "include": ["guide/**"], // file globs to include from the source
-      "toc": true, // defaults to "compressed" (for agents)
+   "sources": [
+     {
+       "id": "framework",
+       "repo": "https://github.com/framework/core.git",
+       "ref": "main", // or specific commit hash
+       "include": ["guide/**"], // file globs to include from the source
+       "toc": true, // defaults to "compressed" (for agents)
     },
   ],
 }
@@ -89,7 +89,37 @@ Use this flow to keep behavior predictable (similar to package manager manifest 
 | ---------- | -------------------------------------- | -------- |
 | `cacheDir` | Directory for cache. Default: `.docs`. | Optional |
 | `defaults` | Default settings for all sources.      | Optional |
+| `opencode` | OpenCode reference-sync decision.      | Optional |
 | `sources`  | List of repositories to sync.          | Required |
+
+### OpenCode references
+
+`docs-cache init` and interactive `docs-cache sync` detect existing `opencode.json` and `opencode.jsonc` files. Detection follows OpenCode precedence, selecting the highest-priority file. When a config is detected, `docs-cache` asks whether to sync references and stores the answer:
+
+```jsonc
+{
+  "opencode": {
+    "configPath": "/absolute/path/to/.opencode/opencode.jsonc"
+  }
+}
+```
+
+Declining stores `"opencode": false` and suppresses future prompts. It stops further management without changing existing OpenCode references. Omit the field only while no decision has been made.
+
+For every source, sync creates or updates a managed OpenCode reference whose alias is the source ID and whose path is the canonical cache directory:
+
+```jsonc
+{
+  "references": {
+    "framework": {
+      "path": "/absolute/path/to/project/.docs/framework",
+      "description": "Use for documentation from framework/core."
+    }
+  }
+}
+```
+
+The cache remains gitignored. `targetDir`, symlinks, copies, and unwrapped directories are never used for OpenCode reference paths. `docs-cache` preserves user-owned references, fails on an alias collision, and records its managed aliases in `docs-lock.json` so removing a source removes only its own reference. `sync --frozen` validates this state without writing the OpenCode config. Restart OpenCode after references change because it reads configuration at startup.
 
 <details>
 <summary>Show default and source options</summary>
@@ -130,7 +160,7 @@ These fields can be set in `defaults` and are inherited by every source unless o
 | ----------- | ---------------------------------------------------------------- |
 | `targetDir` | Path where files should be symlinked/copied to, outside `.docs`. |
 
-> **Note**: Sources are always downloaded to `.docs/<id>/`. If you provide a `targetDir`; `docs-cache` will create a symlink or copy pointing from the cache to that target directory.
+> **Note**: Sources are always downloaded to `.docs/<id>/`. If you provide a `targetDir`, `docs-cache` creates a symlink or copy pointing from the cache to that target directory. It is not enabled by default.
 
 </details>
 
