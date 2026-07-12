@@ -168,8 +168,20 @@ const createPlan = (
 					written.push(change);
 				}
 			} catch (error) {
+				const rollbackFailures: unknown[] = [];
 				for (const change of written.reverse()) {
-					await writeFileAtomically(change.filePath, change.raw);
+					try {
+						await writeFileAtomically(change.filePath, change.raw);
+					} catch (rollbackError) {
+						rollbackFailures.push(rollbackError);
+					}
+				}
+				if (rollbackFailures.length > 0) {
+					throw new AggregateError(
+						[error, ...rollbackFailures],
+						"Failed to apply OpenCode references and roll back cleanly.",
+						{ cause: error },
+					);
 				}
 				throw error;
 			}

@@ -984,13 +984,19 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		!options.json && !isSilentMode() && process.stdout.isTTY && !isTestRunner;
 	const reporter = useLiveOutput ? new TaskReporter() : null;
 	const previous = plan.lockData;
-	const ownership = await readOpenCodeOwnership(plan.configPath);
-	const openCodeReferences = await planOpenCodeReferences({
-		opencode: plan.config.opencode,
-		ownership,
-		sources: plan.config.sources,
-		cacheDir: plan.cacheDir,
-	});
+	const shouldPlanOpenCodeReferences =
+		!options.install && (!options.lockOnly || options.frozen);
+	const ownership = shouldPlanOpenCodeReferences
+		? await readOpenCodeOwnership(plan.configPath)
+		: undefined;
+	const openCodeReferences = shouldPlanOpenCodeReferences
+		? await planOpenCodeReferences({
+				opencode: plan.config.opencode,
+				ownership,
+				sources: plan.config.sources,
+				cacheDir: plan.cacheDir,
+			})
+		: undefined;
 	if (options.install) {
 		assertInstallLock(plan);
 	}
@@ -1016,7 +1022,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 					)}. Run docs-cache update or docs-cache sync to refresh the lock.`,
 			);
 		}
-		if (openCodeReferences.drift.length > 0) {
+		if (openCodeReferences?.drift.length) {
 			throw new Error(
 				`Frozen sync failed: OpenCode references are out of date for alias(es): ${openCodeReferences.drift.join(", ")}. Run docs-cache sync to refresh them.`,
 			);
@@ -1052,7 +1058,7 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 	const opencode =
 		options.lockOnly || options.install
 			? undefined
-			: openCodeReferences.nextState;
+			: openCodeReferences?.nextState;
 	const lock = await buildFinalLock({
 		plan,
 		previous,
@@ -1060,17 +1066,20 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 		opencode,
 	});
 	const shouldApplyOpenCodeReferences =
-		!options.lockOnly && !options.install && !options.frozen;
+		!options.lockOnly &&
+		!options.install &&
+		!options.frozen &&
+		openCodeReferences !== undefined;
 	const shouldPersistOpenCodeOwnership =
 		shouldApplyOpenCodeReferences &&
 		plan.config.opencode !== undefined &&
 		plan.config.opencode !== false &&
-		openCodeReferences.nextState !== undefined;
+		openCodeReferences?.nextState !== undefined;
 	if (shouldApplyOpenCodeReferences) {
-		await openCodeReferences.apply();
+		await openCodeReferences?.apply();
 	}
 	try {
-		if (shouldPersistOpenCodeOwnership && openCodeReferences.nextState) {
+		if (shouldPersistOpenCodeOwnership && openCodeReferences?.nextState) {
 			await writeOpenCodeOwnership(
 				plan.configPath,
 				openCodeReferences.nextState,
@@ -1080,11 +1089,27 @@ export const runSync = async (options: SyncOptions, deps: SyncDeps = {}) => {
 			await writeLock(plan.lockPath, lock);
 		}
 	} catch (error) {
+		const rollbackFailures: unknown[] = [];
 		if (shouldPersistOpenCodeOwnership) {
-			await restoreOpenCodeOwnership(plan.configPath, ownership);
+			try {
+				await restoreOpenCodeOwnership(plan.configPath, ownership);
+			} catch (rollbackError) {
+				rollbackFailures.push(rollbackError);
+			}
 		}
 		if (shouldApplyOpenCodeReferences) {
-			await openCodeReferences.rollback();
+			try {
+				await openCodeReferences?.rollback();
+			} catch (rollbackError) {
+				rollbackFailures.push(rollbackError);
+			}
+		}
+		if (rollbackFailures.length > 0) {
+			throw new AggregateError(
+				[error, ...rollbackFailures],
+				"Failed to persist OpenCode state and roll back cleanly.",
+				{ cause: error },
+			);
 		}
 		throw error;
 	}

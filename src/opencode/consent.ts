@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { DocsCacheOpenCode } from "#config";
+import { type DocsCacheOpenCode, validateConfig } from "#config";
 import {
 	mergeConfigBase,
 	readConfigAtPath,
@@ -15,6 +15,7 @@ export const saveOpenCodeConsent = async (params: {
 	const { config, rawConfig, rawPackage } = await readConfigAtPath(target);
 	const nextConfig = mergeConfigBase(rawConfig ?? config, config.sources);
 	nextConfig.opencode = params.opencode;
+	validateConfig(nextConfig);
 	await writeConfigFile({
 		mode: target.mode,
 		resolvedPath: target.resolvedPath,

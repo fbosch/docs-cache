@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { loadConfig } from "../dist/api.mjs";
+import { loadConfig, saveOpenCodeConsent } from "../dist/api.mjs";
 
 const writeConfig = async (data) => {
 	const tmpRoot = path.join(
@@ -110,4 +110,21 @@ test("loadConfig validates OpenCode aliases only when integration is enabled", a
 		() => loadConfig(configPath),
 		/OpenCode integration is enabled/i,
 	);
+});
+
+test("saveOpenCodeConsent rejects invalid aliases before changing config", async () => {
+	const configPath = await writeConfig({
+		sources: [{ id: "invalid alias", repo: "https://example.com/repo.git" }],
+	});
+	const before = await readFile(configPath, "utf8");
+
+	await assert.rejects(
+		() =>
+			saveOpenCodeConsent({
+				configPath,
+				opencode: { configPath: "/tmp/opencode.json" },
+			}),
+		/OpenCode integration is enabled/i,
+	);
+	assert.equal(await readFile(configPath, "utf8"), before);
 });
