@@ -48,7 +48,7 @@
 		"prepublishOnly": "pnpm audit --audit-level=high && pnpm build && pnpm size && pnpm schema:build",
 		"release": "pnpm run lint && pnpm run typecheck && bumpp && pnpm publish --access public",
 		"test": "pnpm build && node --test",
-		"test:coverage": "c8 --include src --reporter=text --reporter=json node --conditions=coverage --import tsx --experimental-loader ./scripts/coverage-loader.mjs --test --test-concurrency=1",
+		"test:coverage": "DOCS_CACHE_COVERAGE=1 c8 --include src --reporter=text --reporter=json node --conditions=coverage --import tsx --experimental-loader ./scripts/coverage-loader.mjs --test --test-concurrency=1",
 		"bench": "pnpm build && node scripts/benchmarks/run.mjs",
 		"complexity": "node scripts/complexity/run.mjs",
 		"fallow": "fallow",
