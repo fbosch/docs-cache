@@ -74,6 +74,10 @@ test("OpenCode detection disables project config only for true or 1", async () =
 		assert.ok(
 			(await getOpenCodeConfigCandidates(project)).includes(configPath),
 		);
+		process.env.OPENCODE_DISABLE_PROJECT_CONFIG = "true";
+		assert.ok(
+			!(await getOpenCodeConfigCandidates(project)).includes(configPath),
+		);
 		process.env.OPENCODE_DISABLE_PROJECT_CONFIG = "1";
 		assert.ok(
 			!(await getOpenCodeConfigCandidates(project)).includes(configPath),
