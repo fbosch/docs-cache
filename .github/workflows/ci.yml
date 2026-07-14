@@ -39,6 +39,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Build
+        run: pnpm build
+
       - name: Test
         run: pnpm test:coverage
 
@@ -46,9 +49,6 @@ jobs:
         uses: fallow-rs/fallow@v3
         with:
           command: audit
-
-      - name: Build
-        run: pnpm build
 
       - name: Size limit
         run: pnpm size
