@@ -15,12 +15,13 @@ const exists = async (target) => {
 	}
 };
 
-const writeConfig = async (tmpRoot, extra = {}) => {
+const writeConfig = async (tmpRoot, extra = {}, topLevel = {}) => {
 	const configPath = path.join(tmpRoot, "docs.config.json");
 	await writeFile(
 		configPath,
 		`${JSON.stringify(
 			{
+				...topLevel,
 				sources: [
 					{
 						id: "local",
@@ -198,5 +199,67 @@ test("install fails when lock repo or ref does not match config", async () => {
 				install: true,
 			}),
 		/Install failed: lock is out of date/i,
+	);
+});
+
+test("install and lock-only ignore a missing OpenCode config", async () => {
+	const tmpRoot = path.join(
+		tmpdir(),
+		`docs-cache-install-opencode-${Date.now().toString(36)}`,
+	);
+	await mkdir(tmpRoot, { recursive: true });
+	const cacheDir = path.join(tmpRoot, ".docs");
+	const repoDir = path.join(tmpRoot, "repo");
+	const configPath = await writeConfig(
+		tmpRoot,
+		{},
+		{ opencode: { configPath: path.join(tmpRoot, "missing-opencode.json") } },
+	);
+	await mkdir(repoDir, { recursive: true });
+	await writeFile(path.join(repoDir, "README.md"), "hello", "utf8");
+	const resolveRemoteCommit = async () => ({
+		repo: "https://example.com/repo.git",
+		ref: "main",
+		resolvedCommit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	});
+
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: true,
+			offline: false,
+			failOnMiss: false,
+		},
+		{ resolveRemoteCommit },
+	);
+
+	await runSync(
+		{
+			configPath,
+			cacheDirOverride: cacheDir,
+			json: false,
+			lockOnly: false,
+			offline: false,
+			failOnMiss: false,
+			install: true,
+		},
+		{
+			fetchSource: async () => ({
+				repoDir,
+				cleanup: async () => undefined,
+			}),
+			materializeSource: async ({ cacheDir: outputRoot, sourceId }) => {
+				const outputDir = path.join(outputRoot, sourceId);
+				await mkdir(outputDir, { recursive: true });
+				await writeFile(path.join(outputDir, "README.md"), "hello", "utf8");
+				await writeFile(
+					path.join(outputDir, ".manifest.jsonl"),
+					`${JSON.stringify({ path: "README.md", size: 5 })}\n`,
+				);
+				return { bytes: 5, fileCount: 1, manifestSha256: "manifest" };
+			},
+		},
 	);
 });

@@ -4,6 +4,15 @@ import { assertSafeSourceId } from "#core/source-id";
 export const TargetModeSchema = z.enum(["symlink", "copy"]);
 export const CacheModeSchema = z.enum(["materialize"]);
 export const TocFormatSchema = z.enum(["tree", "compressed"]);
+const OpenCodeSchema = z.union([
+	z.literal(true),
+	z.literal(false),
+	z
+		.object({
+			configPath: z.string().min(1),
+		})
+		.strict(),
+]);
 export const IntegritySchema = z
 	.object({
 		type: z.enum(["commit", "manifest"]),
@@ -67,6 +76,7 @@ export const ConfigSchema = z
 		cacheDir: z.string().min(1).optional(),
 		targetMode: TargetModeSchema.optional(),
 		defaults: DefaultsSchema.partial().optional(),
+		opencode: OpenCodeSchema.optional(),
 		sources: z.array(SourceSchema),
 	})
 	.strict()
@@ -87,6 +97,18 @@ export const ConfigSchema = z
 				message: `Duplicate source IDs found: ${Array.from(duplicates).join(", ")}.`,
 			});
 		}
+		if (value.opencode) {
+			value.sources.forEach((source, index) => {
+				if (/[/\s`,]/.test(source.id)) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						path: ["sources", index, "id"],
+						message:
+							"id must not contain slashes, whitespace, backticks, or commas when OpenCode integration is enabled.",
+					});
+				}
+			});
+		}
 	});
 
 export type DocsCacheDefaults = z.infer<typeof DefaultsSchema>;
@@ -94,5 +116,6 @@ export type DocsCacheSource = z.infer<typeof SourceSchema>;
 export type DocsCacheResolvedSource = z.infer<typeof ResolvedSourceSchema>;
 export type DocsCacheConfig = z.infer<typeof ConfigSchema>;
 export type DocsCacheIntegrity = z.infer<typeof IntegritySchema>;
+export type DocsCacheOpenCode = z.infer<typeof OpenCodeSchema>;
 export type CacheMode = z.infer<typeof CacheModeSchema>;
 export type TocFormat = z.infer<typeof TocFormatSchema>;

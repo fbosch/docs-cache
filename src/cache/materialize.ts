@@ -103,6 +103,11 @@ const STREAM_COPY_THRESHOLD_BYTES =
 	Number.isFinite(STREAM_COPY_THRESHOLD_MB) && STREAM_COPY_THRESHOLD_MB > 0
 		? Math.floor(STREAM_COPY_THRESHOLD_MB * 1024 * 1024)
 		: 1024 * 1024;
+const NO_FOLLOW_UNSUPPORTED_ERROR_CODES = new Set<string | undefined>([
+	"EINVAL",
+	"ENOSYS",
+	"ENOTSUP",
+]);
 
 const ensureSafePath = (root: string, target: string) => {
 	const resolvedRoot = path.resolve(root);
@@ -120,7 +125,7 @@ const openFileNoFollow = async (filePath: string) => {
 		if (code === "ELOOP") {
 			return null;
 		}
-		if (code === "EINVAL" || code === "ENOSYS" || code === "ENOTSUP") {
+		if (NO_FOLLOW_UNSUPPORTED_ERROR_CODES.has(code)) {
 			const stats = await lstat(filePath);
 			if (stats.isSymbolicLink()) {
 				return null;

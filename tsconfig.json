@@ -13,6 +13,7 @@
 			"#config": ["./src/config/index.ts"],
 			"#config/*": ["./src/config/*.ts"],
 			"#git/*": ["./src/git/*.ts"],
+			"#opencode/*": ["./src/opencode/*.ts"],
 			"#types/*": ["./src/types/*.ts"]
 		},
 		"strict": true,

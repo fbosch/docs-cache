@@ -3,7 +3,7 @@
 	"private": false,
 	"type": "module",
 	"version": "0.6.0",
-	"packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748",
+	"packageManager": "pnpm@11.13.0+sha512.88d94724d8f2e6c186744a5584c6e59ecac869ec7ba15e9cb4cd628e8dc7066820b2481d8ee3b51ea8da323a7378068aa58c556a3720d32b7c20a051d088363a",
 	"description": "CLI for deterministic local caching of external documentation for agents and tools",
 	"author": "Frederik Bosch",
 	"license": "MIT",
@@ -95,6 +95,11 @@
 			"types": "./dist/esm/git/*.d.ts",
 			"default": "./dist/esm/git/*.mjs"
 		},
+		"#opencode/*": {
+			"coverage": "./src/opencode/*.ts",
+			"types": "./dist/esm/opencode/*.d.ts",
+			"default": "./dist/esm/opencode/*.mjs"
+		},
 		"#types/*": {
 			"coverage": "./src/types/*.ts",
 			"types": "./dist/esm/types/*.d.ts",
@@ -108,6 +113,7 @@
 		"execa": "^9.6.1",
 		"fast-glob": "^3.3.3",
 		"log-update": "7.0.2",
+		"jsonc-parser": "3.3.1",
 		"picocolors": "^1.1.1",
 		"picomatch": "^4.0.4",
 		"zod": "^4.3.6"
@@ -147,13 +153,5 @@
 		"*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
 			"biome check --write --no-errors-on-unmatched"
 		]
-	},
-	"pnpm": {
-		"overrides": {
-			"defu@<=6.1.4": "6.1.5",
-			"lodash@>=4.0.0 <=4.17.23": "4.18.0",
-			"minimatch@>=10.0.0 <10.2.3": "10.2.4",
-			"picomatch@<2.3.2": "2.3.2"
-		}
 	}
 }

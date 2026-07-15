@@ -1,12 +1,24 @@
 import path from "node:path";
 import process from "node:process";
+import { confirm, isCancel } from "@clack/prompts";
 import pc from "picocolors";
 import { ExitCode } from "#cli/exit-code";
-import { parseArgs } from "#cli/parse-args";
+import { type ParsedArgs, parseArgs } from "#cli/parse-args";
 import type { CliCommand } from "#cli/types";
 import { setSilentMode, setVerboseMode, symbols, ui } from "#cli/ui";
 
 export const CLI_NAME = "docs-cache";
+const COMMANDS_WITH_POSITIONALS = new Set([
+	"add",
+	"remove",
+	"pin",
+	"update",
+	"install",
+	"sync",
+]);
+
+const hasUnexpectedPositionals = (command: string, positionals: string[]) =>
+	!COMMANDS_WITH_POSITIONALS.has(command) && positionals.length > 0;
 
 const HELP_TEXT = `
 Usage: ${CLI_NAME} <command> [options]
@@ -59,6 +71,61 @@ const printHelp = () => {
 
 const printError = (message: string) => {
 	process.stderr.write(`${symbols.error} ${message}\n`);
+};
+
+const canPromptForOpenCodeConsent = (
+	options: Extract<CliCommand, { command: "sync" }>["options"],
+) => options.json === false && options.frozen !== true && process.stdin.isTTY;
+
+const getOpenCodeConsentContext = async (
+	options: Extract<CliCommand, { command: "sync" }>["options"],
+) => {
+	const { loadConfig } = await import("#config");
+	const { detectOpenCodeConfig } = await import("#opencode/detection");
+	const { getProjectOpenCodeConfigPath } = await import("#opencode/references");
+	const { config, resolvedPath } = await loadConfig(options.config);
+	if (config.opencode !== undefined) {
+		return null;
+	}
+	const detected = await detectOpenCodeConfig(path.dirname(resolvedPath));
+	if (!detected) {
+		return null;
+	}
+	return getProjectOpenCodeConfigPath(resolvedPath, detected) ? detected : null;
+};
+
+const saveOpenCodeConsentFromPrompt = async (
+	options: Extract<CliCommand, { command: "sync" }>["options"],
+	detected: string,
+) => {
+	if (!canPromptForOpenCodeConsent(options)) {
+		process.stderr.write(
+			`${symbols.info} OpenCode config detected at ${detected}; run docs-cache sync interactively to choose reference syncing.\n`,
+		);
+		return;
+	}
+	const answer = await confirm({
+		message: `Sync documentation as OpenCode references using ${detected}`,
+		initialValue: true,
+	});
+	if (isCancel(answer)) {
+		throw new Error("Sync cancelled.");
+	}
+	const { saveOpenCodeConsent } = await import("#opencode/consent");
+	await saveOpenCodeConsent({
+		configPath: options.config,
+		opencode: answer,
+	});
+};
+
+const resolveOpenCodeConsentForSync = async (
+	options: Extract<CliCommand, { command: "sync" }>["options"],
+) => {
+	const detected = await getOpenCodeConsentContext(options);
+	if (!detected) {
+		return;
+	}
+	await saveOpenCodeConsentFromPrompt(options, detected);
 };
 
 const runAdd = async (parsed: Extract<CliCommand, { command: "add" }>) => {
@@ -373,6 +440,7 @@ const runSyncCommand = async (
 	parsed: Extract<CliCommand, { command: "sync" }>,
 ) => {
 	const options = parsed.options;
+	await resolveOpenCodeConsentForSync(options);
 	const { printSyncPlan, runSync } = await import("#commands/sync");
 	const sourceFilter = parsed.ids.length > 0 ? parsed.ids : undefined;
 	const plan = await runSync({
@@ -479,6 +547,24 @@ const runCommand = async (parsed: CliCommand) => {
 	}
 };
 
+const handleEarlyExit = (parsed: ParsedArgs) => {
+	if (parsed.help) {
+		printHelp();
+		process.exit(ExitCode.Success);
+	}
+
+	if (!parsed.command) {
+		printHelp();
+		process.exit(ExitCode.InvalidArgument);
+	}
+
+	if (hasUnexpectedPositionals(parsed.command, parsed.positionals)) {
+		printError(`${CLI_NAME}: unexpected arguments.`);
+		printHelp();
+		process.exit(ExitCode.InvalidArgument);
+	}
+};
+
 /**
  * The main entry point of the CLI
  */
@@ -493,30 +579,7 @@ export async function main(): Promise<void> {
 		setSilentMode(parsed.options.silent);
 		setVerboseMode(parsed.options.verbose);
 
-		if (parsed.help) {
-			printHelp();
-			process.exit(ExitCode.Success);
-		}
-
-		if (!parsed.command) {
-			printHelp();
-			process.exit(ExitCode.InvalidArgument);
-		}
-
-		if (
-			parsed.command !== "add" &&
-			parsed.command !== "remove" &&
-			parsed.command !== "pin" &&
-			parsed.command !== "update" &&
-			parsed.command !== "install" &&
-			parsed.command !== "sync" &&
-			parsed.positionals.length > 0
-		) {
-			printError(`${CLI_NAME}: unexpected arguments.`);
-			printHelp();
-			process.exit(ExitCode.InvalidArgument);
-		}
-
+		handleEarlyExit(parsed);
 		await runCommand(parsed.parsed);
 	} catch (error) {
 		errorHandler(error);

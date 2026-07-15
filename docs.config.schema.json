@@ -83,6 +83,29 @@
 			},
 			"additionalProperties": false
 		},
+		"opencode": {
+			"anyOf": [
+				{
+					"type": "boolean",
+					"const": true
+				},
+				{
+					"type": "boolean",
+					"const": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"configPath": {
+							"type": "string",
+							"minLength": 1
+						}
+					},
+					"required": ["configPath"],
+					"additionalProperties": false
+				}
+			]
+		},
 		"sources": {
 			"type": "array",
 			"items": {

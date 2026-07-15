@@ -10,10 +10,12 @@ import {
 	DEFAULT_CACHE_DIR,
 	DEFAULT_CONFIG_FILENAME,
 	type DocsCacheConfig,
+	type DocsCacheOpenCode,
 	stripDefaultConfigValues,
 	writeConfig,
 } from "#config";
 import { ensureGitignoreEntry, getGitignoreStatus } from "#core/gitignore";
+import { detectOpenCodeConfig } from "#opencode/detection";
 
 type InitOptions = {
 	cacheDirOverride?: string;
@@ -91,6 +93,7 @@ const promptInitAnswers = async (
 	confirm: typeof clackConfirm,
 	text: typeof clackText,
 	isCancel: typeof clackIsCancel,
+	opencodeConfigPath: string | null,
 ) => {
 	const cacheDirAnswer = await text({
 		message: "Cache directory",
@@ -120,14 +123,30 @@ const promptInitAnswers = async (
 		}
 		gitignoreAnswer = reply;
 	}
+	let opencode: DocsCacheOpenCode | undefined;
+	if (opencodeConfigPath) {
+		const reply = await confirm({
+			message: `Sync documentation as OpenCode references using ${opencodeConfigPath}`,
+			initialValue: true,
+		});
+		if (isCancel(reply)) {
+			throw new Error("Init cancelled.");
+		}
+		opencode = reply;
+	}
 	return {
 		cacheDir: cacheDirValue,
 		toc: tocAnswer,
 		gitignore: gitignoreAnswer,
+		opencode,
 	};
 };
 
-const buildBaseConfig = (cacheDir: string, toc: boolean): DocsCacheConfig => {
+const buildBaseConfig = (
+	cacheDir: string,
+	toc: boolean,
+	opencode: DocsCacheOpenCode | undefined,
+): DocsCacheConfig => {
 	const config: DocsCacheConfig = {
 		$schema:
 			"https://raw.githubusercontent.com/fbosch/docs-cache/main/docs.config.schema.json",
@@ -138,6 +157,9 @@ const buildBaseConfig = (cacheDir: string, toc: boolean): DocsCacheConfig => {
 	}
 	if (!toc) {
 		config.defaults = { toc: false };
+	}
+	if (opencode !== undefined) {
+		config.opencode = opencode;
 	}
 	return config;
 };
@@ -188,15 +210,15 @@ const writeStandaloneConfig = async (
 	};
 };
 
-export const initConfig = async (
-	options: InitOptions,
-	deps: PromptDeps = {},
-) => {
-	const confirm = deps.confirm ?? clackConfirm;
-	const isCancel = deps.isCancel ?? clackIsCancel;
-	const select = deps.select ?? clackSelect;
-	const text = deps.text ?? clackText;
-	const cwd = options.cwd ?? process.cwd();
+const getConfirm = (deps: PromptDeps) => deps.confirm ?? clackConfirm;
+
+const getIsCancel = (deps: PromptDeps) => deps.isCancel ?? clackIsCancel;
+
+const getSelect = (deps: PromptDeps) => deps.select ?? clackSelect;
+
+const getText = (deps: PromptDeps) => deps.text ?? clackText;
+
+const getInitContext = async (cwd: string) => {
 	const { existingConfigPaths, defaultConfigPath, packagePath } =
 		await findExistingConfigPaths(cwd);
 	if (existingConfigPaths.length > 0) {
@@ -204,27 +226,69 @@ export const initConfig = async (
 			`Config already exists at ${existingConfigPaths.join(", ")}. Init aborted.`,
 		);
 	}
+	return { defaultConfigPath, packagePath };
+};
+
+const writeInitConfig = async (params: {
+	configPath: string;
+	config: DocsCacheConfig;
+	gitignore: boolean;
+}) => {
+	if (path.basename(params.configPath) === "package.json") {
+		return writePackageConfig(
+			params.configPath,
+			params.config,
+			params.gitignore,
+		);
+	}
+	if (await exists(params.configPath)) {
+		throw new Error(`Config already exists at ${params.configPath}.`);
+	}
+	return writeStandaloneConfig(
+		params.configPath,
+		params.config,
+		params.gitignore,
+	);
+};
+
+export const initConfig = async (
+	options: InitOptions,
+	deps: PromptDeps = {},
+) => {
+	const confirm = getConfirm(deps);
+	const isCancel = getIsCancel(deps);
+	const select = getSelect(deps);
+	const text = getText(deps);
+	const cwd = options.cwd ?? process.cwd();
+	const { defaultConfigPath, packagePath } = await getInitContext(cwd);
 	const configPath = await selectConfigPath(
 		packagePath,
 		defaultConfigPath,
 		select,
 		isCancel,
 	);
+	const resolvedConfigPath = path.resolve(cwd, configPath);
 	const cacheDir = options.cacheDirOverride ?? DEFAULT_CACHE_DIR;
+	const detectedOpenCodeConfigPath = await detectOpenCodeConfig(
+		path.dirname(resolvedConfigPath),
+	);
+	const opencodeConfigPath = detectedOpenCodeConfigPath;
 	const answers = await promptInitAnswers(
 		cacheDir,
 		cwd,
 		confirm,
 		text,
 		isCancel,
+		opencodeConfigPath,
 	);
-	const resolvedConfigPath = path.resolve(cwd, configPath);
-	const config = buildBaseConfig(answers.cacheDir, answers.toc);
-	if (path.basename(resolvedConfigPath) === "package.json") {
-		return writePackageConfig(resolvedConfigPath, config, answers.gitignore);
-	}
-	if (await exists(resolvedConfigPath)) {
-		throw new Error(`Config already exists at ${resolvedConfigPath}.`);
-	}
-	return writeStandaloneConfig(resolvedConfigPath, config, answers.gitignore);
+	const config = buildBaseConfig(
+		answers.cacheDir,
+		answers.toc,
+		answers.opencode,
+	);
+	return writeInitConfig({
+		configPath: resolvedConfigPath,
+		config,
+		gitignore: answers.gitignore,
+	});
 };

@@ -12,5 +12,10 @@ test("docs config schema has required top-level keys", async () => {
 	assert.ok(schema.properties?.$schema);
 	assert.ok(schema.properties?.cacheDir);
 	assert.ok(schema.properties?.defaults);
+	assert.ok(schema.properties?.opencode);
 	assert.ok(schema.properties?.sources);
+	assert.equal(
+		schema.properties?.sources?.items?.properties?.opencodeDescription,
+		undefined,
+	);
 });
