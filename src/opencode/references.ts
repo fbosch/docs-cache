@@ -88,7 +88,7 @@ const buildReference = (
 		.relative(path.dirname(configPath), path.resolve(cacheDir, source.id))
 		.split(path.sep)
 		.join("/"),
-	description: `Use for documentation from ${getRepositoryLabel(source.repo)}.`,
+	description: `Use for documentation from ${getRepositoryLabel(source.repo)}.${source.toc === false ? "" : " Start with TOC.md."}`,
 });
 
 const formattingOptionsFor = (raw: string) => {

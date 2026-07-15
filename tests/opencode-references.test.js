@@ -130,7 +130,8 @@ test("sync creates canonical OpenCode references and preserves JSONC", async () 
 	});
 	assert.deepEqual(config.references["hyprland-wiki"], {
 		path: referencePath(openCodePath, cacheDir, "hyprland-wiki"),
-		description: "Use for documentation from hyprwm/hyprland-wiki.",
+		description:
+			"Use for documentation from hyprwm/hyprland-wiki. Start with TOC.md.",
 	});
 
 	const lock = JSON.parse(
@@ -148,7 +149,7 @@ test("sync updates managed reference paths when the cache directory changes", as
 	await writeFile(openCodePath, "{}\n", "utf8");
 	const configPath = await writeDocsConfig(
 		root,
-		[{ id: "docs", repo: "https://github.com/example/docs.git" }],
+		[{ id: "docs", repo: "https://github.com/example/docs.git", toc: false }],
 		{ configPath: openCodePath },
 	);
 	const firstCacheDir = path.join(root, ".docs-one");
@@ -185,7 +186,7 @@ test("sync preserves a symlinked OpenCode config", {
 	const config = parse(await readFile(targetPath, "utf8"));
 	assert.deepEqual(config.references.docs, {
 		path: referencePath(openCodePath, cacheDir, "docs"),
-		description: "Use for documentation from example/docs.",
+		description: "Use for documentation from example/docs. Start with TOC.md.",
 	});
 });
 
@@ -210,7 +211,7 @@ test("sync recognizes managed references through alternate config paths", {
 	const config = parse(await readFile(targetPath, "utf8"));
 	assert.deepEqual(config.references.docs, {
 		path: referencePath(symlinkPath, cacheDir, "docs"),
-		description: "Use for documentation from example/docs.",
+		description: "Use for documentation from example/docs. Start with TOC.md.",
 	});
 });
 
@@ -365,7 +366,7 @@ test("sync removes managed references from a previously selected OpenCode config
 	assert.equal(first.references.docs, undefined);
 	assert.deepEqual(second.references.docs, {
 		path: referencePath(secondOpenCodePath, cacheDir, "docs"),
-		description: "Use for documentation from example/docs.",
+		description: "Use for documentation from example/docs. Start with TOC.md.",
 	});
 });
 
