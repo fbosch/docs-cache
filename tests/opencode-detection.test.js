@@ -9,7 +9,7 @@ import {
 	getOpenCodeConfigCandidates,
 } from "../dist/api.mjs";
 
-test("OpenCode detection gives JSON precedence over JSONC", async () => {
+test("OpenCode detection gives project JSON precedence over JSONC and global config", async () => {
 	const root = path.join(
 		tmpdir(),
 		`docs-cache-opencode-detect-${Date.now().toString(36)}`,
@@ -21,26 +21,20 @@ test("OpenCode detection gives JSON precedence over JSONC", async () => {
 	await writeFile(path.join(root, "opencode.jsonc"), "{}\n", "utf8");
 	await writeFile(path.join(openCodeDir, "opencode.json"), "{}\n", "utf8");
 	const expected = path.join(openCodeDir, "opencode.json");
-	const customConfigDir = path.join(root, "custom-opencode");
-	const customConfigPath = path.join(customConfigDir, "opencode.jsonc");
+	const globalConfigDir = path.join(
+		tmpdir(),
+		`docs-cache-opencode-global-${Date.now().toString(36)}`,
+	);
+	const globalConfigPath = path.join(globalConfigDir, "opencode.jsonc");
 	await writeFile(expected, "{}\n", "utf8");
-	await mkdir(customConfigDir, { recursive: true });
-	await writeFile(customConfigPath, "{}\n", "utf8");
+	await mkdir(globalConfigDir, { recursive: true });
+	await writeFile(globalConfigPath, "{}\n", "utf8");
 
-	const previousHome = process.env.HOME;
 	const previousCustomDir = process.env.OPENCODE_CONFIG_DIR;
-	process.env.HOME = root;
-	delete process.env.OPENCODE_CONFIG_DIR;
+	process.env.OPENCODE_CONFIG_DIR = globalConfigDir;
 	try {
 		assert.equal(await detectOpenCodeConfig(root), expected);
-		process.env.OPENCODE_CONFIG_DIR = customConfigDir;
-		assert.equal(await detectOpenCodeConfig(root), customConfigPath);
 	} finally {
-		if (previousHome === undefined) {
-			delete process.env.HOME;
-		} else {
-			process.env.HOME = previousHome;
-		}
 		if (previousCustomDir === undefined) {
 			delete process.env.OPENCODE_CONFIG_DIR;
 		} else {

@@ -1,5 +1,4 @@
 import { access } from "node:fs/promises";
-import { homedir } from "node:os";
 import path from "node:path";
 
 const exists = async (filePath: string) => {
@@ -47,11 +46,6 @@ const projectDirectories = (rootDir: string, startDir: string) => {
 	}
 };
 
-const configFilesInEnvDirectory = (name: string) => {
-	const directory = process.env[name];
-	return directory ? configFilesIn(path.resolve(directory)) : [];
-};
-
 const projectConfigCandidates = async (startDir: string) => {
 	const rootDir = await findProjectRoot(startDir);
 	const directories = projectDirectories(rootDir, path.resolve(startDir));
@@ -64,21 +58,10 @@ const projectConfigCandidates = async (startDir: string) => {
 };
 
 export const getOpenCodeConfigCandidates = async (startDir: string) => {
-	const userConfigDir =
-		process.env.XDG_CONFIG_HOME ?? path.join(homedir(), ".config");
-	const projectCandidates = isProjectConfigDisabled()
-		? []
-		: await projectConfigCandidates(startDir);
-	const explicitConfig = process.env.OPENCODE_CONFIG
-		? [path.resolve(process.env.OPENCODE_CONFIG)]
-		: [];
-	return [
-		...configFilesIn(path.join(userConfigDir, "opencode")),
-		...explicitConfig,
-		...projectCandidates,
-		...configFilesIn(path.join(homedir(), ".opencode")),
-		...configFilesInEnvDirectory("OPENCODE_CONFIG_DIR"),
-	];
+	if (isProjectConfigDisabled()) {
+		return [];
+	}
+	return projectConfigCandidates(startDir);
 };
 
 export const detectOpenCodeConfig = async (startDir: string) => {
