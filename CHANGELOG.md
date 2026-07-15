@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/fbosch/docs-cache/compare/v0.6.0...v0.7.0) (2026-07-15)
+
+
+### Features
+
+* sync OpenCode references ([#50](https://github.com/fbosch/docs-cache/issues/50)) ([46fe144](https://github.com/fbosch/docs-cache/commit/46fe144aa858272fac5d84c361600f62f8179f58))
+
 ## [0.6.0](https://github.com/fbosch/docs-cache/compare/v0.5.16...v0.6.0) (2026-05-23)
 
 
