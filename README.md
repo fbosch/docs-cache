@@ -10,7 +10,7 @@ Deterministic local caching of external documentation for agents and developers
 
 Provides agents and developers with local access to external documentation without committing it to the repository.
 
-Documentation is cached in a gitignored location and exposed directly to OpenCode as local references. Optional links or copies remain available for other tools.
+Documentation is cached in a gitignored location. When enabled, docs-cache exposes sources to OpenCode as local references. Optional links or copies remain available for other tools.
 
 ## Features
 
@@ -51,6 +51,10 @@ npx docs-cache clean
 ```
 
 > for more options: `npx docs-cache --help`
+
+## Requirements
+
+- Node.js 24 or later
 
 ## Recommended Workflow
 
@@ -94,32 +98,30 @@ Use this flow to keep behavior predictable (similar to package manager manifest 
 
 ### OpenCode references
 
-`docs-cache init` and interactive `docs-cache sync` detect existing `opencode.json` and `opencode.jsonc` files. Detection follows OpenCode precedence, selecting the highest-priority file. When a config is detected, `docs-cache` asks whether to sync references and stores the answer:
+`docs-cache init` and interactive `docs-cache sync` detect project-local `opencode.json` and `opencode.jsonc` files. When a config is detected, `docs-cache` asks whether to sync references and stores the answer:
 
 ```jsonc
 {
-  "opencode": {
-    "configPath": "/absolute/path/to/.opencode/opencode.jsonc"
-  }
+  "opencode": true
 }
 ```
 
-Declining stores `"opencode": false` and suppresses future prompts. It stops further management without changing existing OpenCode references. Omit the field only while no decision has been made.
+Declining stores `"opencode": false` and suppresses future prompts. It stops further management without changing existing OpenCode references. Omit the field only while no decision has been made. To target a specific project-local config, set a manual override such as `"opencode": { "configPath": ".opencode/opencode.jsonc" }`.
 
-For every source, sync creates or updates a managed OpenCode reference whose alias is the source ID and whose path is the canonical cache directory:
+`sync` creates or updates managed OpenCode references whose aliases are source IDs. Paths are relative to the OpenCode config file:
 
 ```jsonc
 {
   "references": {
     "framework": {
-      "path": "/absolute/path/to/project/.docs/framework",
-      "description": "Use for documentation from framework/core."
+      "path": "../.docs/framework",
+      "description": "Use for documentation from framework/core. Start with TOC.md."
     }
   }
 }
 ```
 
-The cache remains gitignored. `targetDir`, symlinks, copies, and unwrapped directories are never used for OpenCode reference paths. `docs-cache` preserves user-owned references, fails on an alias collision, and records its managed aliases in `docs-lock.json` so removing a source removes only its own reference. `sync --frozen` validates this state without writing the OpenCode config. Restart OpenCode after references change because it reads configuration at startup.
+The cache remains gitignored. `targetDir`, symlinks, copies, and unwrapped directories are never used for OpenCode reference paths. `docs-cache` preserves user-owned references and fails on an alias collision. A later `sync` removes stale managed aliases after a source is removed. When TOC generation is disabled for a source, its description does not direct OpenCode to `TOC.md`. `sync --frozen` validates references without writing the OpenCode config. Restart OpenCode after references change because it reads configuration at startup.
 
 <details>
 <summary>Show default and source options</summary>
@@ -140,7 +142,7 @@ These fields can be set in `defaults` and are inherited by every source unless o
 | `maxFiles`            | Maximum total files to materialize.                                                                                             |
 | `ignoreHidden`        | Skip hidden files and directories (dotfiles). Default: `false`.                                                                 |
 | `allowHosts`          | Allowed Git hosts. Default: `["github.com", "gitlab.com", "visualstudio.com"]`.                                                 |
-| `toc`                 | Generate per-source `TOC.md`. Default: `true`. Supports `true`, `false`, or a format: `"tree"` (human readable), `"compressed"` |
+| `toc`                 | Generate per-source `TOC.md`. Default: `true` with compressed output. `"tree"` uses headings and links; `false` removes generated TOC files. |
 | `unwrapSingleRootDir` | If the materialized output is nested under a single directory, unwrap it (recursively). Default: `true`.                        |
 
 > Brace expansion in `include` supports comma-separated lists (including multiple groups) like `**/*.{md,mdx}` and is capped at 500 expanded patterns per include entry. It does not support nested braces or numeric ranges.
