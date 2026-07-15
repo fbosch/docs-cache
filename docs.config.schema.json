@@ -87,6 +87,10 @@
 			"anyOf": [
 				{
 					"type": "boolean",
+					"const": true
+				},
+				{
+					"type": "boolean",
 					"const": false
 				},
 				{

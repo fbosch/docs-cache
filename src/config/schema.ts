@@ -5,6 +5,7 @@ export const TargetModeSchema = z.enum(["symlink", "copy"]);
 export const CacheModeSchema = z.enum(["materialize"]);
 export const TocFormatSchema = z.enum(["tree", "compressed"]);
 const OpenCodeSchema = z.union([
+	z.literal(true),
 	z.literal(false),
 	z
 		.object({

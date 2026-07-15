@@ -222,7 +222,7 @@ test("init remembers accepted OpenCode reference syncing for the highest-priorit
 	const config = JSON.parse(
 		await readFile(path.join(tmpRoot, "docs.config.json"), "utf8"),
 	);
-	assert.deepEqual(config.opencode, { configPath: ".opencode/opencode.jsonc" });
+	assert.equal(config.opencode, true);
 });
 
 test("init remembers when OpenCode reference syncing is declined", async () => {

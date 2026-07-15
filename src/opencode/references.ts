@@ -5,6 +5,7 @@ import type { DocsCacheOpenCodeLock } from "#cache/lock";
 import type { DocsCacheOpenCode, DocsCacheSource } from "#config";
 import { writeFileAtomically } from "#core/atomic-write";
 import { isRecord } from "#core/is-record";
+import { detectOpenCodeConfig } from "#opencode/detection";
 
 type Reference = {
 	path: string;
@@ -81,8 +82,12 @@ const getRepositoryLabel = (repo: string) => {
 const buildReference = (
 	source: DocsCacheSource,
 	cacheDir: string,
+	configPath: string,
 ): Reference => ({
-	path: path.resolve(cacheDir, source.id),
+	path: path
+		.relative(path.dirname(configPath), path.resolve(cacheDir, source.id))
+		.split(path.sep)
+		.join("/"),
 	description: `Use for documentation from ${getRepositoryLabel(source.repo)}.`,
 });
 
@@ -298,10 +303,13 @@ const getConfigPath = async (
 	opencode: Exclude<DocsCacheOpenCode, false>,
 	docsConfigPath: string,
 ) => {
-	const configPath = resolveOpenCodeConfigPath(
-		docsConfigPath,
-		opencode.configPath,
-	);
+	const configPath =
+		opencode === true
+			? await detectOpenCodeConfig(path.dirname(docsConfigPath))
+			: resolveOpenCodeConfigPath(docsConfigPath, opencode.configPath);
+	if (!configPath) {
+		throw new Error(`Project OpenCode config not found for ${docsConfigPath}.`);
+	}
 	if (!(await exists(configPath))) {
 		throw new Error(`Configured OpenCode config not found at ${configPath}.`);
 	}
@@ -366,7 +374,7 @@ export const planOpenCodeReferences = async (params: {
 	const desired = new Map(
 		params.sources.map((source) => [
 			source.id,
-			buildReference(source, params.cacheDir),
+			buildReference(source, params.cacheDir, configPath),
 		]),
 	);
 	const managed = await getManagedAliases(params.ownership, writePath);

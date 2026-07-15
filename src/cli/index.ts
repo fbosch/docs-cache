@@ -91,7 +91,7 @@ const getOpenCodeConsentContext = async (
 	if (!detected) {
 		return null;
 	}
-	return getProjectOpenCodeConfigPath(resolvedPath, detected);
+	return getProjectOpenCodeConfigPath(resolvedPath, detected) ? detected : null;
 };
 
 const saveOpenCodeConsentFromPrompt = async (
@@ -114,7 +114,7 @@ const saveOpenCodeConsentFromPrompt = async (
 	const { saveOpenCodeConsent } = await import("#opencode/consent");
 	await saveOpenCodeConsent({
 		configPath: options.config,
-		opencode: answer ? { configPath: detected } : false,
+		opencode: answer,
 	});
 };
 

@@ -84,6 +84,12 @@ const sync = async (configPath, cacheDir, options = {}) => {
 	);
 };
 
+const referencePath = (openCodePath, cacheDir, id) =>
+	path
+		.relative(path.dirname(openCodePath), path.join(cacheDir, id))
+		.split(path.sep)
+		.join("/");
+
 test("sync creates canonical OpenCode references and preserves JSONC", async () => {
 	const root = await createRoot("create");
 	const cacheDir = path.join(root, ".docs");
@@ -109,7 +115,7 @@ test("sync creates canonical OpenCode references and preserves JSONC", async () 
 				targetDir: "./unused-target",
 			},
 		],
-		{ configPath: openCodePath },
+		true,
 	);
 
 	await sync(configPath, cacheDir);
@@ -123,7 +129,7 @@ test("sync creates canonical OpenCode references and preserves JSONC", async () 
 		description: "User docs",
 	});
 	assert.deepEqual(config.references["hyprland-wiki"], {
-		path: path.join(cacheDir, "hyprland-wiki"),
+		path: referencePath(openCodePath, cacheDir, "hyprland-wiki"),
 		description: "Use for documentation from hyprwm/hyprland-wiki.",
 	});
 
@@ -153,7 +159,7 @@ test("sync updates managed reference paths when the cache directory changes", as
 
 	const config = JSON.parse(await readFile(openCodePath, "utf8"));
 	assert.deepEqual(config.references.docs, {
-		path: path.join(secondCacheDir, "docs"),
+		path: referencePath(openCodePath, secondCacheDir, "docs"),
 		description: "Use for documentation from example/docs.",
 	});
 });
@@ -178,7 +184,7 @@ test("sync preserves a symlinked OpenCode config", {
 	assert.equal((await lstat(openCodePath)).isSymbolicLink(), true);
 	const config = parse(await readFile(targetPath, "utf8"));
 	assert.deepEqual(config.references.docs, {
-		path: path.join(cacheDir, "docs"),
+		path: referencePath(openCodePath, cacheDir, "docs"),
 		description: "Use for documentation from example/docs.",
 	});
 });
@@ -203,7 +209,7 @@ test("sync recognizes managed references through alternate config paths", {
 
 	const config = parse(await readFile(targetPath, "utf8"));
 	assert.deepEqual(config.references.docs, {
-		path: path.join(cacheDir, "docs"),
+		path: referencePath(symlinkPath, cacheDir, "docs"),
 		description: "Use for documentation from example/docs.",
 	});
 });
@@ -358,7 +364,7 @@ test("sync removes managed references from a previously selected OpenCode config
 	const second = JSON.parse(await readFile(secondOpenCodePath, "utf8"));
 	assert.equal(first.references.docs, undefined);
 	assert.deepEqual(second.references.docs, {
-		path: path.join(cacheDir, "docs"),
+		path: referencePath(secondOpenCodePath, cacheDir, "docs"),
 		description: "Use for documentation from example/docs.",
 	});
 });
