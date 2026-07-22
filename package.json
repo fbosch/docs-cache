@@ -110,7 +110,7 @@
 		"@clack/prompts": "1.7.0",
 		"cac": "^6.7.14",
 		"cli-truncate": "^4.0.0",
-		"execa": "^9.6.1",
+		"execa": "^10.0.0",
 		"fast-glob": "^3.3.3",
 		"jsonc-parser": "3.3.1",
 		"log-update": "7.2.0",
