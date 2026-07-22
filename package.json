@@ -109,7 +109,7 @@
 	"dependencies": {
 		"@clack/prompts": "1.7.0",
 		"cac": "^6.7.14",
-		"cli-truncate": "^4.0.0",
+		"cli-truncate": "^6.1.1",
 		"execa": "^9.6.1",
 		"fast-glob": "^3.3.3",
 		"jsonc-parser": "3.3.1",
