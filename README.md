@@ -4,7 +4,7 @@ Deterministic local caching of external documentation for agents and developers
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![npm version](https://img.shields.io/npm/v/docs-cache)](https://www.npmjs.com/package/docs-cache)
-[![Audit](https://github.com/fbosch/docs-cache/actions/workflows/audit.yml/badge.svg)](https://github.com/fbosch/docs-cache/actions/workflows/audit.yml)
+[![CI](https://github.com/fbosch/docs-cache/actions/workflows/ci.yml/badge.svg)](https://github.com/fbosch/docs-cache/actions/workflows/ci.yml)
 
 ## Purpose
 
