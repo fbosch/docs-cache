@@ -27,8 +27,10 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - name: Refresh lockfile
-        run: pnpm install --lockfile-only --no-frozen-lockfile
+      - name: Rebuild lockfile
+        run: |
+          rm pnpm-lock.yaml
+          pnpm install --lockfile-only --no-frozen-lockfile
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
