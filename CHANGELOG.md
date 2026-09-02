@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/fbosch/docs-cache/compare/v0.7.0...v0.7.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **opencode:** adopt canonical references ([#59](https://github.com/fbosch/docs-cache/issues/59)) ([7e27612](https://github.com/fbosch/docs-cache/commit/7e27612860772c2215c17c3c6ad771b9f553625c))
+
 ## [0.7.0](https://github.com/fbosch/docs-cache/compare/v0.6.0...v0.7.0) (2026-07-15)
 
 
