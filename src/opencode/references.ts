@@ -93,6 +93,8 @@ const buildReference = (
 
 const isCanonicalReference = (value: unknown, reference: Reference) =>
 	isRecord(value) &&
+	Object.hasOwn(value, "path") &&
+	Object.hasOwn(value, "description") &&
 	Object.keys(value).length === 2 &&
 	value.path === reference.path &&
 	value.description === reference.description;
