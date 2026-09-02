@@ -42,11 +42,7 @@ test("matching OpenCode references are adopted without local ownership", async (
 			"MitKommuneKredit-Wiki": {
 				description:
 					"Use for documentation from example/customer-portal-wiki. Start with TOC.md.",
-				path: referencePath(
-					openCodePath,
-					cacheDir,
-					"MitKommuneKredit-Wiki",
-				),
+				path: referencePath(openCodePath, cacheDir, "MitKommuneKredit-Wiki"),
 			},
 		};
 		const original = `${JSON.stringify({ references }, null, "\t")}\n`;
