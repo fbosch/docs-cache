@@ -91,13 +91,14 @@ const buildReference = (
 	description: `Use for documentation from ${getRepositoryLabel(source.repo)}.${source.toc === false ? "" : " Start with TOC.md."}`,
 });
 
+const serializeReference = (value: object) =>
+	JSON.stringify(
+		Object.entries(value).sort(([left], [right]) => left.localeCompare(right)),
+	);
+
 const isCanonicalReference = (value: unknown, reference: Reference) =>
 	isRecord(value) &&
-	Object.hasOwn(value, "path") &&
-	Object.hasOwn(value, "description") &&
-	Object.keys(value).length === 2 &&
-	value.path === reference.path &&
-	value.description === reference.description;
+	serializeReference(value) === serializeReference(reference);
 
 const formattingOptionsFor = (raw: string) => {
 	const indentation = raw.match(/\n([\t ]+)"/)?.[1] ?? "\t";
