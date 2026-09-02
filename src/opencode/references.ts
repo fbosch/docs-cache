@@ -91,6 +91,12 @@ const buildReference = (
 	description: `Use for documentation from ${getRepositoryLabel(source.repo)}.${source.toc === false ? "" : " Start with TOC.md."}`,
 });
 
+const isCanonicalReference = (value: unknown, reference: Reference) =>
+	isRecord(value) &&
+	Object.keys(value).length === 2 &&
+	value.path === reference.path &&
+	value.description === reference.description;
+
 const formattingOptionsFor = (raw: string) => {
 	const indentation = raw.match(/\n([\t ]+)"/)?.[1] ?? "\t";
 	return {
@@ -102,12 +108,16 @@ const formattingOptionsFor = (raw: string) => {
 
 const updateReferences = (params: {
 	raw: string;
+	references: Record<string, unknown>;
 	desired: Map<string, Reference>;
 	stale: Set<string>;
 }) => {
 	let next = params.raw;
 	const formattingOptions = formattingOptionsFor(next);
 	for (const [alias, reference] of params.desired) {
+		if (isCanonicalReference(params.references[alias], reference)) {
+			continue;
+		}
 		next = applyEdits(
 			next,
 			modify(next, ["references", alias], reference, { formattingOptions }),
@@ -128,10 +138,7 @@ const findDesiredDrift = (
 ) => {
 	const drift: string[] = [];
 	for (const [alias, reference] of desired) {
-		if (
-			!Object.hasOwn(references, alias) ||
-			JSON.stringify(references[alias]) !== JSON.stringify(reference)
-		) {
+		if (!isCanonicalReference(references[alias], reference)) {
 			drift.push(alias);
 		}
 	}
@@ -166,9 +173,14 @@ const assertNoUserAliasCollisions = (
 	managed: Set<string>,
 	configPath: string,
 ) => {
-	const collisions = Array.from(desired.keys()).filter(
-		(alias) => Object.hasOwn(references, alias) && !managed.has(alias),
-	);
+	const collisions = Array.from(desired)
+		.filter(
+			([alias, reference]) =>
+				Object.hasOwn(references, alias) &&
+				!managed.has(alias) &&
+				!isCanonicalReference(references[alias], reference),
+		)
+		.map(([alias]) => alias);
 	if (collisions.length > 0) {
 		throw new Error(
 			`OpenCode reference alias collision in ${configPath}: ${collisions.join(", ")}. Rename the docs-cache source or remove the user-owned reference.`,
@@ -250,6 +262,7 @@ const buildFileChange = (params: {
 	raw: params.document.raw,
 	next: updateReferences({
 		raw: params.document.raw,
+		references: params.document.references,
 		desired: params.desired,
 		stale: params.stale,
 	}),
